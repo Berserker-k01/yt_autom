@@ -1,0 +1,94 @@
+{
+  "title": "Inflation : simple bosse ou vague de fond ?",
+  "hook": "L'inflation fait un retour fracassant. Mais est-ce juste un feu de paille post-Covid ou les prémices d'une nouvelle ère de hausse des prix durable ?",
+  "sections": [
+    {
+      "title": "L'inflation est de retour",
+      "content": "Après des années d'inflation quasi-absente, 2021 a vu les prix s'envoler partout dans le monde. Dans le G20, l'inflation annuelle est passée de 1,9% en 2020 à 4,7% en 2021 selon l'OCDE. C'est un vrai choc pour beaucoup d'entre nous qui avions oublié ce que c'était que de voir son pouvoir d'achat rogné mois après mois.",
+      "key_points": [
+        "Inflation basse pendant des années",
+        "Brusque hausse en 2021",
+        "Choc du retour de l'inflation"
+      ],
+      "duration_estimate": "2",
+      "interaction_suggestions": [
+        "Vous souvenez-vous de la dernière fois où l'inflation était si haute ?",
+        "Comment vivez-vous cette hausse des prix au quotidien ?"
+      ]
+    },
+    {
+      "title": "Les raisons conjoncturelles",
+      "content": "Si on regarde les causes immédiates de ce retour de l'inflation, on trouve surtout des facteurs temporaires liés à la sortie de la crise du Covid : forte reprise de la demande post-confinements qui a créé des pénuries, problèmes logistiques et hausse des coûts de transport, envolée des prix de l'énergie avec la guerre en Ukraine... Autant d'éléments qui pourraient se résorber et ramener l'inflation à la normale.",
+      "key_points": [
+        "Facteurs post-Covid temporaires",
+        "Reprise, pénuries, logistique",
+        "Prix de l'énergie et géopolitique"
+      ],
+      "duration_estimate": "4",
+      "interaction_suggestions": [
+        "Avez-vous constaté des pénuries ou des problèmes d'approvisionnement ?",
+        "La fin de la crise en Ukraine pourrait-elle faire retomber les prix ?"
+      ]
+    },
+    {
+      "title": "Des tendances de fond inquiétantes",
+      "content": "Mais certains économistes pointent aussi des facteurs plus structurels qui pourraient installer l'inflation dans la durée. Les politiques monétaires très expansionnistes des banques centrales depuis la crise de 2008, avec des taux bas et de la création monétaire, font craindre une inflation durable. La montée des dettes publiques pourrait aussi pousser à tolérer plus d'inflation pour alléger leur poids. La transition énergétique et le vieillissement démographique sont d'autres facteurs inflationnistes de long terme.",
+      "key_points": [
+        "Facteurs structurels d'inflation",
+        "Politiques monétaires expansionnistes",
+        "Endettement élevé",
+        "Transition énergétique",
+        "Vieillissement démographique"
+      ],
+      "duration_estimate": "5",
+      "interaction_suggestions": [
+        "Les banques centrales en ont-elles trop fait ?",
+        "Comment la transition énergétique pourrait nourrir l'inflation ?"
+      ]
+    }
+  ],
+  "conclusion": {
+    "summary": "L'inflation actuelle a des causes conjoncturelles qui pourraient se résorber, mais aussi des racines structurelles inquiétantes. Les banques centrales sont face à un défi complexe pour endiguer la hausse des prix sans casser la croissance.",
+    "call_to_action": "Et vous, pensez-vous que cette inflation est passagère ou partie pour durer ? Comment vous adapter à ce nouveau contexte ? Partagez votre avis dans les commentaires !"
+  },
+  "keywords": [
+    "inflation",
+    "hausse des prix",
+    "pouvoir d'achat",
+    "conjoncture",
+    "structures économiques"
+  ],
+  "timestamps": [
+    {
+      "time": "00:00",
+      "description": "Introduction : le retour de l'inflation"
+    },
+    {
+      "time": "02:00",
+      "description": "Les causes conjoncturelles liées au Covid"
+    },
+    {
+      "time": "06:00",
+      "description": "Les tendances structurelles inflationnistes"
+    },
+    {
+      "time": "11:00",
+      "description": "Conclusion : un phénomène durable ou passager ?"
+    }
+  ],
+  "show_notes": {
+    "sources": [
+      "Données de l'OCDE sur l'inflation",
+      "Analyses d'Olivier Blanchard et Nouriel Roubini"
+    ],
+    "liens_utiles": [
+      "Articles de presse sur les causes de l'inflation",
+      "Explication pédagogique de l'inflation"
+    ],
+    "sujets_connexes": [
+      "Impact de l'inflation sur les inégalités",
+      "Indexation des salaires sur l'inflation"
+    ]
+  },
+  "created_at": "2025-04-14T05:03:57.287507"
+}
