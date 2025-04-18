@@ -63,7 +63,12 @@ function App() {
   const [history, setHistory] = useState({topics: []});
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  const API_BASE = 'http://localhost:5000';
+  // Utiliser l'URL de l'API depuis les variables d'environnement
+  // En développement : localhost:5000, en production : URL Render
+  const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+  
+  // Log pour débugger l'URL de l'API
+  console.log('API URL utilisée:', API_BASE);
 
   // Charger l'historique au chargement de la page
   useEffect(() => {
