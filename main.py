@@ -242,10 +242,16 @@ def save_to_pdf(script_text: str) -> str:
     """Version ultra-basique de sauvegarde en PDF sans problèmes d'encodage."""
     import tempfile
     try:
-        # Configuration pour le PDF avec support des accents
+        # Configuration pour le PDF avec support des accents 
+        # Utiliser explicitement /tmp pour Render (Linux)
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        with tempfile.NamedTemporaryFile(delete=False, suffix=f'_video_{timestamp}.pdf') as tmp:
-            filename = tmp.name
+        if os.name == 'nt':  # Windows
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f'_video_{timestamp}.pdf') as tmp:
+                filename = tmp.name
+        else:  # Linux (Render)
+            filename = f"/tmp/video_{timestamp}.pdf"
+        
+        print(f"Création de PDF à l'emplacement: {filename}")
         
         # Remplacer les caractères problématiques par leurs équivalents simples
         replacements = {
@@ -265,7 +271,7 @@ def save_to_pdf(script_text: str) -> str:
         
         # Création du PDF avec encodage pour les accents
         pdf = FPDF()
-        pdf.add_font('NotoSans', '', 'C:\\Windows\\Fonts\\Arial.ttf', uni=True)
+        # Utiliser une police standard disponible partout au lieu d'un chemin spécifique à Windows
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
         
@@ -310,7 +316,6 @@ def save_to_pdf(script_text: str) -> str:
     except Exception as e:
         print(f"Erreur sauvegarde PDF: {str(e)}")
         return ""
-
 def save_as_text(script: dict, filename: str):
     """Sauvegarde le script en format texte si le PDF échoue."""
     with open(filename, 'w', encoding='utf-8') as f:
