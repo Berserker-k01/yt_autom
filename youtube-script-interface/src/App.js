@@ -248,11 +248,11 @@ function App() {
     step = 0; // On montre juste l'historique
   }
 
-  return (
+    return (
     <div className="App">
       {/* Header avec bouton Historique dans le coin supérieur droit */}
       <div className="app-header" style={{ position: 'relative', marginBottom: 30 }}>
-        <div style={{ position: 'absolute', top: 10, right: 10, zIndex: 10 }}>
+        <div style={{ position: 'absolute', top: 15, right: 15, zIndex: 10 }}>
           <button 
             onClick={() => { 
               fetchHistory();
@@ -260,15 +260,26 @@ function App() {
             }}
             className="btn btn-secondary"
             style={{ 
-              padding: '8px 16px', 
-              borderRadius: 25,
+              padding: '10px 18px', 
+              borderRadius: 30,
               display: 'flex',
               alignItems: 'center',
-              fontSize: 14
+              fontSize: 15,
+              fontWeight: 600,
+              background: activeTab === 'history' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #4f46e5, #3730a3)',
+              color: 'white',
+              border: 'none',
+              boxShadow: '0 4px 10px rgba(0, 0, 0, 0.15)',
+              transition: 'all 0.3s ease',
+              transform: 'translateY(0)',
+              ':hover': {
+                transform: 'translateY(-2px)',
+                boxShadow: '0 6px 15px rgba(0, 0, 0, 0.2)'
+              }
             }}
           >
-            <span style={{ marginRight: 6, fontSize: 18 }}>📚</span>
-            {activeTab === 'history' ? 'Retour' : 'Historique'}
+            <span style={{ marginRight: 10, fontSize: 19 }}>{activeTab === 'history' ? '⬅️' : '📚'}</span>
+            {activeTab === 'history' ? 'Retour à la recherche' : 'Voir l\'historique'}
           </button>
         </div>
         
@@ -320,23 +331,45 @@ function App() {
       )}
       {activeTab === 'history' ? (
         <div>
-          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 14 }}>
+          <div style={{ display: 'flex', alignItems: 'center', marginBottom: 25, justifyContent: 'space-between', padding: '0 20px' }}>
             <button 
               onClick={goBack}
               style={{ 
-                background: '#f8f9fa', 
-                border: '1px solid #dee2e6',
-                borderRadius: 20,
-                padding: '6px 12px',
-                marginRight: 10,
+                background: 'linear-gradient(135deg, #f59e0b, #d97706)', 
+                border: 'none',
+                borderRadius: 25,
+                padding: '12px 22px',
+                marginRight: 15,
                 display: 'flex',
                 alignItems: 'center',
-                cursor: 'pointer'
+                cursor: 'pointer',
+                color: 'white',
+                fontWeight: 600,
+                fontSize: 15,
+                boxShadow: '0 4px 10px rgba(217, 119, 6, 0.3)',
+                transition: 'all 0.3s ease',
+                transform: 'translateY(0)'
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.transform = 'translateY(-2px)';
+                e.currentTarget.style.boxShadow = '0 6px 15px rgba(217, 119, 6, 0.4)';
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 10px rgba(217, 119, 6, 0.3)';
               }}
             >
-              <span style={{ marginRight: 4 }}>⬅️</span> Retour
+              <span style={{ marginRight: 8, fontSize: 16 }}>⬅️</span> Retour à la création
             </button>
-            <h2 style={{ color: '#222', margin: 0 }}>Historique des sujets générés</h2>
+            <h2 style={{ 
+              color: '#1e3a8a', 
+              margin: 0, 
+              fontSize: 24, 
+              fontWeight: 700, 
+              background: 'linear-gradient(135deg, #1e40af, #3b82f6)',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }}>📚 Historique des sujets générés</h2>
           </div>
           {loadingHistory ? (
             <div style={{ textAlign: 'center', padding: 20 }}>Chargement de l'historique...</div>
