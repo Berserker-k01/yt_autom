@@ -65,8 +65,18 @@ def api_generate_script():
     data = request.get_json()
     topic = data.get('topic', '')
     research = data.get('research', '')
+    sources = data.get('sources', [])
+    
+    # Si les sources ne sont pas fournies, essayer de les extraire de la recherche
+    if not sources and research:
+        from main import extract_sources
+        sources = extract_sources(research)
+        
     script = generate_script(topic, research)
-    return jsonify({'script': script})
+    return jsonify({
+        'script': script,
+        'sources': sources
+    })
 
 @app.route('/export-pdf', methods=['POST', 'OPTIONS'])
 def api_export_pdf():
@@ -85,6 +95,8 @@ def api_export_pdf():
     print(f"Données reçues: {data}")
     
     script_text = data.get('script')
+    sources = data.get('sources', [])
+    
     if not script_text:
         print("Erreur: Aucun script fourni")
         return jsonify({'error': 'Aucun script fourni'}), 400
@@ -97,8 +109,10 @@ def api_export_pdf():
             script_text = str(script_text)
     
     print(f"Longueur du script: {len(script_text)} caractères")
+    print(f"Nombre de sources: {len(sources)}")
     
-    filename = save_to_pdf(script_text)
+    # Passage des sources à la fonction save_to_pdf
+    filename = save_to_pdf(script_text, sources)
     if not filename or not os.path.exists(filename):
         print("Erreur: Impossible de générer le PDF")
         return jsonify({'error': 'Erreur lors de la génération du PDF'}), 500
