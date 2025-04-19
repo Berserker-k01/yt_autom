@@ -159,6 +159,21 @@ def api_export_pdf():
 def api_get_history():
     history = load_history()
     return jsonify(history)
+    
+@app.route('/', methods=['GET'])
+def index():
+    """Route racine pour vérifier que l'API est en marche"""
+    return jsonify({
+        "status": "ok",
+        "message": "API YouTube Script Generator est opérationnelle",
+        "routes": [
+            "/generate-topics - Générer des sujets tendance",
+            "/generate-script - Générer un script",
+            "/export-pdf - Exporter un script en PDF",
+            "/topics-history - Consulter l'historique des sujets"
+        ],
+        "version": "1.0"
+    })
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
