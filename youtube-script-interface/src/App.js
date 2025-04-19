@@ -63,14 +63,20 @@ function App() {
   const [history, setHistory] = useState({topics: []});
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Utiliser l'URL de l'API depuis les variables d'environnement
-  // En développement : localhost:5000, en production : URL Render
-  const API_BASE = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+/ SOLUTION DE CONTOURNEMENT : URL codée en dur pour le déploiement
+  // ⚠️ IMPORTANT : Remplacez cette URL par l'URL réelle de votre backend sur Render
+  // Par exemple : const BACKEND_URL_PRODUCTION = 'https://youtube-script-api-xyz.onrender.com';
+  const BACKEND_URL_PRODUCTION = 'https://yt-autom.onrender.com/';
+  
+  // Détecter si nous sommes en production (déployé sur Render) ou en développement local
+  const isProduction = window.location.hostname !== 'localhost';
+  
+  // Choisir l'URL de l'API en fonction de l'environnement
+  const API_BASE = isProduction ? BACKEND_URL_PRODUCTION : 'http://localhost:5000';
   
   // Log pour débugger l'URL de l'API
+  console.log('Environnement:', isProduction ? 'PRODUCTION' : 'DÉVELOPPEMENT');
   console.log('API URL utilisée:', API_BASE);
-
-  // Charger l'historique au chargement de la page
   useEffect(() => {
     fetchHistory();
   }, []);
