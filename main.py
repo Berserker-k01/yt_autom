@@ -114,7 +114,13 @@ def generate_topics(theme: str, num_topics: int = 5) -> list:
         print("Aucun résultat de recherche trouvé")
         return []
     
-    print("Génération des sujets avec Gemini...")
+    # Extrait les sources des résultats de recherche
+    sources = extract_sources(search_results)
+    print(f"\n{len(sources)} sources trouvées:")
+    for i, source in enumerate(sources, 1):
+        print(f"[{i}] {source}")
+    
+    print("\nGénération des sujets avec Gemini...")
     topics_prompt = f"""
 Tu es un expert en création de contenu YouTube francophone, spécialiste de la viralité et de l'actualité.
 Pour le thème "{theme}", propose-moi {num_topics} sujets de vidéos YouTube qui sont :
@@ -160,6 +166,11 @@ Ne génère RIEN d'autre que ce JSON. Pas d'explications, pas de texte avant ou 
         if not topics:
             print("Erreur: Aucun sujet trouvé dans la réponse")
             return []
+        
+        # Ajouter les sources à chaque sujet généré
+        sources = extract_sources(search_results)
+        for topic in topics:
+            topic['sources'] = sources
             
         print(f"\n{len(topics)} sujets générés avec succès")
         return topics[:num_topics]
@@ -168,6 +179,16 @@ Ne génère RIEN d'autre que ce JSON. Pas d'explications, pas de texte avant ou 
         print(f"Erreur: Réponse JSON invalide - {str(e)}")
         print(f"Début de la réponse reçue: {response[:200]}...")
         return []
+
+def extract_sources(research_text: str) -> list:
+    """Extrait les sources depuis un texte de recherche."""
+    sources = []
+    lines = research_text.split('\n')
+    for line in lines:
+        if line.startswith("Source: "):
+            source_url = line.replace("Source: ", "").strip()
+            sources.append(source_url)
+    return sources
 
 def analyze_topic_potential(topic: str) -> dict:
     """Analyse le potentiel d'un sujet en utilisant SerpAPI + Gemini."""
@@ -238,8 +259,8 @@ Commence directement par le [HOOK] puis enchaîne les sections comme dans l’ex
     print(f"DEBUG: Réponse Gemini (100 premiers caractères): {response[:100] if response else 'Vide'}")
     return response.strip() if response else ""
 
-def save_to_pdf(script_text: str) -> str:
-    """Version ultra-basique de sauvegarde en PDF sans problèmes d'encodage."""
+def save_to_pdf(script_text: str, sources: list = None) -> str:
+    """Version améliorée de sauvegarde en PDF avec sources et système d'indexation."""
     import tempfile
     try:
         # Configuration pour le PDF avec support des accents 
@@ -309,8 +330,43 @@ def save_to_pdf(script_text: str) -> str:
                     pdf.multi_cell(0, 8, "[Texte avec caracteres speciaux non affiches]")
             
         # Sauvegarde avec encodage
+        # Ajouter une section pour les sources s'il y en a
+        if sources and len(sources) > 0:
+            pdf.add_page()
+            
+            # Titre de la section des sources
+            pdf.set_font('Arial', 'B', 16)
+            pdf.cell(0, 10, "Sources et Références", ln=True, align='C')
+            pdf.ln(5)
+            
+            # Liste des sources avec indices
+            pdf.set_font('Arial', '', 12)
+            for i, source in enumerate(sources, 1):
+                pdf.set_font('Arial', 'B', 12)
+                pdf.cell(10, 8, f"[{i}]", ln=0)
+                pdf.set_font('Arial', '', 12)
+                pdf.multi_cell(0, 8, source)
+            
+            # Ajouter un guide d'utilisation
+            pdf.ln(10)
+            pdf.set_font('Arial', 'B', 13)
+            pdf.cell(0, 10, "Guide d'utilisation des références", ln=True)
+            pdf.set_font('Arial', '', 12)
+            pdf.multi_cell(0, 8, "Les sources sont numérotées de [1] à [{0}]. Utilisez ces indices pour retrouver facilement la source correspondante.".format(len(sources)))
+        
+        # Sauvegarde du PDF
         pdf.output(filename, 'F')
         print(f"PDF généré avec succès: {filename}")
+        
+        # Créer aussi un fichier JSON avec les métadonnées
+        meta_filename = filename.replace(".pdf", "_meta.json")
+        with open(meta_filename, 'w', encoding='utf-8') as f:
+            json.dump({
+                "timestamp": timestamp,
+                "sources": sources if sources else [],
+                "source_count": len(sources) if sources else 0
+            }, f, indent=2)
+            
         return filename
         
     except Exception as e:
@@ -371,6 +427,12 @@ def run_workflow(theme: str = None) -> list:
         print(f"{i}. {topic_data['title']}")
         print(f"   Angle: {topic_data['angle']}")
         print(f"   Pourquoi: {topic_data['why_interesting']}")
+        
+        # Afficher les sources pour ce sujet
+        if 'sources' in topic_data and topic_data['sources']:
+            print(f"   Sources ({len(topic_data['sources'])}):") 
+            for j, source in enumerate(topic_data['sources'], 1):
+                print(f"      [{j}] {source}")
         print()  # Ligne vide pour la lisibilité
         
         # Analyse le potentiel du sujet
@@ -427,10 +489,14 @@ Maintenant, examinons les impacts concrets et les chiffres qui montrent l'import
 [CONCLUSION]
 N'oubliez pas de liker cette vidéo et de vous abonner pour plus de contenu comme celui-ci!"""
                 
-            # Génération du PDF
-            filename = save_to_pdf(script_text)
+            # Récupération des sources
+            sources = selected_topic.get('sources', [])
+            
+            # Génération du PDF avec les sources
+            filename = save_to_pdf(script_text, sources)
             if filename:
                 print(f"\nScript généré et sauvegardé: {filename}")
+                print(f"Sources incluses dans le PDF: {len(sources)}")
             else:
                 print("\nÉchec de la génération du PDF")
             
