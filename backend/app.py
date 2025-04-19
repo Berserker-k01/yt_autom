@@ -41,42 +41,59 @@ def save_history(history):
 
 @app.route('/generate-topics', methods=['POST'])
 def api_generate_topics():
-    data = request.get_json()
-    theme = data.get('theme', '')
-    num_topics = int(data.get('num_topics', 5))
-    topics = generate_topics(theme, num_topics)
-    
-    # Enregistrer dans l'historique
-    if topics:
-        history = load_history()
-        # Ajouter les nouveaux sujets avec timestamp et thème
-        entry = {
-            "theme": theme,
-            "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            "topics": topics
-        }
-        history['topics'].append(entry)
-        save_history(history)
-    
-    return jsonify({'topics': topics})
+    try:
+        data = request.get_json()
+        theme = data.get('theme', '')
+        num_topics = int(data.get('num_topics', 5))
+        topics = generate_topics(theme, num_topics)
+        
+        # Enregistrer dans l'historique
+        if topics:
+            history = load_history()
+            # Ajouter les nouveaux sujets avec timestamp et thème
+            entry = {
+                "theme": theme,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "topics": topics
+            }
+            history['topics'].append(entry)
+            save_history(history)
+        
+        # Nettoyer la mémoire après génération des sujets
+        cleanup_memory()
+        
+        return jsonify({'topics': topics})
+    except Exception as e:
+        print(f"Erreur lors de la génération des sujets: {e}")
+        cleanup_memory()  # Nettoyer en cas d'erreur aussi
+        return jsonify({'error': str(e), 'topics': []}), 500
 
 @app.route('/generate-script', methods=['POST'])
 def api_generate_script():
-    data = request.get_json()
-    topic = data.get('topic', '')
-    research = data.get('research', '')
-    sources = data.get('sources', [])
-    
-    # Si les sources ne sont pas fournies, essayer de les extraire de la recherche
-    if not sources and research:
-        from main import extract_sources
-        sources = extract_sources(research)
+    try:
+        data = request.get_json()
+        topic = data.get('topic', '')
+        research = data.get('research', '')
+        sources = data.get('sources', [])
         
-    script = generate_script(topic, research)
-    return jsonify({
-        'script': script,
-        'sources': sources
-    })
+        # Si les sources ne sont pas fournies, essayer de les extraire de la recherche
+        if not sources and research:
+            from main import extract_sources
+            sources = extract_sources(research)
+            
+        script = generate_script(topic, research)
+        
+        # Nettoyer la mémoire après génération du script
+        cleanup_memory()
+        
+        return jsonify({
+            'script': script,
+            'sources': sources
+        })
+    except Exception as e:
+        print(f"Erreur lors de la génération du script: {e}")
+        cleanup_memory()  # Nettoyer en cas d'erreur aussi
+        return jsonify({'error': str(e)}), 500
 
 @app.route('/export-pdf', methods=['POST', 'OPTIONS'])
 def api_export_pdf():
@@ -155,7 +172,7 @@ def api_export_pdf():
         
         print("Envoi du PDF en cours")
         
-        # Nettoyage du fichier temporaire après envoi
+        # Nettoyer le fichier temporaire après envoi
         @response.call_on_close
         def cleanup():
             try:
@@ -163,6 +180,9 @@ def api_export_pdf():
                 print(f"Fichier temporaire supprimé: {filename}")
             except Exception as e:
                 print(f"Erreur lors de la suppression du fichier temporaire: {e}")
+            # Libérer la mémoire
+            cleanup_memory()
+            print("Mémoire nettoyée après export PDF")
                 
         return response
     except Exception as e:
@@ -189,5 +209,17 @@ def index():
         "version": "1.0"
     })
 
+# Configuration pour optimiser la mémoire sur le serveur
+def cleanup_memory():
+    """Libère la mémoire en forçant le garbage collector"""
+    import gc
+    gc.collect()
+
+# Configurer le nombre de workers pour Gunicorn (si utilisé)
+# Utiliser 2-4 workers au lieu du nombre de processeurs
+import multiprocessing
+workers = min(multiprocessing.cpu_count(), 2)
+
 if __name__ == '__main__':
-    app.run(host='0.0.0.0', port=5000, debug=True)
+    # Configuration pour un serveur de développement léger
+    app.run(host='0.0.0.0', port=5000, debug=True, threaded=True, processes=1)
