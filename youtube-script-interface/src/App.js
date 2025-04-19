@@ -63,7 +63,7 @@ function App() {
   const [history, setHistory] = useState({topics: []});
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-/ SOLUTION DE CONTOURNEMENT : URL codée en dur pour le déploiement
+  // SOLUTION DE CONTOURNEMENT : URL codée en dur pour le déploiement
   // ⚠️ IMPORTANT : Remplacez cette URL par l'URL réelle de votre backend sur Render
   // Par exemple : const BACKEND_URL_PRODUCTION = 'https://youtube-script-api-xyz.onrender.com';
   const BACKEND_URL_PRODUCTION = 'https://yt-autom.onrender.com/';
