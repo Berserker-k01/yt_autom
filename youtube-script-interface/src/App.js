@@ -8,6 +8,8 @@ import Login from './components/auth/Login';
 import Register from './components/auth/Register';
 import LoginSimple from './components/auth/LoginSimple';
 import RegisterSimple from './components/auth/RegisterSimple';
+import DirectAccess from './components/auth/DirectAccess';
+import DirectDashboard from './components/dashboard/DirectDashboard';
 import ProtectedRoute from './components/auth/ProtectedRoute';
 
 // Composants de pages
@@ -931,34 +933,31 @@ function App() {
     <AuthProvider>
       <Router>
         <div className="App">
-          <Header />
           <main className="app-main">
             <Routes>
-              {/* Routes publiques */}
-              <Route path="/" element={<HomePage />} />
+              {/* Route par défaut vers l'accès direct - SOLUTION RADICALE */}
+              <Route path="/" element={<Navigate to="/direct-access" />} />
               
-              {/* Les routes simplifiées sont maintenant les routes principales */}
-              <Route path="/login" element={<Navigate to="/login-simple" />} />
-              <Route path="/register" element={<Navigate to="/register-simple" />} />
+              {/* Accès direct sans authentification */}
+              <Route path="/direct-access" element={<DirectAccess />} />
+              <Route path="/dashboard-direct" element={<DirectDashboard />} />
               
-              {/* Routes d'authentification simplifiées */}
-              <Route path="/login-simple" element={<LoginSimple />} />
-              <Route path="/register-simple" element={<RegisterSimple />} />
+              {/* Les anciennes routes redirigent vers l'accès direct */}
+              <Route path="/login" element={<Navigate to="/direct-access" />} />
+              <Route path="/register" element={<Navigate to="/direct-access" />} />
+              <Route path="/login-simple" element={<Navigate to="/direct-access" />} />
+              <Route path="/register-simple" element={<Navigate to="/direct-access" />} />
+              <Route path="/dashboard" element={<Navigate to="/dashboard-direct" />} />
               
-              {/* Routes de profil */}
-              <Route path="/profile-setup" element={<Navigate to="/profile-setup-simple" />} />
-              <Route path="/profile-setup-simple" element={<ProfileSetupSimple />} />
+              {/* Routes de profil - redirigées vers le tableau de bord direct */}
+              <Route path="/profile-setup" element={<Navigate to="/direct-access" />} />
+              <Route path="/profile-setup-simple" element={<Navigate to="/direct-access" />} />
               
-              {/* Dashboard principal */}
-              <Route path="/dashboard" element={
-                <div className="dashboard-container">
-                  <Header />
-                  <Dashboard />
-                </div>
-              } />
+              {/* Page d'accueil ancienne */}
+              <Route path="/home" element={<HomePage />} />
               
               {/* Redirection par défaut */}
-              <Route path="*" element={<Navigate to="/login-simple" />} />
+              <Route path="*" element={<Navigate to="/direct-access" />} />
             </Routes>
           </main>
           <footer className="app-footer">
