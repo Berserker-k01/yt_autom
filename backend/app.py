@@ -476,8 +476,17 @@ def get_current_user():
     })
 
 # Route simplifiée pour la configuration du profil (sans authentification)
-@app.route('/api/setup-profile-simple', methods=['POST'])
+@app.route('/api/setup-profile-simple', methods=['POST', 'OPTIONS'])
 def setup_profile_simple():
+    # Gestion des requêtes OPTIONS pour CORS preflight
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Accept')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
+        
     try:
         data = request.get_json()
         print(f"Reçu une configuration de profil simplifiée: {data}")
@@ -488,15 +497,84 @@ def setup_profile_simple():
             'profile': data
         })
         
+        # CORS headers pour assurer le fonctionnement cross-origin
+        frontend_url = os.environ.get('FRONTEND_URL', '*')
+        response.headers['Access-Control-Allow-Origin'] = frontend_url
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        
         return response
         
     except Exception as e:
         print(f"Erreur lors de la configuration simplifiée du profil: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f"Erreur lors de la configuration du profil: {str(e)}"}), 500
 
+# Route simplifiée pour l'inscription (sans vérification de doublon)
+@app.route('/api/register-simple', methods=['POST', 'OPTIONS'])
+def register_simple():
+    # Gestion des requêtes OPTIONS pour CORS preflight
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Accept')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
+        
+    try:
+        data = request.get_json()
+        username = data.get('username', '')
+        email = data.get('email', '')
+        
+        print(f"Tentative d'inscription simplifiée pour: {email} / {username}")
+        
+        # Créer un utilisateur fictif pour une inscription directe
+        user_data = {
+            'id': 1,
+            'username': username or email.split('@')[0],
+            'email': email,
+            'setupRequired': True
+        }
+        
+        response = jsonify({
+            'message': 'Inscription réussie (mode simplifié)',
+            'user': user_data,
+            'auth': True,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        })
+        
+        # CORS headers pour assurer le fonctionnement cross-origin
+        frontend_url = os.environ.get('FRONTEND_URL', '*')
+        response.headers['Access-Control-Allow-Origin'] = frontend_url
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        
+        # Cookies pour l'authentification en mode simplifié
+        session['_user_id'] = '1'  # Simuler une session Flask-Login
+        response.set_cookie('logged_in_user', '1', httponly=False, samesite='Lax', max_age=86400)
+        response.set_cookie('auth_mode', 'simple', httponly=False, samesite='Lax', max_age=86400)
+        
+        print("Inscription simplifiée réussie, cookies définis")
+        return response
+    
+    except Exception as e:
+        print(f"Erreur lors de l'inscription simplifiée: {e}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f"Erreur lors de l'inscription: {str(e)}"}), 500
+
 # Route simplifiée pour la connexion (sans vérification de mot de passe)
-@app.route('/api/login-simple', methods=['POST'])
+@app.route('/api/login-simple', methods=['POST', 'OPTIONS'])
 def login_simple():
+    # Gestion des requêtes OPTIONS pour CORS preflight
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        response.headers.add('Access-Control-Allow-Origin', '*')
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Accept')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
+        
     try:
         data = request.get_json()
         email = data.get('email', '')
@@ -504,26 +582,43 @@ def login_simple():
         print(f"Tentative de connexion simplifiée pour: {email}")
         
         # Créer un utilisateur fictif pour une connexion directe
+        username = email.split('@')[0] if '@' in email else email
         user_data = {
             'id': 1,
-            'username': email.split('@')[0] if '@' in email else email,
+            'username': username,
             'email': email,
-            'setupRequired': False
+            'setupRequired': False,
+            'profile': {
+                'channel_name': 'Votre chaîne',
+                'youtuber_name': username,
+                'setup_completed': True
+            }
         }
         
         response = jsonify({
             'message': 'Connexion réussie (mode simplifié)',
             'user': user_data,
-            'auth': True
+            'auth': True,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
         
-        # Définir un cookie pour simuler l'authentification
-        response.set_cookie('logged_in_user', '1', httponly=False, samesite='Lax', max_age=86400)
+        # CORS headers pour assurer le fonctionnement cross-origin
+        frontend_url = os.environ.get('FRONTEND_URL', '*')
+        response.headers['Access-Control-Allow-Origin'] = frontend_url
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
         
+        # Cookies pour l'authentification en mode simplifié
+        session['_user_id'] = '1'  # Simuler une session Flask-Login
+        response.set_cookie('logged_in_user', '1', httponly=False, samesite='Lax', max_age=86400)
+        response.set_cookie('auth_mode', 'simple', httponly=False, samesite='Lax', max_age=86400)
+        
+        print("Connexion simplifiée réussie, cookies définis")
         return response
     
     except Exception as e:
         print(f"Erreur lors de la connexion simplifiée: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f"Erreur lors de la connexion: {str(e)}"}), 500
 
 # Initialiser la base de données et démarrer l'application
