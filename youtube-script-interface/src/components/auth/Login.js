@@ -17,9 +17,20 @@ const Login = () => {
     setLoading(true);
     
     try {
-      await login(email, password);
-      navigate('/dashboard');
+      console.log(`Tentative de connexion avec: ${email}`);
+      const response = await login(email, password);
+      console.log('Réponse connexion:', response);
+      
+      // Déterminer où rediriger l'utilisateur
+      if (response && response.user && response.user.setupRequired) {
+        console.log('Redirection vers la page de configuration du profil');
+        navigate('/profile-setup');
+      } else {
+        console.log('Redirection vers le tableau de bord');
+        navigate('/dashboard');
+      }
     } catch (err) {
+      console.error('Erreur de connexion:', err.response?.data || err.message);
       setError(err.response?.data?.error || 'Échec de la connexion. Vérifiez vos identifiants.');
     } finally {
       setLoading(false);

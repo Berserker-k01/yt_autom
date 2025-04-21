@@ -31,15 +31,16 @@ const Register = () => {
     setLoading(true);
     
     try {
+      console.log('Tentative d\'inscription avec:', username, email);
       const response = await register(username, email, password);
+      console.log('Réponse d\'inscription:', response);
       
-      // Si l'inscription réussit et que le profil doit être configuré
-      if (response.setupRequired) {
-        navigate('/profile-setup');
-      } else {
-        navigate('/dashboard');
-      }
+      // Force la redirection vers la page de configuration du profil
+      // quelle que soit la réponse du backend
+      console.log('Redirection vers le formulaire de profil après inscription');
+      navigate('/profile-setup');
     } catch (err) {
+      console.error('Erreur lors de l\'inscription:', err);
       setError(err.response?.data?.error || 'Échec de l\'inscription. Veuillez réessayer.');
     } finally {
       setLoading(false);

@@ -54,22 +54,24 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       setLoading(true);
 
+      console.log(`Tentative d'inscription à ${API_BASE}/api/register avec ${username}, ${email}`);
       const response = await axios.post(
         `${API_BASE}/api/register`,
         { username, email, password },
         { withCredentials: true }
       );
 
-      // Si inscription réussie, on garde l'utilisateur en mémoire
-      setUser(response.data);
+      console.log('Réponse inscription:', response.data);
       
-      // Enregistrer le token dans un cookie
-      if (response.data.token) {
-        Cookies.set('auth_token', response.data.token, { expires: 7 }); // Cookie expire dans 7 jours
+      // Si inscription réussie, on garde l'utilisateur en mémoire
+      if (response.data && response.data.user) {
+        setUser(response.data.user);
+        console.log('Utilisateur défini après inscription:', response.data.user);
       }
 
       return response.data;
     } catch (err) {
+      console.error('Erreur d\'inscription:', err.response?.data || err.message);
       setError(err.response?.data?.error || 'Erreur lors de l\'inscription');
       throw err;
     } finally {
@@ -83,22 +85,30 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       setLoading(true);
 
+      console.log(`Tentative de connexion à ${API_BASE}/api/login avec ${email}`);
       const response = await axios.post(
         `${API_BASE}/api/login`,
         { email, password },
-        { withCredentials: true }
+        { 
+          withCredentials: true,
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          }
+        }
       );
 
-      // Si connexion réussie, on garde l'utilisateur en mémoire
-      setUser(response.data);
+      console.log('Réponse connexion:', response.data);
       
-      // Enregistrer le token dans un cookie
-      if (response.data.token) {
-        Cookies.set('auth_token', response.data.token, { expires: 7 }); // Cookie expire dans 7 jours
+      // Si connexion réussie, on garde l'utilisateur en mémoire
+      if (response.data && response.data.user) {
+        setUser(response.data.user);
+        console.log('Utilisateur défini après connexion:', response.data.user);
       }
 
       return response.data;
     } catch (err) {
+      console.error('Erreur de connexion:', err.response?.data || err.message);
       setError(err.response?.data?.error || 'Identifiants incorrects');
       throw err;
     } finally {
@@ -133,18 +143,15 @@ export const AuthProvider = ({ children }) => {
       setError(null);
       setLoading(true);
 
-      const config = {
-        headers: {
-          Authorization: `Bearer ${Cookies.get('auth_token')}`,
-        },
-        withCredentials: true,
-      };
+      console.log(`Configuration du profil avec: `, profileData);
 
       const response = await axios.post(
-        `${API_BASE}/api/profile/setup`,
+        `${API_BASE}/api/setup-profile`,  // URL corrigée pour correspondre au backend
         profileData,
-        config
+        { withCredentials: true }
       );
+
+      console.log('Réponse setup profil:', response.data);
 
       // Mettre à jour l'utilisateur avec le setup complété
       setUser(prev => ({
@@ -155,6 +162,7 @@ export const AuthProvider = ({ children }) => {
 
       return response.data;
     } catch (err) {
+      console.error('Erreur de configuration profil:', err.response?.data || err.message);
       setError(err.response?.data?.error || 'Erreur lors de la configuration du profil');
       throw err;
     } finally {
@@ -173,6 +181,7 @@ export const AuthProvider = ({ children }) => {
     setupProfile,
     isAuthenticated: !!user,
     needsSetup: user?.setupRequired,
+    API_BASE // Exporte l'URL de l'API pour utilisation dans les composants
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

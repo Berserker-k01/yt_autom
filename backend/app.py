@@ -291,29 +291,49 @@ def register():
 @app.route('/api/login', methods=['POST'])
 def login():
     try:
+        print("Tentative de connexion...")
+        # Afficher les en-têtes pour déboguer les problèmes CORS
+        print(f"En-têtes de la requête: {request.headers}")
+        
         data = request.get_json()
+        print(f"Données reçues: {data}")
+        
         email = data.get('email')
         password = data.get('password')
         remember = data.get('remember', False)
         
+        print(f"Email: {email}, Remember: {remember}")
+        
         # Vérification des données requises
         if not all([email, password]):
+            print("Données manquantes dans la requête")
             return jsonify({'error': 'Email et mot de passe requis'}), 400
             
         # Chercher l'utilisateur
         user = User.query.filter_by(email=email).first()
+        print(f"Utilisateur trouvé: {user is not None}")
         
         # Vérifier le mot de passe
-        if not user or not user.check_password(password):
+        if not user:
+            print("Utilisateur non trouvé")
+            return jsonify({'error': 'Email ou mot de passe incorrect'}), 401
+            
+        if not user.check_password(password):
+            print("Mot de passe incorrect")
             return jsonify({'error': 'Email ou mot de passe incorrect'}), 401
             
         # Connecter l'utilisateur
+        print("Connexion de l'utilisateur...")
         login_user(user, remember=remember)
+        print(f"Utilisateur connecté: {current_user.is_authenticated}")
         
         # Vérifier si le profil est configuré
-        setup_required = not user.profile.setup_completed if user.profile else True
+        setup_required = True
+        if user.profile:
+            setup_required = not user.profile.setup_completed
+        print(f"Configuration requise: {setup_required}")
         
-        return jsonify({
+        response = jsonify({
             'message': 'Connexion réussie',
             'user': {
                 'id': user.id,
@@ -323,8 +343,16 @@ def login():
             }
         })
         
+        # Ajouter le cookie de session manuellement si nécessaire
+        # response.set_cookie('session', session.sid, httponly=True, samesite='Lax')
+        
+        print("Réponse de connexion envoyée avec succès")
+        return response
+        
     except Exception as e:
         print(f"Erreur lors de la connexion: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({'error': f"Erreur lors de la connexion: {str(e)}"}), 500
 
 @app.route('/api/logout', methods=['POST'])
