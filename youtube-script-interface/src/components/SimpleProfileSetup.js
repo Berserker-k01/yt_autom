@@ -16,16 +16,13 @@ const SimpleProfileSetup = () => {
   // Informations du profil
   const [youtuberName, setYoutuberName] = useState('');
   const [channelName, setChannelName] = useState('');
-  const [language, setLanguage] = useState('fr');
-  const [contentType, setContentType] = useState('tech');
-  const [audienceAge, setAudienceAge] = useState('18-24');
-  const [contentStyle, setContentStyle] = useState('informative');
+  const [language, setLanguage] = useState('');
+  const [contentType, setContentType] = useState('');
+  const [audienceAge, setAudienceAge] = useState('');
+  const [contentStyle, setContentStyle] = useState('');
   
   // Nouvelles options personnalisées par l'utilisateur
   const [customOptions, setCustomOptions] = useState({});
-  const [showCustomInput, setShowCustomInput] = useState({});
-  const [customContentType, setCustomContentType] = useState('');
-  const [customContentStyle, setCustomContentStyle] = useState('');
   
   // État pour vérifier si le profil a déjà été configuré
   const [profileAlreadyConfigured, setProfileAlreadyConfigured] = useState(false);
@@ -44,27 +41,10 @@ const SimpleProfileSetup = () => {
         const profile = JSON.parse(savedProfile);
         setYoutuberName(profile.youtuber_name || '');
         setChannelName(profile.channel_name || '');
-        setLanguage(profile.language || 'fr');
-        
-        // Gestion des types personnalisés
-        if (profile.content_type && profile.content_type.startsWith('custom_')) {
-          setContentType('other');
-          setCustomContentType(profile.content_type.replace('custom_', ''));
-          setShowCustomInput(prev => ({ ...prev, contentType: true }));
-        } else {
-          setContentType(profile.content_type || 'tech');
-        }
-        
-        setAudienceAge(profile.audience_age || '18-24');
-        
-        // Gestion des styles personnalisés
-        if (profile.content_style && profile.content_style.startsWith('custom_')) {
-          setContentStyle('other');
-          setCustomContentStyle(profile.content_style.replace('custom_', ''));
-          setShowCustomInput(prev => ({ ...prev, contentStyle: true }));
-        } else {
-          setContentStyle(profile.content_style || 'informative');
-        }
+        setLanguage(profile.language || '');
+        setContentType(profile.content_type || '');
+        setAudienceAge(profile.audience_age || '');
+        setContentStyle(profile.content_style || '');
         
         // Charger les options personnalisées si elles existent
         if (profile.custom_options) {
@@ -81,25 +61,16 @@ const SimpleProfileSetup = () => {
     setError(null);
     setLoading(true);
     
-    // Gérer les valeurs personnalisées
-    let finalContentType = contentType;
-    if (contentType === 'other' && customContentType) {
-      finalContentType = `custom_${customContentType}`;
-    }
-    
-    let finalContentStyle = contentStyle;
-    if (contentStyle === 'other' && customContentStyle) {
-      finalContentStyle = `custom_${customContentStyle}`;
-    }
+    // Toutes les valeurs sont maintenant directement utilisées telles quelles
     
     // Créer l'objet profil
     const profileData = {
       youtuber_name: youtuberName,
       channel_name: channelName,
       language,
-      content_type: finalContentType,
+      content_type: contentType,
       audience_age: audienceAge,
-      content_style: finalContentStyle,
+      content_style: contentStyle,
       custom_options: customOptions
     };
     
@@ -131,17 +102,13 @@ const SimpleProfileSetup = () => {
     }
   };
   
-  // Gérer les changements dans les sélections pour afficher les champs personnalisés
+  // Simples gestionnaires pour les champs de texte
   const handleContentTypeChange = (e) => {
-    const value = e.target.value;
-    setContentType(value);
-    setShowCustomInput(prev => ({ ...prev, contentType: value === 'other' }));
+    setContentType(e.target.value);
   };
   
   const handleContentStyleChange = (e) => {
-    const value = e.target.value;
-    setContentStyle(value);
-    setShowCustomInput(prev => ({ ...prev, contentStyle: value === 'other' }));
+    setContentStyle(e.target.value);
   };
   
   // Ajouter une nouvelle préférence personnalisée
@@ -296,16 +263,16 @@ const SimpleProfileSetup = () => {
             variants={formControls}
           >
             <label htmlFor="language">Langue principale</label>
-            <select
-              id="language"
-              value={language}
-              onChange={(e) => setLanguage(e.target.value)}
-            >
-              <option value="fr">Français</option>
-              <option value="en">Anglais</option>
-              <option value="es">Espagnol</option>
-              <option value="de">Allemand</option>
-            </select>
+            <div className="input-with-icon">
+              <input
+                type="text"
+                id="language"
+                value={language}
+                onChange={(e) => setLanguage(e.target.value)}
+                placeholder="Entrez votre langue principale (ex: Français, Anglais...)"
+              />
+              <span className="input-icon">🌐</span>
+            </div>
           </motion.div>
           
           <motion.div 
@@ -316,37 +283,16 @@ const SimpleProfileSetup = () => {
             variants={formControls}
           >
             <label htmlFor="contentType">Type de contenu</label>
-            <select
-              id="contentType"
-              value={contentType}
-              onChange={handleContentTypeChange}
-            >
-              <option value="tech">Technologie</option>
-              <option value="gaming">Jeux vidéo</option>
-              <option value="lifestyle">Mode de vie</option>
-              <option value="education">Éducation</option>
-              <option value="entertainment">Divertissement</option>
-              <option value="business">Business</option>
-              <option value="other">Autre (personnalisé)</option>
-            </select>
-            
-            {showCustomInput.contentType && (
-              <motion.div 
-                className="custom-input"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <input
-                  type="text"
-                  value={customContentType}
-                  onChange={(e) => setCustomContentType(e.target.value)}
-                  placeholder="Précisez votre type de contenu"
-                  className="custom-field"
-                />
-              </motion.div>
-            )}
+            <div className="input-with-icon">
+              <input
+                type="text"
+                id="contentType"
+                value={contentType}
+                onChange={handleContentTypeChange}
+                placeholder="Entrez votre type de contenu (ex: Technologie, Jeux vidéo...)"
+              />
+              <span className="input-icon">📊</span>
+            </div>
           </motion.div>
           
           <motion.div 
@@ -357,17 +303,16 @@ const SimpleProfileSetup = () => {
             variants={formControls}
           >
             <label htmlFor="audienceAge">Âge de votre audience cible</label>
-            <select
-              id="audienceAge"
-              value={audienceAge}
-              onChange={(e) => setAudienceAge(e.target.value)}
-            >
-              <option value="13-17">13-17 ans</option>
-              <option value="18-24">18-24 ans</option>
-              <option value="25-34">25-34 ans</option>
-              <option value="35-44">35-44 ans</option>
-              <option value="45+">45 ans et plus</option>
-            </select>
+            <div className="input-with-icon">
+              <input
+                type="text"
+                id="audienceAge"
+                value={audienceAge}
+                onChange={(e) => setAudienceAge(e.target.value)}
+                placeholder="Entrez l'âge de votre audience (ex: 18-24, 25-34, Tous âges...)"
+              />
+              <span className="input-icon">👥</span>
+            </div>
           </motion.div>
           
           <motion.div 
@@ -378,36 +323,16 @@ const SimpleProfileSetup = () => {
             variants={formControls}
           >
             <label htmlFor="contentStyle">Style de contenu</label>
-            <select
-              id="contentStyle"
-              value={contentStyle}
-              onChange={handleContentStyleChange}
-            >
-              <option value="informative">Informatif</option>
-              <option value="entertaining">Divertissant</option>
-              <option value="educational">Éducatif</option>
-              <option value="inspiring">Inspirant</option>
-              <option value="controversial">Provocateur</option>
-              <option value="other">Autre (personnalisé)</option>
-            </select>
-            
-            {showCustomInput.contentStyle && (
-              <motion.div 
-                className="custom-input"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <input
-                  type="text"
-                  value={customContentStyle}
-                  onChange={(e) => setCustomContentStyle(e.target.value)}
-                  placeholder="Précisez votre style de contenu"
-                  className="custom-field"
-                />
-              </motion.div>
-            )}
+            <div className="input-with-icon">
+              <input
+                type="text"
+                id="contentStyle"
+                value={contentStyle}
+                onChange={handleContentStyleChange}
+                placeholder="Entrez votre style de contenu (ex: Informatif, Divertissant...)"
+              />
+              <span className="input-icon">🎭</span>
+            </div>
           </motion.div>
           
           <motion.div 

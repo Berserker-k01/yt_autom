@@ -70,12 +70,13 @@ function Dashboard() {
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   // SOLUTION DE CONTOURNEMENT : URL codée en dur pour le déploiement
-  const BACKEND_URL_PRODUCTION = 'https://yt-autom.onrender.com/';
+  const BACKEND_URL_PRODUCTION = 'https://yt-autom.onrender.com';
   
   // Détecter si nous sommes en production (déployé sur Render) ou en développement local
   const isProduction = window.location.hostname !== 'localhost';
   
   // Choisir l'URL de l'API en fonction de l'environnement
+  // S'assurer qu'il n'y a pas de '/' à la fin pour éviter les double-slash dans les URL
   const API_BASE = isProduction ? BACKEND_URL_PRODUCTION : 'http://localhost:5000';
   
   // Log pour débugger l'URL de l'API
@@ -90,12 +91,44 @@ function Dashboard() {
   const fetchHistory = async () => {
     setLoadingHistory(true);
     try {
-      const res = await fetch(`${API_BASE}/topics-history`);
-      const data = await res.json();
-      setHistory(data);
+      // Afficher l'URL complète pour le débogage
+      console.log(`Tentative de récupération de l'historique depuis: ${API_BASE}/topics-history`);
+      
+      // En mode développement, simuler des données d'historique si l'API échoue
+      try {
+        const res = await fetch(`${API_BASE}/topics-history`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        
+        if (!res.ok) {
+          throw new Error(`Erreur de serveur: ${res.status}`);
+        }
+        
+        const data = await res.json();
+        console.log('Historique récupéré avec succès:', data);
+        setHistory(data);
+      } catch (fetchError) {
+        console.warn('Échec de récupération depuis le serveur, utilisation de données simulées:', fetchError.message);
+        
+        // Si en développement, utiliser des données simulées
+        if (window.location.hostname === 'localhost') {
+          console.log('Utilisation de données d\'historique simulées');
+          const mockHistory = {
+            topics: [
+              { id: '1', title: 'Les nouvelles fonctionnalités de l\'IA en 2025', score: 92, date: new Date().toISOString() },
+              { id: '2', title: 'Comment optimiser son temps d\'écran', score: 85, date: new Date().toISOString() },
+              { id: '3', title: 'Les meilleurs gadgets technologiques de l\'année', score: 78, date: new Date().toISOString() }
+            ]
+          };
+          setHistory(mockHistory);
+        } else {
+          throw fetchError; // En production, propager l'erreur
+        }
+      }
     } catch (e) {
       console.error('Erreur lors du chargement de l\'historique:', e);
-      setError('Erreur lors du chargement de l\'historique.');
+      setError('Erreur lors du chargement de l\'historique. Veuillez réessayer.');
     } finally {
       setLoadingHistory(false);
     }
