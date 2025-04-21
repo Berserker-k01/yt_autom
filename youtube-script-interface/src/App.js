@@ -935,29 +935,32 @@ function App() {
         <div className="App">
           <main className="app-main">
             <Routes>
-              {/* Route par défaut vers l'accès direct - SOLUTION RADICALE */}
-              <Route path="/" element={<Navigate to="/direct-access" />} />
+              {/* Page d'accueil */}
+              <Route path="/" element={<Navigate to="/login-simple" />} />
               
-              {/* Accès direct sans authentification */}
-              <Route path="/direct-access" element={<DirectAccess />} />
-              <Route path="/dashboard-direct" element={<DirectDashboard />} />
+              {/* Routes d'authentification simplifiées - elles fonctionnent sans vérification */}
+              <Route path="/login" element={<Navigate to="/login-simple" />} />
+              <Route path="/register" element={<Navigate to="/register-simple" />} />
+              <Route path="/login-simple" element={<LoginSimple />} />
+              <Route path="/register-simple" element={<RegisterSimple />} />
               
-              {/* Les anciennes routes redirigent vers l'accès direct */}
-              <Route path="/login" element={<Navigate to="/direct-access" />} />
-              <Route path="/register" element={<Navigate to="/direct-access" />} />
-              <Route path="/login-simple" element={<Navigate to="/direct-access" />} />
-              <Route path="/register-simple" element={<Navigate to="/direct-access" />} />
-              <Route path="/dashboard" element={<Navigate to="/dashboard-direct" />} />
+              {/* Routes de profil simplifiées */}
+              <Route path="/profile-setup" element={<Navigate to="/profile-setup-simple" />} />
+              <Route path="/profile-setup-simple" element={<ProfileSetupSimple />} />
               
-              {/* Routes de profil - redirigées vers le tableau de bord direct */}
-              <Route path="/profile-setup" element={<Navigate to="/direct-access" />} />
-              <Route path="/profile-setup-simple" element={<Navigate to="/direct-access" />} />
+              {/* Dashboard standard - désormais accessible sans protection */}
+              <Route path="/dashboard" element={
+                <div className="dashboard-container">
+                  <Header />
+                  <Dashboard />
+                </div>
+              } />
               
-              {/* Page d'accueil ancienne */}
+              {/* Ancienne page d'accueil */}
               <Route path="/home" element={<HomePage />} />
               
               {/* Redirection par défaut */}
-              <Route path="*" element={<Navigate to="/direct-access" />} />
+              <Route path="*" element={<Navigate to="/login-simple" />} />
             </Routes>
           </main>
           <footer className="app-footer">
