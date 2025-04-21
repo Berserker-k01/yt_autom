@@ -153,12 +153,20 @@ export const AuthProvider = ({ children }) => {
 
       console.log('Réponse setup profil:', response.data);
 
-      // Mettre à jour l'utilisateur avec le setup complété
-      setUser(prev => ({
-        ...prev,
+      // Mettre à jour l'utilisateur avec le setup complété de manière plus claire
+      const updatedUser = {
+        ...(user || {}), // S'assurer que user existe
         setupRequired: false,
         profile: response.data.profile
-      }));
+      };
+      
+      console.log('Mise à jour de l\'utilisateur après configuration du profil:', updatedUser);
+      setUser(updatedUser);
+
+      // On pourrait aussi vérifier l'état après mise à jour
+      setTimeout(() => {
+        console.log('Utilisateur après mise à jour:', user);
+      }, 100);
 
       return response.data;
     } catch (err) {

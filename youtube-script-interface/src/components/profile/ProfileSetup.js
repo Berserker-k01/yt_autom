@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 
@@ -13,15 +13,24 @@ const ProfileSetup = () => {
   });
   const [error, setError] = useState(null);
   const [loading, setLoading] = useState(false);
+  const [setupComplete, setSetupComplete] = useState(false);
   
   const { setupProfile, user } = useAuth();
   const navigate = useNavigate();
   
-  // Vérifier si l'utilisateur a déjà configuré son profil
-  if (user && !user.setupRequired) {
-    navigate('/dashboard');
-    return null;
-  }
+  // Utiliser useEffect pour la redirection au lieu d'une condition de rendu
+  useEffect(() => {
+    if (user && !user.setupRequired) {
+      console.log('Utilisateur a déjà configuré son profil, redirection vers dashboard');
+      navigate('/dashboard');
+    }
+    
+    // Rediriger vers le tableau de bord si la configuration est terminée
+    if (setupComplete) {
+      console.log('Configuration terminée, redirection vers dashboard');
+      navigate('/dashboard');
+    }
+  }, [user, setupComplete, navigate]);
 
   const handleChange = (e) => {
     const { name, value } = e.target;
@@ -37,9 +46,16 @@ const ProfileSetup = () => {
     setLoading(true);
     
     try {
-      await setupProfile(formData);
-      navigate('/dashboard');
+      console.log('Soumission du formulaire de profil:', formData);
+      const response = await setupProfile(formData);
+      console.log('Réponse de configuration du profil:', response);
+      
+      // Marquer la configuration comme terminée pour déclencher la redirection
+      setSetupComplete(true);
+      
+      // La redirection se fera via useEffect
     } catch (err) {
+      console.error('Erreur lors de la configuration du profil:', err.response?.data || err.message);
       setError(err.response?.data?.error || 'Erreur lors de la configuration du profil');
     } finally {
       setLoading(false);
