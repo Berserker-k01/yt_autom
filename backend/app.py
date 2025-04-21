@@ -19,7 +19,14 @@ app = Flask(__name__)
 
 # Configuration de l'application
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev_key_change_in_production')
-app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///yt_autom.db')
+
+# Configuration spéciale pour PostgreSQL sur Render
+database_url = os.environ.get('DATABASE_URL')
+if database_url and database_url.startswith("postgres://"):
+    database_url = database_url.replace("postgres://", "postgresql://", 1)
+    print(f"URL de base de données adaptée pour SQLAlchemy : {database_url[:20]}...")
+
+app.config['SQLALCHEMY_DATABASE_URI'] = database_url or 'sqlite:///yt_autom.db'
 app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
 app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Session persistante de 7 jours
 
