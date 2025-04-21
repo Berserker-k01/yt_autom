@@ -53,7 +53,11 @@ const ProfileSetup = () => {
       // Marquer la configuration comme terminée pour déclencher la redirection
       setSetupComplete(true);
       
-      // La redirection se fera via useEffect
+      // Forcer une redirection directe au lieu de compter sur useEffect
+      setTimeout(() => {
+        console.log('Redirection forcée vers le tableau de bord');
+        window.location.href = '/dashboard';
+      }, 500);
     } catch (err) {
       console.error('Erreur lors de la configuration du profil:', err.response?.data || err.message);
       setError(err.response?.data?.error || 'Erreur lors de la configuration du profil');

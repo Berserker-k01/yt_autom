@@ -72,15 +72,20 @@ def api_generate_topics():
         # Version simplifiée sans authentification pour le déploiement
         topics = generate_topics(theme, num_topics)
         
-        # Enregistrer dans l'historique
+        # Enregistrer dans l'historique avec l'ID utilisateur si connecté
         if topics:
             history = load_history()
-            # Ajouter les nouveaux sujets avec timestamp et thème
+            # Ajouter les nouveaux sujets avec timestamp, thème et ID utilisateur
             entry = {
                 "theme": theme,
                 "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
                 "topics": topics
             }
+            
+            # Ajouter l'ID utilisateur si l'utilisateur est connecté
+            if current_user.is_authenticated:
+                entry["user_id"] = current_user.id
+                
             history['topics'].append(entry)
             save_history(history)
         
@@ -211,8 +216,20 @@ def api_export_pdf():
 
 @app.route('/topics-history', methods=['GET'])
 def api_get_history():
-    history = load_history()
-    return jsonify(history)
+    # Charger l'historique complet
+    full_history = load_history()
+    
+    # Si l'utilisateur est authentifié, filtrer l'historique pour ne montrer que le sien
+    if current_user.is_authenticated:
+        user_id = current_user.id
+        # Filtrer les entrées avec l'ID utilisateur ou sans ID utilisateur (compatibilité avec anciennes entrées)
+        filtered_topics = [entry for entry in full_history.get('topics', []) 
+                           if entry.get('user_id') == user_id or 'user_id' not in entry]
+        
+        return jsonify({'topics': filtered_topics})
+    else:
+        # Pour les utilisateurs non connectés, retourner un historique vide ou générique
+        return jsonify({'topics': []})
     
 @app.route('/', methods=['GET'])
 def index():
@@ -309,14 +326,14 @@ def login():
             print("Données manquantes dans la requête")
             return jsonify({'error': 'Email et mot de passe requis'}), 400
             
-        # Chercher l'utilisateur
-        user = User.query.filter_by(email=email).first()
+        # Chercher l'utilisateur par email ou nom d'utilisateur
+        user = User.query.filter((User.email == email) | (User.username == email)).first()
         print(f"Utilisateur trouvé: {user is not None}")
         
-        # Vérifier le mot de passe
+        # Vérifier si l'utilisateur existe
         if not user:
             print("Utilisateur non trouvé")
-            return jsonify({'error': 'Email ou mot de passe incorrect'}), 401
+            return jsonify({'error': 'Email, nom d\'utilisateur ou mot de passe incorrect'}), 401
             
         if not user.check_password(password):
             print("Mot de passe incorrect")
