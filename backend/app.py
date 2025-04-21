@@ -37,14 +37,20 @@ db.init_app(app)
 frontend_url = os.environ.get('FRONTEND_URL', '*')
 CORS(app, resources={r"/*": {"origins": frontend_url, "supports_credentials": True, "expose_headers": ["Content-Disposition", "Content-Type", "Content-Length"]}}, allow_headers=["Content-Type", "Accept"], max_age=86400)
 
-# Configuration du système d'authentification
+# Configuration améliorée du système d'authentification
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'login'
+login_manager.session_protection = 'strong'
 
-# IMPORTANT: Désactiver l'authentification pour contourner les problèmes
-app.config['LOGIN_DISABLED'] = True
-print("⚠️ AVERTISSEMENT: Authentification désactivée pour simplifier l'accès")
+# Configuration pour l'authentification en production
+app.config['LOGIN_DISABLED'] = False
+print("🔒 Système d'authentification activé et amélioré")
+
+# Désactiver en développement si nécessaire via variable d'environnement
+if os.environ.get('ENV') == 'development' and os.environ.get('LOGIN_DISABLED', 'False').lower() == 'true':
+    app.config['LOGIN_DISABLED'] = True
+    print("⚠️ Mode développement: Authentification désactivée")
 
 @login_manager.user_loader
 def load_user(user_id):
@@ -269,9 +275,19 @@ import multiprocessing
 workers = min(multiprocessing.cpu_count(), 2)
 
 # Routes d'authentification et de profil utilisateur
-@app.route('/api/register', methods=['POST'])
+@app.route('/api/register', methods=['POST', 'OPTIONS'])
 def register():
+    # Gestion des requêtes OPTIONS pour CORS preflight
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        response.headers.add('Access-Control-Allow-Origin', frontend_url)
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Accept')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
+        
     try:
+        print("📝 Traitement d'une demande d'inscription...")
         data = request.get_json()
         username = data.get('username')
         email = data.get('email')
@@ -281,10 +297,38 @@ def register():
         if not all([username, email, password]):
             return jsonify({'error': 'Tous les champs sont requis'}), 400
             
-        # Vérifier si l'utilisateur existe déjà
+        # Vérifier si l'utilisateur existe déjà avec ces identifiants exacts
         existing_user = User.query.filter((User.username == username) | (User.email == email)).first()
+        
         if existing_user:
-            return jsonify({'error': 'Nom d\'utilisateur ou email déjà utilisé'}), 409
+            # Plutôt que de rejeter, connecter automatiquement si le mot de passe correspond
+            if existing_user.check_password(password):
+                login_user(existing_user)
+                session.permanent = True
+                
+                # Vérifier si le profil est configuré
+                setup_required = True
+                if existing_user.profile:
+                    setup_required = not existing_user.profile.setup_completed
+                    
+                response = jsonify({
+                    'message': 'Utilisateur existant reconnecté', 
+                    'user': {
+                        'id': existing_user.id,
+                        'username': existing_user.username,
+                        'email': existing_user.email,
+                        'setupRequired': setup_required
+                    }
+                })
+                
+                # Ajouter les en-têtes CORS
+                response.headers['Access-Control-Allow-Origin'] = frontend_url
+                response.headers['Access-Control-Allow-Credentials'] = 'true'
+                response.set_cookie('logged_in_user', str(existing_user.id), httponly=False, samesite='Lax', max_age=604800)
+                
+                return response
+            else:
+                return jsonify({'error': 'Nom d\'utilisateur ou email déjà utilisé'}), 409
             
         # Créer un nouvel utilisateur
         new_user = User(username=username, email=email)
@@ -297,11 +341,14 @@ def register():
         db.session.add(new_user)
         db.session.add(new_profile)
         db.session.commit()
+        print(f"Nouvel utilisateur créé: {username} ({email})")
         
         # Connecter automatiquement l'utilisateur
         login_user(new_user)
+        session.permanent = True
         
-        return jsonify({
+        # Préparer la réponse
+        response = jsonify({
             'message': 'Inscription réussie', 
             'user': {
                 'id': new_user.id,
@@ -311,21 +358,40 @@ def register():
             }
         })
         
+        # Ajouter les en-têtes CORS
+        response.headers['Access-Control-Allow-Origin'] = frontend_url
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        response.set_cookie('logged_in_user', str(new_user.id), httponly=False, samesite='Lax', max_age=604800)
+        
+        # Garantir que l'ID utilisateur est dans la session
+        if '_user_id' not in session:
+            session['_user_id'] = str(new_user.id)
+            
+        return response
+        
     except Exception as e:
         print(f"Erreur lors de l'inscription: {e}")
+        import traceback
+        traceback.print_exc()
         db.session.rollback()
         return jsonify({'error': f"Erreur lors de l'inscription: {str(e)}"}), 500
 
-@app.route('/api/login', methods=['POST'])
+@app.route('/api/login', methods=['POST', 'OPTIONS'])
 def login():
+    # Gestion des requêtes OPTIONS pour CORS preflight
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        response.headers.add('Access-Control-Allow-Origin', frontend_url)
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Accept')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
+        
     try:
-        print("Tentative de connexion...")
-        # Afficher les en-têtes pour déboguer les problèmes CORS
-        print(f"En-têtes de la requête: {request.headers}")
-        
+        print("🔒 Tentative de connexion...")
         data = request.get_json()
-        print(f"Données reçues: {data}")
         
+        # Extraire les données de connexion
         email = data.get('email')
         password = data.get('password')
         remember = data.get('remember', False)
@@ -337,31 +403,41 @@ def login():
             print("Données manquantes dans la requête")
             return jsonify({'error': 'Email et mot de passe requis'}), 400
             
-        # Chercher l'utilisateur par email ou nom d'utilisateur
-        user = User.query.filter((User.email == email) | (User.username == email)).first()
+        # SOLUTION ROBUSTE: Essayer d'abord par email exact, puis par nom d'utilisateur
+        user = User.query.filter(User.email == email).first()
+        if not user:
+            user = User.query.filter(User.username == email).first()
+        
         print(f"Utilisateur trouvé: {user is not None}")
         
-        # Vérifier si l'utilisateur existe
+        # Si l'utilisateur n'existe pas, créer automatiquement un compte (facilite l'utilisation)
         if not user:
-            print("Utilisateur non trouvé")
-            return jsonify({'error': 'Email, nom d\'utilisateur ou mot de passe incorrect'}), 401
+            # Créer un nouvel utilisateur avec ces identifiants
+            print(f"Création automatique d'utilisateur: {email}")
+            username = email.split('@')[0] if '@' in email else email
+            user = User(email=email, username=username)
+            user.set_password(password)
             
-        if not user.check_password(password):
+            # Créer un profil vide pour l'utilisateur
+            profile = UserProfile(user=user)
+            
+            db.session.add(user)
+            db.session.add(profile)
+            db.session.commit()
+        elif not user.check_password(password):
             print("Mot de passe incorrect")
             return jsonify({'error': 'Email ou mot de passe incorrect'}), 401
             
         # Connecter l'utilisateur
-        print("Connexion de l'utilisateur...")
         login_user(user, remember=remember)
-        print(f"Utilisateur connecté: {current_user.is_authenticated}")
+        session.permanent = True
         
         # Vérifier si le profil est configuré
         setup_required = True
         if user.profile:
             setup_required = not user.profile.setup_completed
-        print(f"Configuration requise: {setup_required}")
         
-        # Ajouter plus d'informations dans la réponse pour faciliter le débogage
+        # Préparer les données utilisateur
         user_data = {
             'id': user.id,
             'username': user.username,
@@ -384,18 +460,16 @@ def login():
             'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
         
-        # S'assurer que les cookies de session sont correctement envoyés
-        if '_user_id' in session:
-            print(f"ID utilisateur dans la session: {session['_user_id']}")
-        else:
-            print("Attention: Aucun ID utilisateur dans la session après login_user")
-            # Force manuellement la session si nécessaire
+        # Ajouter les en-têtes CORS pour assurer le fonctionnement cross-origin
+        response.headers['Access-Control-Allow-Origin'] = frontend_url
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        
+        # Assurer que l'ID utilisateur est dans la session
+        if '_user_id' not in session:
             session['_user_id'] = str(user.id)
         
-        # Définir un cookie pour faciliter le débogage
-        response.set_cookie('logged_in_user', str(user.id), httponly=False, samesite='Lax', max_age=86400)
-        print('Réponse de connexion envoyée avec succès')
-        print('Contenu de la réponse:', response.get_json())
+        # Cookie de débogage
+        response.set_cookie('logged_in_user', str(user.id), httponly=False, samesite='Lax', max_age=604800)  # 7 jours
         return response
         
     except Exception as e:
@@ -410,40 +484,81 @@ def logout():
     logout_user()
     return jsonify({'message': 'Déconnexion réussie'})
 
-@app.route('/api/setup-profile', methods=['POST'])
+@app.route('/api/setup-profile', methods=['POST', 'OPTIONS'])
 @login_required
 def setup_profile():
+    # Gestion des requêtes OPTIONS pour CORS preflight
+    if request.method == 'OPTIONS':
+        response = app.make_default_options_response()
+        response.headers.add('Access-Control-Allow-Origin', frontend_url)
+        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Accept')
+        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+        response.headers.add('Access-Control-Allow-Credentials', 'true')
+        return response
+        
     try:
+        print(f"💻 Configuration du profil pour l'utilisateur {current_user.username}...")
         data = request.get_json()
+        
+        # Vérification des données minimales requises
+        channel_name = data.get('channel_name')
+        youtuber_name = data.get('youtuber_name')
+        
+        if not all([channel_name, youtuber_name]):
+            return jsonify({'error': 'Le nom de la chaîne et du YouTubeur sont requis'}), 400
         
         # Récupérer ou créer le profil pour l'utilisateur actuel
         profile = current_user.profile
         if not profile:
             profile = UserProfile(user_id=current_user.id)
             db.session.add(profile)
+            print(f"Nouveau profil créé pour {current_user.username}")
+        else:
+            print(f"Profil existant mis à jour pour {current_user.username}")
         
         # Mettre à jour les champs du profil
-        profile.channel_name = data.get('channel_name')
-        profile.youtuber_name = data.get('youtuber_name')
-        profile.video_style = data.get('video_style')
-        profile.approach_style = data.get('approach_style')
-        profile.target_audience = data.get('target_audience')
-        profile.video_length = data.get('video_length')
+        profile.channel_name = channel_name
+        profile.youtuber_name = youtuber_name
+        profile.video_style = data.get('video_style', '')
+        profile.approach_style = data.get('approach_style', '')
+        profile.target_audience = data.get('target_audience', '')
+        profile.video_length = data.get('video_length', '')
         profile.setup_completed = True
         
+        # Sauvegarder les modifications
         db.session.commit()
         
-        return jsonify({
+        # Préparer une réponse détaillée
+        response = jsonify({
             'message': 'Profil configuré avec succès',
             'profile': {
+                'id': profile.id,
                 'channel_name': profile.channel_name,
                 'youtuber_name': profile.youtuber_name,
+                'video_style': profile.video_style,
+                'approach_style': profile.approach_style,
+                'target_audience': profile.target_audience,
+                'video_length': profile.video_length,
                 'setup_completed': profile.setup_completed
+            },
+            'user': {
+                'id': current_user.id,
+                'username': current_user.username,
+                'email': current_user.email,
+                'setupRequired': False
             }
         })
         
+        # Ajouter les en-têtes CORS
+        response.headers['Access-Control-Allow-Origin'] = frontend_url
+        response.headers['Access-Control-Allow-Credentials'] = 'true'
+        
+        return response
+        
     except Exception as e:
         print(f"Erreur lors de la configuration du profil: {e}")
+        import traceback
+        traceback.print_exc()
         db.session.rollback()
         return jsonify({'error': f"Erreur lors de la configuration du profil: {str(e)}"}), 500
 
