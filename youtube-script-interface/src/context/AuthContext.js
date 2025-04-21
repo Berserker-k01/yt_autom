@@ -86,6 +86,12 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
 
       console.log(`Tentative de connexion à ${API_BASE}/api/login avec ${email}`);
+      // Ajouter un délai pour s'assurer que les en-têtes sont correctement définies
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Montrer plus de détails sur la requête de connexion
+      console.log('Envoi des données:', { email, password: '***mot de passe masqué***' });
+      
       const response = await axios.post(
         `${API_BASE}/api/login`,
         { email, password },
@@ -98,17 +104,30 @@ export const AuthProvider = ({ children }) => {
         }
       );
 
+      console.log('Réponse complète:', response);
       console.log('Réponse connexion:', response.data);
       
       // Si connexion réussie, on garde l'utilisateur en mémoire
       if (response.data && response.data.user) {
         setUser(response.data.user);
         console.log('Utilisateur défini après connexion:', response.data.user);
+      } else if (response.data) {
+        // Si l'API ne renvoie pas l'objet user mais contient des données
+        // Cela permet de gérer le cas où le backend renvoie directement les données utilisateur
+        setUser(response.data);
+        console.log('Utilisateur défini depuis les données brutes de la réponse:', response.data);
       }
 
       return response.data;
     } catch (err) {
-      console.error('Erreur de connexion:', err.response?.data || err.message);
+      console.error('Erreur de connexion détaillée:', err);
+      if (err.response) {
+        console.error('Détails de l\'erreur:', {
+          status: err.response.status,
+          headers: err.response.headers,
+          data: err.response.data
+        });
+      }
       setError(err.response?.data?.error || 'Identifiants incorrects');
       throw err;
     } finally {

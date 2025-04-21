@@ -19,18 +19,25 @@ const Login = () => {
     try {
       console.log(`Tentative de connexion avec: ${email}`);
       const response = await login(email, password);
-      console.log('Réponse connexion:', response);
+      console.log('Réponse connexion obtenue:', response);
       
-      // Déterminer où rediriger l'utilisateur
-      if (response && response.user && response.user.setupRequired) {
-        console.log('Redirection vers la page de configuration du profil');
-        navigate('/profile-setup');
-      } else {
-        console.log('Redirection vers le tableau de bord');
-        navigate('/dashboard');
-      }
+      // Attendre un court instant avant de rediriger
+      // Cela permet aux états de se mettre à jour correctement
+      setTimeout(() => {
+        // Déterminer où rediriger l'utilisateur
+        if (response && response.user && response.user.setupRequired) {
+          console.log('Redirection vers la page de configuration du profil');
+          window.location.href = '/profile-setup'; // Utiliser window.location pour une redirection plus fiable
+        } else {
+          console.log('Redirection vers le tableau de bord');
+          window.location.href = '/dashboard';
+        }
+      }, 300);
     } catch (err) {
-      console.error('Erreur de connexion:', err.response?.data || err.message);
+      console.error('Erreur de connexion détaillée:', err);
+      if (err.response) {
+        console.error('Détails de la réponse d\'erreur:', err.response.status, err.response.data);
+      }
       setError(err.response?.data?.error || 'Échec de la connexion. Vérifiez vos identifiants.');
     } finally {
       setLoading(false);

@@ -350,20 +350,41 @@ def login():
             setup_required = not user.profile.setup_completed
         print(f"Configuration requise: {setup_required}")
         
+        # Ajouter plus d'informations dans la réponse pour faciliter le débogage
+        user_data = {
+            'id': user.id,
+            'username': user.username,
+            'email': user.email,
+            'setupRequired': setup_required
+        }
+        
+        # Ajouter des informations de profil si disponibles
+        if user.profile:
+            user_data['profile'] = {
+                'channel_name': user.profile.channel_name,
+                'youtuber_name': user.profile.youtuber_name,
+                'setup_completed': user.profile.setup_completed
+            }
+        
         response = jsonify({
             'message': 'Connexion réussie',
-            'user': {
-                'id': user.id,
-                'username': user.username,
-                'email': user.email,
-                'setupRequired': setup_required
-            }
+            'user': user_data,
+            'auth': True,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
         })
         
-        # Ajouter le cookie de session manuellement si nécessaire
-        # response.set_cookie('session', session.sid, httponly=True, samesite='Lax')
+        # S'assurer que les cookies de session sont correctement envoyés
+        if '_user_id' in session:
+            print(f"ID utilisateur dans la session: {session['_user_id']}")
+        else:
+            print("Attention: Aucun ID utilisateur dans la session après login_user")
+            # Force manuellement la session si nécessaire
+            session['_user_id'] = str(user.id)
         
-        print("Réponse de connexion envoyée avec succès")
+        # Définir un cookie pour faciliter le débogage
+        response.set_cookie('logged_in_user', str(user.id), httponly=False, samesite='Lax', max_age=86400)
+        print('Réponse de connexion envoyée avec succès')
+        print('Contenu de la réponse:', response.get_json())
         return response
         
     except Exception as e:
