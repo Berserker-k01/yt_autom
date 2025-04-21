@@ -937,27 +937,28 @@ function App() {
               {/* Routes publiques */}
               <Route path="/" element={<HomePage />} />
               
-              {/* Routes d'authentification originales (avec problèmes) */}
-              <Route path="/login-original" element={<Login />} />
-              <Route path="/register-original" element={<Register />} />
+              {/* Les routes simplifiées sont maintenant les routes principales */}
+              <Route path="/login" element={<Navigate to="/login-simple" />} />
+              <Route path="/register" element={<Navigate to="/register-simple" />} />
               
-              {/* Routes d'authentification simplifiées (mode de contournement) */}
-              <Route path="/login" element={<LoginSimple />} />
+              {/* Routes d'authentification simplifiées */}
               <Route path="/login-simple" element={<LoginSimple />} />
-              <Route path="/register" element={<RegisterSimple />} />
               <Route path="/register-simple" element={<RegisterSimple />} />
+              
+              {/* Routes de profil */}
+              <Route path="/profile-setup" element={<Navigate to="/profile-setup-simple" />} />
               <Route path="/profile-setup-simple" element={<ProfileSetupSimple />} />
               
-              {/* Routes de profil protégées (originales) */}
-              <Route element={<ProtectedRoute requireSetup={true} />}>
-                <Route path="/profile-setup" element={<ProfileSetup />} />
-              </Route>
+              {/* Dashboard principal */}
+              <Route path="/dashboard" element={
+                <div className="dashboard-container">
+                  <Header />
+                  <Dashboard />
+                </div>
+              } />
               
-              {/* Dashboard accessible directement en mode de contournement */}
-              <Route path="/dashboard" element={<Dashboard />} />
-              
-              {/* Redirection des routes inconnues */}
-              <Route path="*" element={<Navigate to="/" replace />} />
+              {/* Redirection par défaut */}
+              <Route path="*" element={<Navigate to="/login-simple" />} />
             </Routes>
           </main>
           <footer className="app-footer">
