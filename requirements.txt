@@ -1,4 +1,4 @@
-# Dépendances générales
+# Dépendances de base
 python-dotenv==1.0.1
 requests==2.31.0
 fpdf==1.7.2
@@ -13,3 +13,6 @@ flask-sqlalchemy==3.0.3
 Werkzeug==2.2.3
 SQLAlchemy==2.0.9
 gunicorn==21.2.0
+
+# Support PostgreSQL (IMPORTANT POUR RENDER)
+psycopg2-binary==2.9.6
