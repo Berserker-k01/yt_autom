@@ -37,200 +37,188 @@ db.init_app(app)
 frontend_url = os.environ.get('FRONTEND_URL', '*')
 CORS(app, resources={r"/*": {"origins": frontend_url, "supports_credentials": True, "expose_headers": ["Content-Disposition", "Content-Type", "Content-Length"]}}, allow_headers=["Content-Type", "Accept"], max_age=86400)
 
-# Configuration améliorée du système d'authentification
-login_manager = LoginManager()
-login_manager.init_app(app)
-login_manager.login_view = 'login'
-login_manager.session_protection = 'strong'
+# Stockage local des profils (pour simplifier sans authentification)
+user_profiles = {}
 
-# Configuration pour l'authentification en production
-app.config['LOGIN_DISABLED'] = False
-print("🔒 Système d'authentification activé et amélioré")
+# Système d'authentification désactivé en faveur d'une approche simplifiée
+print("🔓 Système de profil simplifié activé")
 
-# Désactiver en développement si nécessaire via variable d'environnement
-if os.environ.get('ENV') == 'development' and os.environ.get('LOGIN_DISABLED', 'False').lower() == 'true':
-    app.config['LOGIN_DISABLED'] = True
-    print("⚠️ Mode développement: Authentification désactivée")
+# Configuration pour l'authentification désactivée
+app.config['LOGIN_DISABLED'] = True
+print("⚠️ Authentification désactivée, utilisation du système de profil simplifié")
 
-@login_manager.user_loader
-def load_user(user_id):
-    return User.query.get(int(user_id))
+# Route pour enregistrer le profil
+@app.route('/api/save-profile', methods=['POST'])
+def save_profile():
+    data = request.get_json()
+    youtuber_name = data.get('youtuber_name', '')
+    
+    if not youtuber_name:
+        return jsonify({'error': 'Le nom du YouTubeur est requis'}), 400
+    
+    # Utiliser le nom du YouTubeur comme identifiant unique
+    user_profiles[youtuber_name] = data
+    
+    # Log pour débogage
+    print(f"Profil enregistré pour: {youtuber_name}")
+    print(f"Nombre de profils en mémoire: {len(user_profiles)}")
+    
+    return jsonify({
+        'success': True,
+        'profile': data,
+        'message': f"Profil enregistré pour {youtuber_name}"
+    })
 
 # Fichier pour stocker l'historique des sujets
 HISTORY_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'topics_history.json'))
 
-# Fonction pour charger l'historique
-def load_history():
-    if os.path.exists(HISTORY_FILE):
-        try:
-            with open(HISTORY_FILE, 'r', encoding='utf-8') as f:
-                return json.load(f)
-        except Exception as e:
-            print(f"Erreur lors du chargement de l'historique: {e}")
-    return {'topics': []}
-
-# Fonction pour sauvegarder l'historique
-def save_history(history):
+# Fonction pour sauvegarder un thème dans l'historique
+def save_theme_to_history(theme, user_id=''):
     try:
-        with open(HISTORY_FILE, 'w', encoding='utf-8') as f:
-            json.dump(history, f, ensure_ascii=False, indent=2)
-        return True
+        # Créer la structure de l'historique si le fichier n'existe pas
+        if not os.path.exists(HISTORY_FILE):
+            with open(HISTORY_FILE, 'w') as f:
+                json.dump({'topics': []}, f)
+        
+        # Lire l'historique existant
+        with open(HISTORY_FILE, 'r') as f:
+            history = json.load(f)
+        
+        # Ajouter le nouveau thème avec l'identifiant utilisateur si disponible
+        history['topics'].append({
+            'theme': theme,
+            'timestamp': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            'user_id': user_id  # Ajouter l'identifiant utilisateur (nom du YouTubeur)
+        })
+        
+        # Limiter à 20 derniers thèmes
+        history['topics'] = history['topics'][-20:]
+        
+        # Écrire l'historique mis à jour
+        with open(HISTORY_FILE, 'w') as f:
+            json.dump(history, f)
+            
     except Exception as e:
-        print(f"Erreur lors de la sauvegarde de l'historique: {e}")
-        return False
+        print(f"Erreur lors de la sauvegarde dans l'historique: {str(e)}")
 
+# Route pour générer des sujets YouTube
 @app.route('/generate-topics', methods=['POST'])
-def api_generate_topics():
+def generate_topics_route():
     try:
         data = request.get_json()
         theme = data.get('theme', '')
-        num_topics = int(data.get('num_topics', 5))
+        profile = data.get('profile', {})
         
-        # Version simplifiée sans authentification pour le déploiement
-        topics = generate_topics(theme, num_topics)
+        if not theme:
+            return jsonify({'error': 'Un thème est requis'}), 400
         
-        # Enregistrer dans l'historique avec l'ID utilisateur si connecté
-        if topics:
-            history = load_history()
-            # Ajouter les nouveaux sujets avec timestamp, thème et ID utilisateur
-            entry = {
-                "theme": theme,
-                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                "topics": topics
-            }
-            
-            # Ajouter l'ID utilisateur si l'utilisateur est connecté
-            if current_user.is_authenticated:
-                entry["user_id"] = current_user.id
-                
-            history['topics'].append(entry)
-            save_history(history)
+        # Extraire les informations du profil
+        youtuber_name = profile.get('youtuber_name', '')
+        channel_name = profile.get('channel_name', '')
+        content_type = profile.get('content_type', 'tech')
         
-        # Nettoyer la mémoire après génération des sujets
-        cleanup_memory()
+        # Générer les sujets avec les informations du profil
+        result = generate_topics(theme, profile_info={
+            'youtuber_name': youtuber_name,
+            'channel_name': channel_name,
+            'content_type': content_type
+        })
         
-        return jsonify({'topics': topics})
+        # Sauvegarder dans l'historique avec l'utilisateur si disponible
+        save_theme_to_history(theme, youtuber_name)
+        
+        return jsonify(result)
     except Exception as e:
-        print(f"Erreur lors de la génération des sujets: {e}")
-        cleanup_memory()  # Nettoyer en cas d'erreur aussi
-        return jsonify({'error': str(e), 'topics': []}), 500
+        print(f"Erreur lors de la génération des sujets: {str(e)}")
+        return jsonify({'error': 'Erreur lors de la génération des sujets'}), 500
 
+# Route pour générer un script
 @app.route('/generate-script', methods=['POST'])
-def api_generate_script():
+def generate_script_route():
     try:
         data = request.get_json()
         topic = data.get('topic', '')
         research = data.get('research', '')
+        profile = data.get('profile', {})
         sources = data.get('sources', [])
         
-        # Si les sources ne sont pas fournies, essayer de les extraire de la recherche
-        if not sources and research:
-            from main import extract_sources
-            sources = extract_sources(research)
-            
-        script = generate_script(topic, research)
+        if not topic:
+            return jsonify({'error': 'Un sujet est requis'}), 400
         
-        # Nettoyer la mémoire après génération du script
-        cleanup_memory()
+        # Extraire les informations du profil
+        youtuber_name = profile.get('youtuber_name', '')
+        channel_name = profile.get('channel_name', '')
+        content_style = profile.get('content_style', 'informative')
         
-        return jsonify({
-            'script': script,
-            'sources': sources
-        })
+        # Générer le script avec les informations du profil
+        result = generate_script(topic, research, profile_info={
+            'youtuber_name': youtuber_name,
+            'channel_name': channel_name,
+            'content_style': content_style
+        }, sources=sources)
+        
+        return jsonify(result)
     except Exception as e:
-        print(f"Erreur lors de la génération du script: {e}")
-        cleanup_memory()
-        return jsonify({'error': str(e)}), 500
+        print(f"Erreur lors de la génération du script: {str(e)}")
+        return jsonify({'error': 'Erreur lors de la génération du script'}), 500
 
-@app.route('/export-pdf', methods=['POST', 'OPTIONS'])
-def api_export_pdf():
-    # Gestion des requêtes OPTIONS pour CORS preflight
-    if request.method == 'OPTIONS':
-        response = app.make_default_options_response()
-        response.headers.add('Access-Control-Allow-Origin', '*')
-        response.headers.add('Access-Control-Allow-Headers', 'Content-Type, Accept')
-        response.headers.add('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
-        return response
-        
+# Route pour exporter en PDF
+@app.route('/export-pdf', methods=['POST'])
+def export_pdf_route():
     try:
         data = request.get_json()
-        script_text = data.get('script', '')
+        script = data.get('script', '')
+        profile = data.get('profile', {})
+        topic = data.get('topic', 'Script YouTube')
         sources = data.get('sources', [])
         
-        if not script_text:
-            return jsonify({'error': 'Aucun script fourni'}), 400
+        if not script:
+            return jsonify({'error': 'Un script est requis'}), 400
         
-        # Formatage du texte pour assurer qu'il est utilisable par FPDF
-        script_text = script_text.replace('\r\n', '\n').replace('\r', '\n')
+        # Extraire les informations du profil
+        youtuber_name = profile.get('youtuber_name', '')
+        channel_name = profile.get('channel_name', '')
         
-        print(f"Longueur du script: {len(script_text)} caractères")
-        print(f"Nombre de sources: {len(sources)}")
+        # Générer le PDF avec les informations du profil
+        pdf_bytes = save_to_pdf(
+            script,
+            title=topic,
+            author=youtuber_name,
+            channel=channel_name,
+            sources=sources
+        )
         
-        # Passage des sources à la fonction save_to_pdf
-        filename = save_to_pdf(script_text, sources)
-        if not filename or not os.path.exists(filename):
-            print("Erreur: Impossible de générer le PDF")
-            return jsonify({'error': 'Erreur lors de la génération du PDF'}), 500
-            
-        print(f"PDF généré: {filename}")
+        # Créer un fichier temporaire pour stocker le PDF
+        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
+        temp_file.write(pdf_bytes)
+        temp_file.close()
         
-        try:
-            # Lire le fichier en mémoire pour éviter les problèmes d'accès et de permissions
-            with open(filename, 'rb') as f:
-                pdf_data = f.read()
-            
-            # Créer un objet BytesIO pour éviter les problèmes de fichiers temporaires
-            pdf_io = io.BytesIO(pdf_data)
-            
-            # Flask >=2.0: download_name, sinon fallback
-            send_file_kwargs = dict(
-                mimetype='application/pdf',
-                as_attachment=True
-            )
-            import flask
-            if hasattr(flask, 'send_file') and 'download_name' in flask.send_file.__code__.co_varnames:
-                send_file_kwargs['download_name'] = os.path.basename(filename)
-            else:
-                send_file_kwargs['attachment_filename'] = os.path.basename(filename)
-                
-            # Utiliser le BytesIO au lieu du fichier directement
-            response = send_file(
-                pdf_io,
-                **send_file_kwargs
-            )
-            
-            # Headers CORS complets
-            response.headers['Access-Control-Allow-Origin'] = frontend_url
-            response.headers['Access-Control-Allow-Methods'] = 'GET, POST, OPTIONS'
-            response.headers['Access-Control-Allow-Headers'] = 'Content-Type, Accept'
-            response.headers['Access-Control-Expose-Headers'] = 'Content-Disposition, Content-Length, Content-Type'
-            response.headers['Access-Control-Allow-Credentials'] = 'true'
-            response.headers['Content-Type'] = 'application/pdf'
-            response.headers['Content-Disposition'] = f'attachment; filename="{os.path.basename(filename)}"'
-            
-            print("Envoi du PDF en cours")
-            
-            # Nettoyer le fichier temporaire après envoi
-            @response.call_on_close
-            def cleanup():
-                try:
-                    os.remove(filename)
-                    print(f"Fichier temporaire supprimé: {filename}")
-                except Exception as e:
-                    print(f"Erreur lors de la suppression du fichier temporaire: {e}")
-                # Libérer la mémoire
-                cleanup_memory()
-                print("Mémoire nettoyée après export PDF")
-                    
+        # S'assurer que le fichier temporaire soit supprimé après l'envoi
+        @after_this_request
+        def remove_file(response):
+            try:
+                os.unlink(temp_file.name)
+            except Exception as e:
+                print(f"Erreur lors de la suppression du fichier temporaire: {str(e)}")
             return response
-        except Exception as e:
-            print(f"Erreur lors de l'envoi du PDF: {str(e)}")
-            return jsonify({'error': f'Erreur lors de l\'envoi du PDF: {str(e)}'}), 500
-            
+        
+        # Définir un nom de fichier basé sur le sujet
+        safe_filename = topic.replace(' ', '_').replace('"', '').replace("'", '').replace('/', '_')[:50]
+        download_name = f"Script_{safe_filename}.pdf"
+        
+        # Envoyer le fichier
+        return send_file(
+            temp_file.name,
+            as_attachment=True,
+            download_name=download_name,
+            mimetype='application/pdf'
+        )
+        
     except Exception as e:
-        print(f"Erreur globale lors de l'export PDF: {str(e)}")
-        return jsonify({'error': f'Erreur lors de la génération du PDF: {str(e)}'}), 500
+        print(f"Erreur lors de l'export PDF: {str(e)}")
+        return jsonify({'error': 'Erreur lors de l\'export PDF'}), 500
 
+# Route pour consulter l'historique des sujets
 @app.route('/topics-history', methods=['GET'])
 def api_get_history():
     # Charger l'historique complet

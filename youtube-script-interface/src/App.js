@@ -1,22 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
-import { AuthProvider } from './context/AuthContext';
+import { ProfileProvider } from './context/ProfileContext';
 import './App.css';
 
-// Composants d'authentification
-import Login from './components/auth/Login';
-import Register from './components/auth/Register';
-import LoginSimple from './components/auth/LoginSimple';
-import RegisterSimple from './components/auth/RegisterSimple';
-import DirectAccess from './components/auth/DirectAccess';
-import DirectDashboard from './components/dashboard/DirectDashboard';
-import ProtectedRoute from './components/auth/ProtectedRoute';
-
-// Composants de pages
-import HomePage from './components/pages/HomePage';
-import ProfileSetup from './components/profile/ProfileSetup';
-import ProfileSetupSimple from './components/profile/ProfileSetupSimple';
-import Header from './components/common/Header';
+// Importation des composants personnalisés
+import SimpleProfileSetup from './components/SimpleProfileSetup';
+import SimpleHeader from './components/common/SimpleHeader';
 
 function StepBar({ step }) {
   const steps = [
@@ -929,38 +918,38 @@ function Dashboard() {
 }
 
 function App() {
+  const [isProfileSet, setIsProfileSet] = useState(false);
+  
+  // Vérifier si l'utilisateur a déjà configuré son profil
+  useEffect(() => {
+    const savedProfile = localStorage.getItem('ytautom_profile');
+    if (savedProfile) {
+      setIsProfileSet(true);
+    }
+  }, []);
+  
   return (
-    <AuthProvider>
+    <ProfileProvider>
       <Router>
         <div className="App">
           <main className="app-main">
             <Routes>
-              {/* Page d'accueil */}
-              <Route path="/" element={<Navigate to="/login-simple" />} />
+              {/* Page d'accueil - redirige vers le profil ou le dashboard selon l'état */}
+              <Route path="/" element={isProfileSet ? <Navigate to="/dashboard" /> : <Navigate to="/profile" />} />
               
-              {/* Routes d'authentification simplifiées - elles fonctionnent sans vérification */}
-              <Route path="/login" element={<Navigate to="/login-simple" />} />
-              <Route path="/register" element={<Navigate to="/register-simple" />} />
-              <Route path="/login-simple" element={<LoginSimple />} />
-              <Route path="/register-simple" element={<RegisterSimple />} />
+              {/* Nouveau formulaire de personnalisation unique */}
+              <Route path="/profile" element={<SimpleProfileSetup />} />
               
-              {/* Routes de profil simplifiées */}
-              <Route path="/profile-setup" element={<Navigate to="/profile-setup-simple" />} />
-              <Route path="/profile-setup-simple" element={<ProfileSetupSimple />} />
-              
-              {/* Dashboard standard - désormais accessible sans protection */}
+              {/* Dashboard accessible à tous après personnalisation */}
               <Route path="/dashboard" element={
                 <div className="dashboard-container">
-                  <Header />
+                  <SimpleHeader />
                   <Dashboard />
                 </div>
               } />
               
-              {/* Ancienne page d'accueil */}
-              <Route path="/home" element={<HomePage />} />
-              
               {/* Redirection par défaut */}
-              <Route path="*" element={<Navigate to="/login-simple" />} />
+              <Route path="*" element={<Navigate to="/" />} />
             </Routes>
           </main>
           <footer className="app-footer">
@@ -968,7 +957,7 @@ function App() {
           </footer>
         </div>
       </Router>
-    </AuthProvider>
+    </ProfileProvider>
   );
 }
 
