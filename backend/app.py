@@ -1,20 +1,43 @@
-from flask import Flask, request, jsonify, send_file, after_this_request
+from flask import Flask, request, jsonify, send_file, after_this_request, redirect, url_for, session
 from flask_cors import CORS
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 import os
 import sys
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 import io
+import tempfile
+
 # Permet d'importer main.py depuis le dossier parent
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from main import generate_topics, generate_script, save_to_pdf
-import tempfile
+
+# Import des modèles de base de données
+from models import db, User, UserProfile
 
 app = Flask(__name__)
+
+# Configuration de l'application
+app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev_key_change_in_production')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///yt_autom.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Session persistante de 7 jours
+
+# Initialisation de la base de données
+db.init_app(app)
 
 # Configurer CORS pour fonctionner avec l'environnement de production
 frontend_url = os.environ.get('FRONTEND_URL', '*')
 CORS(app, resources={r"/*": {"origins": frontend_url, "supports_credentials": True, "expose_headers": ["Content-Disposition", "Content-Type", "Content-Length"]}}, allow_headers=["Content-Type", "Accept"], max_age=86400)
+
+# Configuration du système d'authentification
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 # Fichier pour stocker l'historique des sujets
 HISTORY_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'topics_history.json'))
@@ -219,6 +242,208 @@ def cleanup_memory():
 # Utiliser 2-4 workers au lieu du nombre de processeurs
 import multiprocessing
 workers = min(multiprocessing.cpu_count(), 2)
+
+# Routes d'authentification et de profil utilisateur
+@app.route('/api/register', methods=['POST'])
+def register():
+    try:
+        data = request.json
+        username = data.get('username')
+        email = data.get('email')
+        password = data.get('password')
+        
+        # Validation des données
+        if not username or not email or not password:
+            return jsonify({'error': 'Tous les champs sont requis'}), 400
+            
+        # Vérifier si l'utilisateur existe déjà
+        existing_user = User.query.filter((User.username == username) | (User.email == email)).first()
+        if existing_user:
+            if existing_user.email == email:
+                return jsonify({'error': 'Cette adresse email est déjà utilisée'}), 409
+            else:
+                return jsonify({'error': 'Ce nom d\'utilisateur est déjà pris'}), 409
+                
+        # Créer le nouvel utilisateur
+        new_user = User(username=username, email=email)
+        new_user.set_password(password)
+        
+        # Créer un profil vide
+        new_profile = UserProfile(user=new_user, setup_completed=False)
+        
+        # Sauvegarder dans la base de données
+        db.session.add(new_user)
+        db.session.add(new_profile)
+        db.session.commit()
+        
+        # Connecter l'utilisateur automatiquement
+        login_user(new_user)
+        
+        return jsonify({
+            'id': new_user.id,
+            'username': new_user.username,
+            'setupRequired': True
+        }), 201
+        
+    except Exception as e:
+        print(f"Erreur lors de l'inscription: {e}")
+        db.session.rollback()
+        return jsonify({'error': f"Erreur lors de l'inscription: {str(e)}"}), 500
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    try:
+        data = request.json
+        email_or_username = data.get('email')  # peut être email ou username
+        password = data.get('password')
+        
+        # Trouver l'utilisateur
+        user = User.query.filter((User.email == email_or_username) | (User.username == email_or_username)).first()
+        
+        if not user or not user.check_password(password):
+            return jsonify({'error': 'Identifiants incorrects'}), 401
+            
+        # Connecter l'utilisateur
+        login_user(user, remember=True)
+        
+        # Vérifier si le profil a été configuré
+        setup_required = not user.profile.setup_completed if user.profile else True
+        
+        return jsonify({
+            'id': user.id,
+            'username': user.username,
+            'setupRequired': setup_required
+        })
+        
+    except Exception as e:
+        print(f"Erreur lors de la connexion: {e}")
+        return jsonify({'error': f"Erreur lors de la connexion: {str(e)}"}), 500
+
+@app.route('/api/logout', methods=['POST'])
+@login_required
+def logout():
+    logout_user()
+    return jsonify({'message': 'Déconnexion réussie'})
+
+@app.route('/api/profile/setup', methods=['POST'])
+@login_required
+def setup_profile():
+    try:
+        data = request.json
+        
+        # Récupérer le profil utilisateur actuel
+        profile = current_user.profile
+        if not profile:
+            profile = UserProfile(user_id=current_user.id)
+            db.session.add(profile)
+        
+        # Mettre à jour les champs du profil
+        profile.channel_name = data.get('channel_name')
+        profile.youtuber_name = data.get('youtuber_name')
+        profile.video_style = data.get('video_style')
+        profile.approach_style = data.get('approach_style')
+        profile.target_audience = data.get('target_audience')
+        profile.video_length = data.get('video_length')
+        profile.setup_completed = True
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Profil configuré avec succès',
+            'profile': {
+                'channel_name': profile.channel_name,
+                'youtuber_name': profile.youtuber_name,
+                'setup_completed': profile.setup_completed
+            }
+        })
+        
+    except Exception as e:
+        print(f"Erreur lors de la configuration du profil: {e}")
+        db.session.rollback()
+        return jsonify({'error': f"Erreur lors de la configuration du profil: {str(e)}"}), 500
+
+@app.route('/api/profile', methods=['GET'])
+@login_required
+def get_profile():
+    profile = current_user.profile
+    
+    if not profile:
+        return jsonify({'error': 'Profil non trouvé'}), 404
+        
+    return jsonify({
+        'id': profile.id,
+        'channel_name': profile.channel_name,
+        'youtuber_name': profile.youtuber_name,
+        'video_style': profile.video_style,
+        'approach_style': profile.approach_style,
+        'target_audience': profile.target_audience,
+        'video_length': profile.video_length,
+        'setup_completed': profile.setup_completed
+    })
+
+@app.route('/api/user', methods=['GET'])
+@login_required
+def get_current_user():
+    return jsonify({
+        'id': current_user.id,
+        'username': current_user.username,
+        'email': current_user.email,
+        'setupRequired': not current_user.profile.setup_completed if current_user.profile else True
+    })
+
+# Modifier les routes existantes pour exiger l'authentification et utiliser le profil utilisateur
+
+@app.route('/generate-topics', methods=['POST'])
+@login_required
+def api_generate_topics():
+    try:
+        data = request.get_json()
+        theme = data.get('theme', '')
+        num_topics = int(data.get('num_topics', 5))
+        
+        # Récupérer le profil pour personnalisation
+        profile = current_user.profile
+        
+        # Ajouter les préférences utilisateur à la génération (à implémenter dans main.py)
+        user_context = {}
+        if profile and profile.setup_completed:
+            user_context = {
+                'channel_name': profile.channel_name,
+                'youtuber_name': profile.youtuber_name,
+                'video_style': profile.video_style,
+                'approach_style': profile.approach_style,
+                'target_audience': profile.target_audience,
+                'video_length': profile.video_length
+            }
+        
+        # Passer le contexte utilisateur à la fonction de génération
+        topics = generate_topics(theme, num_topics, user_context)
+        
+        # Enregistrer dans l'historique
+        if topics:
+            history = load_history()
+            # Ajouter les nouveaux sujets avec timestamp, thème et utilisateur
+            entry = {
+                "theme": theme,
+                "timestamp": datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                "topics": topics,
+                "user_id": current_user.id
+            }
+            history['topics'].append(entry)
+            save_history(history)
+        
+        # Nettoyer la mémoire après génération des sujets
+        cleanup_memory()
+        
+        return jsonify({'topics': topics})
+    except Exception as e:
+        print(f"Erreur lors de la génération des sujets: {e}")
+        cleanup_memory()  # Nettoyer en cas d'erreur aussi
+        return jsonify({'error': str(e), 'topics': []}), 500
+
+# Initialiser la base de données et démarrer l'application
+with app.app_context():
+    db.create_all()
 
 if __name__ == '__main__':
     # Configuration pour un serveur de développement léger

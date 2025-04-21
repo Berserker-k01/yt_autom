@@ -127,7 +127,7 @@ Fournis une analyse structurée avec:
     
     return gemini_generate(research_prompt)
 
-def generate_topics(theme: str, num_topics: int = 5) -> list:
+def generate_topics(theme: str, num_topics: int = 5, user_context: dict = None) -> list:
     """Génère des sujets d'actualité en utilisant SerpAPI + Gemini."""
     print(f"\nRecherche d'informations sur: {theme}")
     search_results = serpapi_search(f"{theme} tendances actualités podcast youtube", num_results=5)
@@ -142,42 +142,53 @@ def generate_topics(theme: str, num_topics: int = 5) -> list:
     for i, source in enumerate(sources, 1):
         print(f"[{i}] {source}")
     
-    print("\nGénération des sujets avec Gemini...")
-    topics_prompt = f"""
-Tu es un expert en création de contenu YouTube francophone, spécialiste de la viralité et de l'actualité.
-Pour le thème "{theme}", propose-moi {num_topics} sujets de vidéos YouTube qui sont :
-- Basés sur les tendances et actualités du moment (actualité très récente, sujets chauds, viraux)
-- Optimisés pour générer un fort engagement sur YouTube (taux de clics, watchtime, partages)
-- Rédigés sans aucune faute d'orthographe ou de grammaire
-- Avec un titre digne des plus grands youtubeurs (accrocheur, original, viral)
-- Avec un angle unique et une justification sur l'intérêt du sujet
-
-Voici les résultats de recherche à exploiter :
-{search_results}
-
-{search_results}
-
-IMPORTANT: Ta réponse doit être UNIQUEMENT un objet JSON valide avec cette structure:
-{{
-    "topics": [
-        {{
-            "title": "Titre accrocheur format podcast",
-            "angle": "Angle de discussion unique",
-            "why_interesting": "Pourquoi c'est pertinent maintenant",
-            "key_points": ["Points clés à aborder"],
-            "target_audience": "Public cible",
-            "estimated_duration": "Durée estimée en minutes",
-            "potential_guests": ["Experts ou invités potentiels"],
-            "factual_accuracy": "high",
-            "timeliness": "very_recent",
-            "sources": ["sources fiables à citer"]
-        }}
-    ]
-}}
-
-Ne génère RIEN d'autre que ce JSON. Pas d'explications, pas de texte avant ou après."""
+    # Construction du prompt avec le contexte utilisateur si disponible
+    user_context_str = ""
+    if user_context and any(user_context.values()):
+        user_context_str = f"""
+    Informations sur le créateur:
+    - Nom de la chaîne: {user_context.get('channel_name', 'Non spécifié')}
+    - Nom du YouTubeur: {user_context.get('youtuber_name', 'Non spécifié')}
+    - Style vidéo préféré: {user_context.get('video_style', 'Non spécifié')}
+    - Approche habituelle: {user_context.get('approach_style', 'Non spécifié')}
+    - Public cible: {user_context.get('target_audience', 'Non spécifié')}
+    - Durée vidéo préférée: {user_context.get('video_length', 'Non spécifié')}
+    """
     
-    response = gemini_generate(topics_prompt)
+    print("\nGénération des sujets avec Gemini...")
+    prompt = f"""Tu es un expert en création de contenu YouTube francophone, spécialiste de la viralité et de l'actualité.
+    Pour le thème "{theme}", propose-moi {num_topics} sujets de vidéos YouTube qui sont :
+    - Basés sur les tendances et actualités du moment (actualité très récente, sujets chauds, viraux)
+    - Optimisés pour générer un fort engagement sur YouTube (taux de clics, watchtime, partages)
+    - Rédigés sans aucune faute d'orthographe ou de grammaire
+    - Avec un titre digne des plus grands youtubeurs (accrocheur, original, viral)
+    - Avec un angle unique et une justification sur l'intérêt du sujet
+    {user_context_str}
+    
+    Voici les résultats de recherche à exploiter :
+    {search_results}
+    
+    IMPORTANT: Ta réponse doit être UNIQUEMENT un objet JSON valide avec cette structure:
+    {{
+        "topics": [
+            {{
+                "title": "Titre accrocheur format podcast",
+                "angle": "Angle de discussion unique",
+                "why_interesting": "Pourquoi c'est pertinent maintenant",
+                "key_points": ["Points clés à aborder"],
+                "target_audience": "Public cible",
+                "estimated_duration": "Durée estimée en minutes",
+                "potential_guests": ["Experts ou invités potentiels"],
+                "factual_accuracy": "high",
+                "timeliness": "very_recent",
+                "sources": ["sources fiables à citer"]
+            }}
+        ]
+    }}
+    
+    Ne génère RIEN d'autre que ce JSON. Pas d'explications, pas de texte avant ou après."""
+    
+    response = gemini_generate(prompt)
     if not response:
         print("Erreur: Aucune réponse de Gemini")
         return []
@@ -281,24 +292,39 @@ IMPORTANT: Réponds UNIQUEMENT avec un JSON valide de cette forme:
         print(f"Erreur: Analyse invalide - {str(e)}")
         return {}
 
-def generate_script(topic: str, research: str) -> str:
+def generate_script(topic: str, research: str, user_context: dict = None) -> str:
     """Génère un script détaillé avec Gemini et retourne le texte intégral."""
-    script_prompt = f"""
-Tu es un rédacteur professionnel YouTube, expert en storytelling et pédagogie.
-Rédige un script vidéo complet sur : "{topic}"
-
-Contraintes :
-- Structure le texte en sections titrées (ex : [HOOK], [INTRODUCTION], [PARTIE 1], etc.)
-- Dans chaque section, rédige tout ce qui doit être dit, phrase par phrase, comme si tu écrivais le texte exact à prononcer dans la vidéo.
-- Le texte doit être fluide, captivant, sans fautes, et donner envie d’écouter jusqu’au bout.
-- Utilise des exemples concrets, des chiffres, des anecdotes, des transitions naturelles et un call-to-action final.
-- Réponds uniquement avec le texte du script, sans plan, sans bullet points, sans résumé.
-
-Contexte et recherches :
-{research}
-
-Commence directement par le [HOOK] puis enchaîne les sections comme dans l’exemple fourni.
+    # Construction du prompt avec le contexte utilisateur si disponible
+    user_context_str = ""
+    if user_context and any(user_context.values()):
+        user_context_str = f"""
+Informations sur le créateur:
+- Nom de la chaîne: {user_context.get('channel_name', 'Non spécifié')}
+- Nom du YouTubeur: {user_context.get('youtuber_name', 'Non spécifié')}
+- Style vidéo préféré: {user_context.get('video_style', 'Non spécifié')}
+- Approche habituelle: {user_context.get('approach_style', 'Non spécifié')}
+- Public cible: {user_context.get('target_audience', 'Non spécifié')}
+- Durée vidéo préférée: {user_context.get('video_length', 'Non spécifié')}
 """
+    
+    # Prompt avec instructions pour la génération du script
+    script_prompt = f"""Tu es un rédacteur professionnel YouTube, expert en storytelling et pédagogie.
+    Rédige un script vidéo complet sur : "{topic}"
+    
+    Contraintes :
+    - Structure le texte en sections titrées (ex : [HOOK], [INTRODUCTION], [PARTIE 1], etc.)
+    - Dans chaque section, rédige tout ce qui doit être dit, phrase par phrase, comme si tu écrivais le texte exact à prononcer dans la vidéo.
+    - Le texte doit être fluide, captivant, sans fautes, et donner envie d'écouter jusqu'au bout.
+    - Utilise des exemples concrets, des chiffres, des anecdotes, des transitions naturelles et un call-to-action final.
+    - Réponds uniquement avec le texte du script, sans plan, sans bullet points, sans résumé.
+    {user_context_str}
+    
+    Contexte et recherches :
+    {research}
+    
+    Le script doit être adapté au style et à la personnalité du créateur mentionnés ci-dessus.
+    Commence directement par le [HOOK] puis enchaîne les sections.
+    """
 
     response = gemini_generate(script_prompt)
     # Affichage de debug pour tracer ce que retourne Gemini

@@ -1,5 +1,17 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { AuthProvider } from './context/AuthContext';
 import './App.css';
+
+// Composants d'authentification
+import Login from './components/auth/Login';
+import Register from './components/auth/Register';
+import ProtectedRoute from './components/auth/ProtectedRoute';
+
+// Composants de pages
+import HomePage from './components/pages/HomePage';
+import ProfileSetup from './components/profile/ProfileSetup';
+import Header from './components/common/Header';
 
 function StepBar({ step }) {
   const steps = [
@@ -50,7 +62,7 @@ function StepBar({ step }) {
   );
 }
 
-function App() {
+function Dashboard() {
   const [theme, setTheme] = useState('');
   const [topics, setTopics] = useState([]);
   const [loadingTopics, setLoadingTopics] = useState(false);
@@ -64,8 +76,6 @@ function App() {
   const [loadingHistory, setLoadingHistory] = useState(false);
 
   // SOLUTION DE CONTOURNEMENT : URL codée en dur pour le déploiement
-  // ⚠️ IMPORTANT : Remplacez cette URL par l'URL réelle de votre backend sur Render
-  // Par exemple : const BACKEND_URL_PRODUCTION = 'https://youtube-script-api-xyz.onrender.com';
   const BACKEND_URL_PRODUCTION = 'https://yt-autom.onrender.com/';
   
   // Détecter si nous sommes en production (déployé sur Render) ou en développement local
@@ -77,6 +87,7 @@ function App() {
   // Log pour débugger l'URL de l'API
   console.log('Environnement:', isProduction ? 'PRODUCTION' : 'DÉVELOPPEMENT');
   console.log('API URL utilisée:', API_BASE);
+  
   useEffect(() => {
     fetchHistory();
   }, []);
@@ -255,7 +266,22 @@ function App() {
   }
 
     return (
-    <div className="App">
+    <div className="dashboard-content">
+      <div className="theme-tabs">
+        <button 
+          className={`tab-button ${activeTab === 'search' ? 'active' : ''}`}
+          onClick={() => setActiveTab('search')}>
+          Nouveau script <span role="img" aria-label="create">📝</span>
+        </button>
+        <button 
+          className={`tab-button ${activeTab === 'history' ? 'active' : ''}`}
+          onClick={() => {
+            setActiveTab('history');
+            fetchHistory();
+          }}>
+          Historique <span role="img" aria-label="history">📜</span>
+        </button>
+      </div>
       {/* Header avec bouton Historique dans le coin supérieur droit */}
       <div className="app-header" style={{ position: 'relative', marginBottom: 30 }}>
         <div style={{ position: 'absolute', top: 15, right: 15, zIndex: 10 }}>
@@ -894,6 +920,42 @@ function App() {
         </div>
       )}
     </div>
+  );
+}
+
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <div className="App">
+          <Header />
+          <main className="app-main">
+            <Routes>
+              {/* Routes publiques */}
+              <Route path="/" element={<HomePage />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              
+              {/* Route protégée pour la configuration du profil */}
+              <Route element={<ProtectedRoute requireSetup={true} />}>
+                <Route path="/profile-setup" element={<ProfileSetup />} />
+              </Route>
+              
+              {/* Routes protégées nécessitant une authentification */}
+              <Route element={<ProtectedRoute />}>
+                <Route path="/dashboard" element={<Dashboard />} />
+              </Route>
+              
+              {/* Redirection des routes inconnues */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </main>
+          <footer className="app-footer">
+            <p>&copy; {new Date().getFullYear()} YouTube Script Generator | Tous droits réservés</p>
+          </footer>
+        </div>
+      </Router>
+    </AuthProvider>
   );
 }
 
