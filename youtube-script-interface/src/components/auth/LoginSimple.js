@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
+import { motion } from 'framer-motion';
 
 const LoginSimple = () => {
   const [email, setEmail] = useState('');
@@ -59,54 +60,138 @@ const LoginSimple = () => {
     }
   };
 
+  // Animation des champs du formulaire avec un délai progressif
+  const formControls = {
+    hidden: { opacity: 0, y: 20 },
+    visible: i => ({
+      opacity: 1,
+      y: 0,
+      transition: {
+        delay: i * 0.1,
+        duration: 0.5,
+        ease: [0.6, -0.05, 0.01, 0.99]
+      }
+    })
+  };
+
   return (
     <div className="auth-container">
-      <div className="auth-card">
-        <h2>Connexion</h2>
+      <motion.div 
+        className="auth-card"
+        initial={{ opacity: 0, y: 30 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ duration: 0.6, ease: [0.6, -0.05, 0.01, 0.99] }}
+      >
+        <div className="auth-logo">
+          <motion.div
+            initial={{ scale: 0 }}
+            animate={{ scale: 1 }}
+            transition={{ duration: 0.5, delay: 0.2 }}
+            className="logo-circle"
+          >
+            🎬
+          </motion.div>
+        </div>
+        <motion.h2
+          initial={{ opacity: 0, y: 10 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.3, duration: 0.5 }}
+        >
+          Connexion
+        </motion.h2>
         <form onSubmit={handleSubmit}>
           {error && (
-            <div className="error-message">
+            <motion.div 
+              className="error-message"
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.4 }}
+            >
               {error}
-            </div>
+            </motion.div>
           )}
           
-          <div className="form-group">
+          <motion.div 
+            className="form-group"
+            custom={0}
+            initial="hidden"
+            animate="visible"
+            variants={formControls}
+          >
             <label htmlFor="email">Email ou Nom d'utilisateur</label>
-            <input
-              type="text"
-              id="email"
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              required
-              placeholder="Entrez votre email ou nom d'utilisateur"
-            />
-          </div>
+            <div className="input-with-icon">
+              <input
+                type="text"
+                id="email"
+                value={email}
+                onChange={(e) => setEmail(e.target.value)}
+                required
+                placeholder="Entrez votre email ou nom d'utilisateur"
+              />
+              <span className="input-icon">✉️</span>
+            </div>
+          </motion.div>
           
-          <div className="form-group">
+          <motion.div 
+            className="form-group"
+            custom={1}
+            initial="hidden"
+            animate="visible"
+            variants={formControls}
+          >
             <label htmlFor="password">Mot de passe</label>
-            <input
-              type="password"
-              id="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              placeholder="Entrez votre mot de passe"
-            />
-          </div>
+            <div className="input-with-icon">
+              <input
+                type="password"
+                id="password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                required
+                placeholder="Entrez votre mot de passe"
+              />
+              <span className="input-icon">🔒</span>
+            </div>
+          </motion.div>
           
-          <button 
+          <motion.button 
             type="submit" 
             className="btn btn-primary w-100"
             disabled={loading}
+            custom={2}
+            initial="hidden"
+            animate="visible"
+            variants={formControls}
+            whileHover={{ scale: 1.03 }}
+            whileTap={{ scale: 0.98 }}
           >
-            {loading ? 'Connexion...' : 'Se connecter'}
-          </button>
+            {loading ? (
+              <div className="button-loader">
+                <span className="loader-dot"></span>
+                <span className="loader-dot"></span>
+                <span className="loader-dot"></span>
+                <span>Connexion</span>
+              </div>
+            ) : 'Se connecter'}
+          </motion.button>
         </form>
         
-        <div className="auth-footer">
+        <motion.div 
+          className="auth-footer"
+          custom={3}
+          initial="hidden"
+          animate="visible"
+          variants={formControls}
+        >
           <p>Pas encore de compte ? <span className="auth-link" onClick={() => navigate('/register-simple')}>S'inscrire</span></p>
-        </div>
-      </div>
+          <motion.div 
+            className="auth-divider"
+            initial={{ width: 0 }}
+            animate={{ width: '80%' }}
+            transition={{ delay: 0.5, duration: 0.8 }}
+          ></motion.div>
+          <p className="auth-tagline">Créez des scripts YouTube tendance en quelques clics</p>
+        </motion.div>
+      </motion.div>
     </div>
   );
 };
