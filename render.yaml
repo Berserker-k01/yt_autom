@@ -1,0 +1,13 @@
+services:
+  - type: web
+    name: youtube-script-generator
+    env: python
+    buildCommand: pip install flask-login flask-sqlalchemy Werkzeug gunicorn && pip install -r requirements.txt
+    startCommand: cd backend && gunicorn -c gunicorn.conf.py app:app
+    envVars:
+      - key: DATABASE_URL
+        value: sqlite:///yt_autom.db
+      - key: SECRET_KEY
+        generateValue: true
+      - key: FRONTEND_URL
+        value: https://yourfrontendurl.netlify.app

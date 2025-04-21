@@ -1,5 +1,6 @@
 from flask import Flask, request, jsonify, send_file, after_this_request, redirect, url_for, session
 from flask_cors import CORS
+from flask_login import LoginManager, login_user, logout_user, login_required, current_user
 import os
 import sys
 import json
@@ -11,14 +12,32 @@ import tempfile
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 from main import generate_topics, generate_script, save_to_pdf
 
+# Import des modèles de base de données
+from models import db, User, UserProfile
+
 app = Flask(__name__)
 
 # Configuration de l'application
 app.config['SECRET_KEY'] = os.environ.get('SECRET_KEY', 'dev_key_change_in_production')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.environ.get('DATABASE_URL', 'sqlite:///yt_autom.db')
+app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Session persistante de 7 jours
+
+# Initialisation de la base de données
+db.init_app(app)
 
 # Configurer CORS pour fonctionner avec l'environnement de production
 frontend_url = os.environ.get('FRONTEND_URL', '*')
 CORS(app, resources={r"/*": {"origins": frontend_url, "supports_credentials": True, "expose_headers": ["Content-Disposition", "Content-Type", "Content-Length"]}}, allow_headers=["Content-Type", "Accept"], max_age=86400)
+
+# Configuration du système d'authentification
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
 
 # Fichier pour stocker l'historique des sujets
 HISTORY_FILE = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'topics_history.json'))
@@ -220,6 +239,169 @@ def cleanup_memory():
 # Utiliser 2-4 workers au lieu du nombre de processeurs
 import multiprocessing
 workers = min(multiprocessing.cpu_count(), 2)
+
+# Routes d'authentification et de profil utilisateur
+@app.route('/api/register', methods=['POST'])
+def register():
+    try:
+        data = request.get_json()
+        username = data.get('username')
+        email = data.get('email')
+        password = data.get('password')
+        
+        # Vérification des données requises
+        if not all([username, email, password]):
+            return jsonify({'error': 'Tous les champs sont requis'}), 400
+            
+        # Vérifier si l'utilisateur existe déjà
+        existing_user = User.query.filter((User.username == username) | (User.email == email)).first()
+        if existing_user:
+            return jsonify({'error': 'Nom d\'utilisateur ou email déjà utilisé'}), 409
+            
+        # Créer un nouvel utilisateur
+        new_user = User(username=username, email=email)
+        new_user.set_password(password)
+        
+        # Créer un profil vide pour l'utilisateur
+        new_profile = UserProfile(user=new_user)
+        
+        # Sauvegarder dans la base de données
+        db.session.add(new_user)
+        db.session.add(new_profile)
+        db.session.commit()
+        
+        # Connecter automatiquement l'utilisateur
+        login_user(new_user)
+        
+        return jsonify({
+            'message': 'Inscription réussie', 
+            'user': {
+                'id': new_user.id,
+                'username': new_user.username,
+                'email': new_user.email,
+                'setupRequired': True
+            }
+        })
+        
+    except Exception as e:
+        print(f"Erreur lors de l'inscription: {e}")
+        db.session.rollback()
+        return jsonify({'error': f"Erreur lors de l'inscription: {str(e)}"}), 500
+
+@app.route('/api/login', methods=['POST'])
+def login():
+    try:
+        data = request.get_json()
+        email = data.get('email')
+        password = data.get('password')
+        remember = data.get('remember', False)
+        
+        # Vérification des données requises
+        if not all([email, password]):
+            return jsonify({'error': 'Email et mot de passe requis'}), 400
+            
+        # Chercher l'utilisateur
+        user = User.query.filter_by(email=email).first()
+        
+        # Vérifier le mot de passe
+        if not user or not user.check_password(password):
+            return jsonify({'error': 'Email ou mot de passe incorrect'}), 401
+            
+        # Connecter l'utilisateur
+        login_user(user, remember=remember)
+        
+        # Vérifier si le profil est configuré
+        setup_required = not user.profile.setup_completed if user.profile else True
+        
+        return jsonify({
+            'message': 'Connexion réussie',
+            'user': {
+                'id': user.id,
+                'username': user.username,
+                'email': user.email,
+                'setupRequired': setup_required
+            }
+        })
+        
+    except Exception as e:
+        print(f"Erreur lors de la connexion: {e}")
+        return jsonify({'error': f"Erreur lors de la connexion: {str(e)}"}), 500
+
+@app.route('/api/logout', methods=['POST'])
+@login_required
+def logout():
+    logout_user()
+    return jsonify({'message': 'Déconnexion réussie'})
+
+@app.route('/api/setup-profile', methods=['POST'])
+@login_required
+def setup_profile():
+    try:
+        data = request.get_json()
+        
+        # Récupérer ou créer le profil pour l'utilisateur actuel
+        profile = current_user.profile
+        if not profile:
+            profile = UserProfile(user_id=current_user.id)
+            db.session.add(profile)
+        
+        # Mettre à jour les champs du profil
+        profile.channel_name = data.get('channel_name')
+        profile.youtuber_name = data.get('youtuber_name')
+        profile.video_style = data.get('video_style')
+        profile.approach_style = data.get('approach_style')
+        profile.target_audience = data.get('target_audience')
+        profile.video_length = data.get('video_length')
+        profile.setup_completed = True
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Profil configuré avec succès',
+            'profile': {
+                'channel_name': profile.channel_name,
+                'youtuber_name': profile.youtuber_name,
+                'setup_completed': profile.setup_completed
+            }
+        })
+        
+    except Exception as e:
+        print(f"Erreur lors de la configuration du profil: {e}")
+        db.session.rollback()
+        return jsonify({'error': f"Erreur lors de la configuration du profil: {str(e)}"}), 500
+
+@app.route('/api/profile', methods=['GET'])
+@login_required
+def get_profile():
+    profile = current_user.profile
+    
+    if not profile:
+        return jsonify({'error': 'Profil non trouvé'}), 404
+        
+    return jsonify({
+        'id': profile.id,
+        'channel_name': profile.channel_name,
+        'youtuber_name': profile.youtuber_name,
+        'video_style': profile.video_style,
+        'approach_style': profile.approach_style,
+        'target_audience': profile.target_audience,
+        'video_length': profile.video_length,
+        'setup_completed': profile.setup_completed
+    })
+
+@app.route('/api/user', methods=['GET'])
+@login_required
+def get_current_user():
+    return jsonify({
+        'id': current_user.id,
+        'username': current_user.username,
+        'email': current_user.email,
+        'setupRequired': not current_user.profile.setup_completed if current_user.profile else True
+    })
+
+# Initialiser la base de données et démarrer l'application
+with app.app_context():
+    db.create_all()
 
 if __name__ == '__main__':
     # Configuration pour un serveur de développement léger
