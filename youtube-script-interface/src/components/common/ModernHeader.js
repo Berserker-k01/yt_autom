@@ -24,11 +24,15 @@ const ModernHeader = () => {
 
   // Gérer la déconnexion
   const handleLogout = () => {
-    // Supprimer toutes les données d'authentification
+    // Supprimer TOUTES les données d'authentification et de configuration
     localStorage.removeItem('ytautom_auth');
-    localStorage.removeItem('ytautom_profile');
+    localStorage.removeItem('ytautom_profile'); // Supprimer également le profil
+    localStorage.removeItem('ytautom_profile_configured'); // Important: supprimer ce flag pour éviter la boucle
     
-    // Rediriger vers la page de profil directement (qui existe)
+    // Marquer que l'utilisateur vient de se déconnecter pour éviter la redirection automatique
+    sessionStorage.setItem('from_logout', 'true');
+    
+    // Rediriger vers la page de profil
     navigate('/profile');
   };
 

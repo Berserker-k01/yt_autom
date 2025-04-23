@@ -31,9 +31,19 @@ const SimpleProfileSetup = () => {
   useEffect(() => {
     const savedProfile = localStorage.getItem('ytautom_profile');
     const isConfigured = localStorage.getItem('ytautom_profile_configured');
+    const isAuthenticated = localStorage.getItem('ytautom_auth');
     
-    if (isConfigured === 'true') {
+    // Vérifier si l'utilisateur a été redirigé depuis la déconnexion
+    const fromLogout = sessionStorage.getItem('from_logout');
+    
+    // Ne pas considérer le profil comme configuré si l'utilisateur vient de se déconnecter
+    // ou si l'authentification n'est pas présente
+    if (isConfigured === 'true' && isAuthenticated === 'true' && !fromLogout) {
       setProfileAlreadyConfigured(true);
+    } else {
+      // Réinitialiser le flag après l'avoir utilisé
+      sessionStorage.removeItem('from_logout');
+      setProfileAlreadyConfigured(false);
     }
     
     if (savedProfile) {
