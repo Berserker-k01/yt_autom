@@ -1,13 +1,23 @@
-import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import React, { useState, useEffect, lazy, Suspense } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import { ProfileProvider } from './context/ProfileContext';
 import { ThemeProvider } from './context/ThemeContext';
 import './App.css';
 
 // Importation des composants personnalisés
-import SimpleProfileSetup from './components/SimpleProfileSetup';
-import ModernHeader from './components/common/ModernHeader';
-import ModernDashboard from './components/dashboard/ModernDashboard';
+const SimpleProfileSetup = lazy(() => import('./components/SimpleProfileSetup'));
+const ModernHeader = lazy(() => import('./components/common/ModernHeader'));
+const ModernDashboard = lazy(() => import('./components/dashboard/ModernDashboard'));
+
+// Composant de chargement
+function LoadingFallback() {
+  return (
+    <div className="loading-container">
+      <div className="loading-spinner"></div>
+      <p>Chargement en cours...</p>
+    </div>
+  );
+}
 
 function StepBar({ step }) {
   const steps = [
@@ -960,26 +970,42 @@ function App() {
 
   // Rediriger vers la page d'authentification si non connecté
   const PrivateRoute = ({ children }) => {
-    return isAuthenticated() ? children : <Navigate to="/profile" />;
+    return isAuthenticated() ? children : <Navigate to="/profile" replace />;
   };
+
+  // Composant pour gérer le défilement lors des changements de page
+  function ScrollToTop() {
+    const { pathname } = useLocation();
+  
+    useEffect(() => {
+      window.scrollTo(0, 0);
+    }, [pathname]);
+  
+    return null;
+  }
 
   return (
     <ThemeProvider>
       <ProfileProvider>
-        <Router>
-          <ModernHeader />
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" />} />
-            <Route path="/profile" element={<SimpleProfileSetup />} />
-            <Route 
-              path="/dashboard" 
-              element={
-                <PrivateRoute>
-                  <ModernDashboard />
-                </PrivateRoute>
-              } 
-            />
-          </Routes>
+        <Router basename={process.env.PUBLIC_URL || '/'}>
+          <ScrollToTop />
+          <Suspense fallback={<LoadingFallback />}>
+            <ModernHeader />
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" replace />} />
+              <Route path="/profile" element={<SimpleProfileSetup />} />
+              <Route 
+                path="/dashboard" 
+                element={
+                  <PrivateRoute>
+                    <ModernDashboard />
+                  </PrivateRoute>
+                } 
+              />
+              {/* Route de capture pour les pages non trouvées */}
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </Routes>
+          </Suspense>
         </Router>
       </ProfileProvider>
     </ThemeProvider>
