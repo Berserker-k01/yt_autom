@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
-import Markdown from 'react-markdown';
 
 const ScriptGenerator = ({ 
   script, 
@@ -18,6 +17,72 @@ const ScriptGenerator = ({
   const scriptExcerpt = script && script.length > 500 
     ? script.substring(0, 500) + '...' 
     : script;
+
+  // Fonction pour convertir les sauts de ligne en éléments JSX
+  const formatText = (text) => {
+    if (!text) return null;
+    
+    // Diviser le texte en lignes et créer des éléments de paragraphe
+    return text.split('\n').map((line, index) => {
+      // Si la ligne commence par #, considérer comme titre
+      if (line.startsWith('# ')) {
+        return (
+          <h1 key={index} style={{ 
+            fontSize: '1.8rem', 
+            fontWeight: 700, 
+            margin: '20px 0 10px',
+            color: darkMode ? '#fff' : '#111827' 
+          }}>
+            {line.substring(2)}
+          </h1>
+        );
+      }
+      
+      // Si la ligne commence par ##, considérer comme sous-titre
+      if (line.startsWith('## ')) {
+        return (
+          <h2 key={index} style={{ 
+            fontSize: '1.5rem', 
+            fontWeight: 600, 
+            margin: '18px 0 10px',
+            color: darkMode ? '#fff' : '#1f2937' 
+          }}>
+            {line.substring(3)}
+          </h2>
+        );
+      }
+      
+      // Si la ligne commence par ###, considérer comme sous-sous-titre
+      if (line.startsWith('### ')) {
+        return (
+          <h3 key={index} style={{ 
+            fontSize: '1.3rem', 
+            fontWeight: 600, 
+            margin: '16px 0 8px',
+            color: darkMode ? '#fff' : '#374151' 
+          }}>
+            {line.substring(4)}
+          </h3>
+        );
+      }
+      
+      // Si c'est une ligne vide, ajouter un espace
+      if (line.trim() === '') {
+        return <div key={index} style={{ height: '0.5rem' }} />;
+      }
+      
+      // Sinon, c'est un paragraphe normal
+      return (
+        <p key={index} style={{ 
+          margin: '8px 0',
+          lineHeight: 1.7,
+          color: darkMode ? 'rgba(255, 255, 255, 0.9)' : '#374151'
+        }}>
+          {line}
+        </p>
+      );
+    });
+  };
 
   return (
     <div className="script-generator">
@@ -294,15 +359,13 @@ const ScriptGenerator = ({
           }}/>
         )}
         
-        {/* Rendu Markdown du script */}
+        {/* Rendu du script */}
         <div className="script-content" style={{
           color: darkMode ? '#fff' : '#1f2937',
           fontSize: '1rem',
           lineHeight: 1.7
         }}>
-          <Markdown>
-            {showFullScript ? script : scriptExcerpt}
-          </Markdown>
+          {formatText(showFullScript ? script : scriptExcerpt)}
         </div>
         
         {!showFullScript && (
