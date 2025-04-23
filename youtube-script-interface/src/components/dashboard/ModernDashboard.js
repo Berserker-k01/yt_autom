@@ -65,6 +65,7 @@ const ModernDashboard = () => {
         const res = await fetch(`${API_BASE}/topics-history`, {
           method: 'GET',
           headers: { 'Content-Type': 'application/json' },
+          credentials: 'include' // Inclure les cookies pour l'authentification
         });
         
         if (!res.ok) {
@@ -75,27 +76,72 @@ const ModernDashboard = () => {
         console.log('Historique récupéré avec succès:', data);
         setHistory(data);
       } catch (fetchError) {
-        console.warn('Échec de récupération depuis le serveur:', fetchError.message);
+        console.warn('Échec de récupération depuis le serveur, utilisation de données simulées:', fetchError.message);
         
-        if (window.location.hostname === 'localhost') {
-          console.log('Utilisation de données d\'historique simulées');
-          const mockHistory = {
-            topics: [
-              { id: '1', theme: 'Les nouvelles fonctionnalités de l\'IA en 2025', timestamp: new Date().toISOString() },
-              { id: '2', theme: 'Comment optimiser son temps d\'écran', timestamp: new Date().toISOString() },
-              { id: '3', theme: 'Les meilleurs gadgets technologiques de l\'année', timestamp: new Date().toISOString() }
-            ]
-          };
-          setHistory(mockHistory);
+        // En cas d'erreur, utiliser des données simulées en local
+        console.log('Utilisation de données d\'historique simulées');
+        // Récupérer l'historique local si disponible
+        const localHistory = localStorage.getItem('ytautom_history');
+        
+        if (localHistory) {
+          try {
+            const parsedHistory = JSON.parse(localHistory);
+            setHistory(parsedHistory);
+            console.log('Historique récupéré du localStorage:', parsedHistory);
+          } catch (parseError) {
+            console.error('Erreur lors du parsing de l\'historique local:', parseError);
+            // Utiliser un historique par défaut
+            createDefaultHistory();
+          }
         } else {
-          throw fetchError;
+          // Créer un historique par défaut si rien n'existe
+          createDefaultHistory();
         }
       }
     } catch (e) {
       console.error('Erreur lors du chargement de l\'historique:', e);
-      setError('Erreur lors du chargement de l\'historique. Veuillez réessayer.');
+      // Ne pas afficher d'erreur à l'utilisateur, simplement utiliser un historique vide
+      setHistory({ topics: [] });
     } finally {
       setLoadingHistory(false);
+    }
+  };
+  
+  // Fonction pour créer un historique par défaut
+  const createDefaultHistory = () => {
+    const defaultHistory = {
+      topics: []
+    };
+    setHistory(defaultHistory);
+    // Sauvegarder dans localStorage pour une utilisation future
+    localStorage.setItem('ytautom_history', JSON.stringify(defaultHistory));
+  };
+  
+  // Fonction pour mettre à jour l'historique local après une génération réussie
+  const updateLocalHistory = (theme) => {
+    try {
+      // Récupérer l'historique actuel
+      const currentHistory = { ...history };
+      
+      // Ajouter le nouveau thème
+      currentHistory.topics.unshift({
+        id: Date.now().toString(),
+        theme: theme,
+        timestamp: new Date().toISOString()
+      });
+      
+      // Limiter à 10 thèmes maximum
+      if (currentHistory.topics.length > 10) {
+        currentHistory.topics = currentHistory.topics.slice(0, 10);
+      }
+      
+      // Mettre à jour l'état
+      setHistory(currentHistory);
+      
+      // Sauvegarder dans localStorage
+      localStorage.setItem('ytautom_history', JSON.stringify(currentHistory));
+    } catch (error) {
+      console.error('Erreur lors de la mise à jour de l\'historique local:', error);
     }
   };
 
@@ -148,7 +194,7 @@ const ModernDashboard = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           theme: themeInput,
-          profile: userProfile 
+          profile_info: userProfile  // Renommer "profile" en "profile_info" pour correspondre au backend
         })
       });
       
@@ -172,7 +218,7 @@ const ModernDashboard = () => {
       setStep(1);
       
       // Mettre à jour l'historique après génération
-      fetchHistory();
+      updateLocalHistory(themeInput);
     } catch (e) {
       console.error('Erreur lors de la génération des sujets:', e);
       setError(`Erreur lors de la génération des sujets: ${e.message}`);
@@ -196,7 +242,7 @@ const ModernDashboard = () => {
         body: JSON.stringify({ 
           topic: topic.title, 
           research: '',
-          profile: userProfile,
+          profile_info: userProfile,
           sources: topic.sources || []
         })
       });
@@ -237,7 +283,7 @@ const ModernDashboard = () => {
         body: JSON.stringify({ 
           script, 
           topic: selectedTopic.title,
-          profile: userProfile,
+          profile_info: userProfile,
           sources: selectedTopic.sources || sources
         })
       });
