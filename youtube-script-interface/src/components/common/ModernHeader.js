@@ -24,8 +24,12 @@ const ModernHeader = () => {
 
   // Gérer la déconnexion
   const handleLogout = () => {
+    // Supprimer toutes les données d'authentification
     localStorage.removeItem('ytautom_auth');
-    navigate('/login');
+    localStorage.removeItem('ytautom_profile');
+    
+    // Rediriger vers la page de profil directement (qui existe)
+    navigate('/profile');
   };
 
   // Gérer le redimensionnement de la fenêtre
