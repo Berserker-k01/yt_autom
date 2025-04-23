@@ -1,0 +1,517 @@
+import React, { useState, useEffect } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
+import { useNavigate } from 'react-router-dom';
+import { useTheme } from '../../context/ThemeContext';
+
+// Composants d'étapes
+import ThemeSelector from './ThemeSelector';
+import TopicsList from './TopicsList';
+import ScriptGenerator from './ScriptGenerator';
+
+const ModernDashboard = () => {
+  const navigate = useNavigate();
+  const { theme, darkMode } = useTheme();
+  const [step, setStep] = useState(0);
+  const [themeInput, setThemeInput] = useState('');
+  const [topics, setTopics] = useState([]);
+  const [loadingTopics, setLoadingTopics] = useState(false);
+  const [selectedTopic, setSelectedTopic] = useState(null);
+  const [script, setScript] = useState(null);
+  const [loadingScript, setLoadingScript] = useState(false);
+  const [sources, setSources] = useState([]);
+  const [pdfUrl, setPdfUrl] = useState(null);
+  const [error, setError] = useState(null);
+  const [history, setHistory] = useState({ topics: [] });
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [userProfile, setUserProfile] = useState(null);
+
+  // SOLUTION DE CONTOURNEMENT : URL codée en dur pour le déploiement
+  const BACKEND_URL_PRODUCTION = 'https://yt-autom.onrender.com';
+  
+  // Détecter si nous sommes en production (déployé sur Render) ou en développement local
+  const isProduction = window.location.hostname !== 'localhost';
+  
+  // Choisir l'URL de l'API en fonction de l'environnement
+  const API_BASE = isProduction ? BACKEND_URL_PRODUCTION : 'http://localhost:5000';
+  
+  // Récupérer le profil utilisateur du localStorage
+  useEffect(() => {
+    const savedProfile = localStorage.getItem('ytautom_profile');
+    if (savedProfile) {
+      try {
+        const profile = JSON.parse(savedProfile);
+        setUserProfile(profile);
+      } catch (error) {
+        console.error('Erreur lors de la récupération du profil:', error);
+      }
+    } else {
+      // Rediriger vers la page de configuration du profil si aucun profil n'est trouvé
+      navigate('/profile');
+    }
+  }, [navigate]);
+
+  // Récupérer l'historique des sujets générés
+  useEffect(() => {
+    fetchHistory();
+  }, []);
+
+  // Fonction pour récupérer l'historique
+  const fetchHistory = async () => {
+    setLoadingHistory(true);
+    try {
+      console.log(`Tentative de récupération de l'historique depuis: ${API_BASE}/topics-history`);
+      
+      try {
+        const res = await fetch(`${API_BASE}/topics-history`, {
+          method: 'GET',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        
+        if (!res.ok) {
+          throw new Error(`Erreur de serveur: ${res.status}`);
+        }
+        
+        const data = await res.json();
+        console.log('Historique récupéré avec succès:', data);
+        setHistory(data);
+      } catch (fetchError) {
+        console.warn('Échec de récupération depuis le serveur:', fetchError.message);
+        
+        if (window.location.hostname === 'localhost') {
+          console.log('Utilisation de données d\'historique simulées');
+          const mockHistory = {
+            topics: [
+              { id: '1', theme: 'Les nouvelles fonctionnalités de l\'IA en 2025', timestamp: new Date().toISOString() },
+              { id: '2', theme: 'Comment optimiser son temps d\'écran', timestamp: new Date().toISOString() },
+              { id: '3', theme: 'Les meilleurs gadgets technologiques de l\'année', timestamp: new Date().toISOString() }
+            ]
+          };
+          setHistory(mockHistory);
+        } else {
+          throw fetchError;
+        }
+      }
+    } catch (e) {
+      console.error('Erreur lors du chargement de l\'historique:', e);
+      setError('Erreur lors du chargement de l\'historique. Veuillez réessayer.');
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  // Réinitialiser tout
+  const resetAll = () => {
+    setThemeInput('');
+    setTopics([]);
+    setSelectedTopic(null);
+    setScript(null);
+    setPdfUrl(null);
+    setSources([]);
+    setError(null);
+    setStep(0);
+  };
+  
+  // Fonction pour revenir à l'étape précédente
+  const goBack = () => {
+    if (step > 0) {
+      setStep(step - 1);
+      
+      // Réinitialiser les données en fonction de l'étape
+      if (step === 2) {
+        setScript(null);
+        setPdfUrl(null);
+      } else if (step === 1) {
+        setSelectedTopic(null);
+        setTopics([]);
+      }
+    }
+  };
+
+  // Fonction pour générer des sujets
+  const handleGenerateTopics = async () => {
+    if (!themeInput) {
+      setError('Veuillez entrer un thème pour générer des sujets.');
+      return;
+    }
+    
+    setLoadingTopics(true);
+    setError(null);
+    setTopics([]);
+    setSelectedTopic(null);
+    setScript(null);
+    setPdfUrl(null);
+    setSources([]);
+    
+    try {
+      const res = await fetch(`${API_BASE}/generate-topics`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          theme: themeInput,
+          profile: userProfile 
+        })
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Erreur de serveur: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      setTopics(data.topics || []);
+      
+      // Extraire les sources des sujets
+      const allSources = data.topics?.flatMap(topic => topic.sources || []) || [];
+      setSources([...new Set(allSources)]); // Éliminer les doublons
+      
+      // Passer à l'étape suivante
+      setStep(1);
+      
+      // Mettre à jour l'historique après génération
+      fetchHistory();
+    } catch (e) {
+      console.error('Erreur lors de la génération des sujets:', e);
+      setError(`Erreur lors de la génération des sujets: ${e.message}`);
+    } finally {
+      setLoadingTopics(false);
+    }
+  };
+
+  // Fonction pour générer un script
+  const handleGenerateScript = async (topic) => {
+    setSelectedTopic(topic);
+    setLoadingScript(true);
+    setError(null);
+    setScript(null);
+    setPdfUrl(null);
+    
+    try {
+      const res = await fetch(`${API_BASE}/generate-script`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          topic: topic.title, 
+          research: '',
+          profile: userProfile,
+          sources: topic.sources || []
+        })
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Erreur de serveur: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      setScript(data.script || "");
+      
+      // Passer à l'étape suivante
+      setStep(2);
+    } catch (e) {
+      console.error('Erreur lors de la génération du script:', e);
+      setError(`Erreur lors de la génération du script: ${e.message}`);
+    } finally {
+      setLoadingScript(false);
+    }
+  };
+
+  // Fonction pour exporter en PDF
+  const handleExportPDF = async () => {
+    if (!script || !selectedTopic) {
+      setError('Aucun script à exporter.');
+      return;
+    }
+    
+    try {
+      const res = await fetch(`${API_BASE}/export-pdf`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          script, 
+          topic: selectedTopic.title,
+          profile: userProfile,
+          sources: selectedTopic.sources || sources
+        })
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Erreur lors de l'export PDF: ${res.status}`);
+      }
+      
+      // Transformation de la réponse en blob pour créer un lien de téléchargement
+      const blob = await res.blob();
+      const url = window.URL.createObjectURL(blob);
+      setPdfUrl(url);
+      
+      // Créer un lien temporaire pour télécharger le PDF
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `script_${selectedTopic.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    } catch (e) {
+      console.error('Erreur lors de l\'export PDF:', e);
+      setError(`Erreur lors de l'export PDF: ${e.message}`);
+    }
+  };
+
+  // Animation pour les transitions entre étapes
+  const pageVariants = {
+    initial: { opacity: 0, x: 100 },
+    animate: { opacity: 1, x: 0 },
+    exit: { opacity: 0, x: -100 }
+  };
+
+  // Rendu conditionnel en fonction de l'étape active
+  const renderStepContent = () => {
+    switch (step) {
+      case 0:
+        return (
+          <ThemeSelector 
+            theme={themeInput}
+            setTheme={setThemeInput}
+            onGenerate={handleGenerateTopics}
+            loading={loadingTopics}
+            history={history}
+            error={error}
+            darkMode={darkMode}
+          />
+        );
+      case 1:
+        return (
+          <TopicsList 
+            topics={topics}
+            onSelectTopic={handleGenerateScript}
+            loading={loadingScript}
+            error={error}
+            sources={sources}
+            darkMode={darkMode}
+          />
+        );
+      case 2:
+        return (
+          <ScriptGenerator 
+            script={script}
+            selectedTopic={selectedTopic}
+            onExportPDF={handleExportPDF}
+            pdfUrl={pdfUrl}
+            sources={selectedTopic?.sources || sources}
+            error={error}
+            darkMode={darkMode}
+          />
+        );
+      default:
+        return null;
+    }
+  };
+
+  return (
+    <div className="dashboard-container" style={{
+      background: darkMode ? theme.colors.background.default : theme.colors.background.gradient,
+      minHeight: '100vh',
+      padding: '20px',
+      paddingTop: '80px'
+    }}>
+      <div className="dashboard-content" style={{
+        maxWidth: '1200px',
+        margin: '0 auto',
+        padding: '20px'
+      }}>
+        {/* Barre de progression */}
+        <div className="step-progress" style={{
+          marginBottom: '40px'
+        }}>
+          <div className="step-bar" style={{
+            display: 'flex',
+            justifyContent: 'space-between',
+            position: 'relative',
+            margin: '0 auto',
+            maxWidth: '600px'
+          }}>
+            {['1. Thème', '2. Sujets tendances', '3. Script & PDF'].map((label, idx) => {
+              const status = idx < step ? 'completed' : idx === step ? 'active' : 'upcoming';
+              
+              return (
+                <div 
+                  key={idx} 
+                  className={`step-indicator ${status}`}
+                  style={{
+                    padding: '10px 20px',
+                    borderRadius: theme.shape.buttonBorderRadius,
+                    margin: '0 8px',
+                    background: idx === step 
+                      ? theme.colors.primary.gradient
+                      : idx < step 
+                        ? darkMode ? 'rgba(59, 130, 246, 0.2)' : '#dbeafe'
+                        : darkMode ? 'rgba(255, 255, 255, 0.1)' : '#f1f5f9',
+                    color: idx === step 
+                      ? '#fff' 
+                      : idx < step 
+                        ? darkMode ? theme.colors.primary.light : theme.colors.primary.dark
+                        : darkMode ? 'rgba(255, 255, 255, 0.7)' : '#64748b',
+                    fontWeight: idx === step ? 700 : idx < step ? 600 : 400,
+                    fontSize: '16px',
+                    border: idx === step 
+                      ? `2px solid ${darkMode ? theme.colors.primary.light : theme.colors.primary.dark}`
+                      : '2px solid transparent',
+                    boxShadow: idx === step ? theme.shadows.md : 'none',
+                    transition: 'all 0.3s',
+                    position: 'relative',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    flexGrow: 1,
+                    zIndex: 10 - idx
+                  }}
+                >
+                  {/* Indicateur pour les étapes complétées */}
+                  {idx < step && (
+                    <span style={{ marginRight: '8px', fontSize: '14px' }}>✓</span>
+                  )}
+                  {label}
+                </div>
+              );
+            })}
+            
+            {/* Ligne de connexion */}
+            <div style={{
+              position: 'absolute',
+              height: '2px',
+              background: darkMode ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0',
+              top: '50%',
+              width: '100%',
+              zIndex: 1
+            }} />
+            
+            {/* Ligne de progression */}
+            <div style={{
+              position: 'absolute',
+              height: '2px',
+              background: theme.colors.primary.main,
+              top: '50%',
+              width: `${step * 50}%`,
+              zIndex: 1,
+              transition: 'width 0.5s ease'
+            }} />
+          </div>
+        </div>
+        
+        {/* En-tête avec boutons d'action */}
+        <div className="dashboard-header" style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '20px'
+        }}>
+          <motion.h1 
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            style={{ 
+              color: darkMode ? '#fff' : theme.colors.text.primary,
+              fontSize: '2rem',
+              fontWeight: 700,
+              marginBottom: '8px'
+            }}
+          >
+            {step === 0 ? 'Créer du contenu YouTube' : 
+             step === 1 ? 'Choisir un sujet tendance' : 
+             'Votre script est prêt !'}
+          </motion.h1>
+          
+          <div className="action-buttons" style={{
+            display: 'flex',
+            gap: '10px'
+          }}>
+            {step > 0 && (
+              <motion.button
+                initial={{ opacity: 0, scale: 0.9 }}
+                animate={{ opacity: 1, scale: 1 }}
+                className="btn-back"
+                onClick={goBack}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: theme.shape.buttonBorderRadius,
+                  background: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
+                  border: 'none',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  cursor: 'pointer',
+                  color: darkMode ? '#fff' : theme.colors.text.primary,
+                  fontWeight: 500,
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M19 12H5M12 19l-7-7 7-7"/>
+                </svg>
+                Retour
+              </motion.button>
+            )}
+            
+            <motion.button
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="btn-reset"
+              onClick={resetAll}
+              style={{
+                padding: '10px 20px',
+                borderRadius: theme.shape.buttonBorderRadius,
+                background: theme.colors.grey[darkMode ? 700 : 200],
+                border: 'none',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                cursor: 'pointer',
+                color: darkMode ? '#fff' : theme.colors.text.primary,
+                fontWeight: 500,
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+                <path d="M3 3v5h5"/>
+              </svg>
+              Recommencer
+            </motion.button>
+          </div>
+        </div>
+        
+        {/* Contenu principal avec animation de transition */}
+        <AnimatePresence mode="wait">
+          <motion.div
+            key={step}
+            initial="initial"
+            animate="animate"
+            exit="exit"
+            variants={pageVariants}
+            transition={{ duration: 0.4 }}
+            style={{
+              background: darkMode ? 'rgba(31, 41, 55, 0.7)' : 'rgba(255, 255, 255, 0.8)',
+              borderRadius: theme.shape.borderRadius,
+              padding: '30px',
+              boxShadow: theme.shadows.lg,
+              backdropFilter: 'blur(10px)',
+              border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}`,
+              overflow: 'hidden',
+              position: 'relative'
+            }}
+          >
+            {renderStepContent()}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+};
+
+export default ModernDashboard;

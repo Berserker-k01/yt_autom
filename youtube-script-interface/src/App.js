@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ProfileProvider } from './context/ProfileContext';
+import { ThemeProvider } from './context/ThemeContext';
 import './App.css';
 
 // Importation des composants personnalisés
 import SimpleProfileSetup from './components/SimpleProfileSetup';
-import SimpleHeader from './components/common/SimpleHeader';
+import ModernHeader from './components/common/ModernHeader';
+import ModernDashboard from './components/dashboard/ModernDashboard';
 
 function StepBar({ step }) {
   const steps = [
@@ -323,11 +325,10 @@ function Dashboard() {
               borderRadius: 30,
               display: 'flex',
               alignItems: 'center',
-              fontSize: 15,
-              fontWeight: 600,
-              background: activeTab === 'history' ? 'linear-gradient(135deg, #f59e0b, #d97706)' : 'linear-gradient(135deg, #4f46e5, #3730a3)',
+              cursor: 'pointer',
               color: 'white',
-              border: 'none',
+              fontWeight: 600,
+              fontSize: 15,
               boxShadow: '0 4px 10px rgba(0, 0, 0, 0.15)',
               transition: 'all 0.3s ease',
               transform: 'translateY(0)',
@@ -348,7 +349,7 @@ function Dashboard() {
           <h1 style={{ 
             textAlign: 'center', 
             fontSize: '32px',
-            background: 'linear-gradient(135deg, #1e40af, #3b82f6)',
+            background: 'linear-gradient(135deg, #1e3a8a, #3b82f6)',
             WebkitBackgroundClip: 'text',
             WebkitTextFillColor: 'transparent',
             marginTop: 20,
@@ -951,46 +952,37 @@ function Dashboard() {
 }
 
 function App() {
-  const [isProfileSet, setIsProfileSet] = useState(false);
-  
-  // Vérifier si l'utilisateur a déjà configuré son profil
-  useEffect(() => {
-    const savedProfile = localStorage.getItem('ytautom_profile');
-    if (savedProfile) {
-      setIsProfileSet(true);
-    }
-  }, []);
-  
+  // Vérifier si l'utilisateur est authentifié
+  const isAuthenticated = () => {
+    const auth = localStorage.getItem('ytautom_auth');
+    return auth === 'true';
+  };
+
+  // Rediriger vers la page d'authentification si non connecté
+  const PrivateRoute = ({ children }) => {
+    return isAuthenticated() ? children : <Navigate to="/profile" />;
+  };
+
   return (
-    <ProfileProvider>
-      <Router>
-        <div className="App">
-          <main className="app-main">
-            <Routes>
-              {/* Page d'accueil - redirige vers le profil ou le dashboard selon l'état */}
-              <Route path="/" element={isProfileSet ? <Navigate to="/dashboard" /> : <Navigate to="/profile" />} />
-              
-              {/* Nouveau formulaire de personnalisation unique */}
-              <Route path="/profile" element={<SimpleProfileSetup />} />
-              
-              {/* Dashboard accessible à tous après personnalisation */}
-              <Route path="/dashboard" element={
-                <div className="dashboard-container">
-                  <SimpleHeader />
-                  <Dashboard />
-                </div>
-              } />
-              
-              {/* Redirection par défaut */}
-              <Route path="*" element={<Navigate to="/" />} />
-            </Routes>
-          </main>
-          <footer className="app-footer">
-            <p>&copy; {new Date().getFullYear()} YouTube Script Generator | Tous droits réservés</p>
-          </footer>
-        </div>
-      </Router>
-    </ProfileProvider>
+    <ThemeProvider>
+      <ProfileProvider>
+        <Router>
+          <ModernHeader />
+          <Routes>
+            <Route path="/" element={<Navigate to="/dashboard" />} />
+            <Route path="/profile" element={<SimpleProfileSetup />} />
+            <Route 
+              path="/dashboard" 
+              element={
+                <PrivateRoute>
+                  <ModernDashboard />
+                </PrivateRoute>
+              } 
+            />
+          </Routes>
+        </Router>
+      </ProfileProvider>
+    </ThemeProvider>
   );
 }
 
