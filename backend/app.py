@@ -205,7 +205,7 @@ def export_pdf_route():
         channel_name = profile.get('channel_name', '')
         
         # Générer le PDF avec les informations du profil
-        pdf_bytes = save_to_pdf(
+        pdf_path = save_to_pdf(
             script,
             title=topic,
             author=youtuber_name,
@@ -213,35 +213,61 @@ def export_pdf_route():
             sources=sources
         )
         
-        # Créer un fichier temporaire pour stocker le PDF
-        temp_file = tempfile.NamedTemporaryFile(delete=False, suffix='.pdf')
-        temp_file.write(pdf_bytes)
-        temp_file.close()
+        if not pdf_path:
+            return jsonify({'error': 'Échec de la génération du PDF'}), 500
+            
+        # Retourner l'URL pour télécharger le PDF
+        return jsonify({
+            'pdf_url': f"/download/{os.path.basename(pdf_path)}",
+            'message': 'PDF généré avec succès'
+        })
         
-        # S'assurer que le fichier temporaire soit supprimé après l'envoi
-        @after_this_request
-        def remove_file(response):
-            try:
-                os.unlink(temp_file.name)
-            except Exception as e:
-                print(f"Erreur lors de la suppression du fichier temporaire: {str(e)}")
-            return response
+    except Exception as e:
+        print(f"Erreur lors de l'export PDF: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Erreur lors de l\'export PDF: {str(e)}'}), 500
+
+# Route pour télécharger un PDF généré
+@app.route('/download/<filename>', methods=['GET'])
+def download_pdf(filename):
+    try:
+        # Déterminer le chemin du fichier selon l'OS
+        if os.name == 'nt':  # Windows
+            file_directory = os.path.dirname(os.path.abspath(__file__))
+            file_path = os.path.join(file_directory, '..', filename)
+            # Chercher dans le répertoire temporaire également
+            import tempfile
+            if not os.path.exists(file_path):
+                temp_dir = tempfile.gettempdir()
+                file_path = os.path.join(temp_dir, filename)
+        else:  # Linux (Render)
+            file_path = f"/tmp/{filename}"
         
-        # Définir un nom de fichier basé sur le sujet
-        safe_filename = topic.replace(' ', '_').replace('"', '').replace("'", '').replace('/', '_')[:50]
-        download_name = f"Script_{safe_filename}.pdf"
+        # Vérifier si le fichier existe
+        if not os.path.exists(file_path):
+            print(f"Fichier PDF introuvable: {file_path}")
+            return jsonify({'error': 'Fichier PDF introuvable'}), 404
+            
+        # Définir un nom de fichier pour le téléchargement
+        base_name = os.path.basename(file_path)
+        download_name = f"Script_YouTube_{datetime.now().strftime('%Y%m%d')}.pdf"
         
-        # Envoyer le fichier
+        print(f"Envoi du fichier: {file_path} avec nom de téléchargement: {download_name}")
+        
+        # Envoyer le fichier PDF
         return send_file(
-            temp_file.name,
+            file_path,
             as_attachment=True,
             download_name=download_name,
             mimetype='application/pdf'
         )
         
     except Exception as e:
-        print(f"Erreur lors de l'export PDF: {str(e)}")
-        return jsonify({'error': 'Erreur lors de l\'export PDF'}), 500
+        print(f"Erreur lors du téléchargement du PDF: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Erreur lors du téléchargement du PDF: {str(e)}'}), 500
 
 # Route pour consulter l'historique des sujets
 @app.route('/topics-history', methods=['GET'])
@@ -360,6 +386,11 @@ def register():
         login_user(new_user)
         session.permanent = True
         
+        # Vérifier si le profil est configuré
+        setup_required = True
+        if new_user.profile:
+            setup_required = not new_user.profile.setup_completed
+        
         # Préparer la réponse
         response = jsonify({
             'message': 'Inscription réussie', 
@@ -367,7 +398,7 @@ def register():
                 'id': new_user.id,
                 'username': new_user.username,
                 'email': new_user.email,
-                'setupRequired': True
+                'setupRequired': setup_required
             }
         })
         

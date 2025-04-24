@@ -331,7 +331,7 @@ Informations sur le créateur:
     print(f"DEBUG: Réponse Gemini (100 premiers caractères): {response[:100] if response else 'Vide'}")
     return response.strip() if response else ""
 
-def save_to_pdf(script_text: str, sources: list = None) -> str:
+def save_to_pdf(script_text: str, title: str = None, author: str = None, channel: str = None, sources: list = None) -> str:
     """Version améliorée de sauvegarde en PDF avec sources et système d'indexation."""
     import tempfile
     try:
@@ -368,9 +368,24 @@ def save_to_pdf(script_text: str, sources: list = None) -> str:
         pdf.add_page()
         pdf.set_auto_page_break(auto=True, margin=15)
         
-        # Titre avec accent
+        # Titre et informations d'auteur
         pdf.set_font('Arial', 'B', 16)
-        pdf.cell(0, 10, "Script Vidéo YouTube", ln=True, align='C')
+        if title:
+            pdf.cell(0, 10, f"Script Vidéo: {title}", ln=True, align='C')
+        else:
+            pdf.cell(0, 10, "Script Vidéo YouTube", ln=True, align='C')
+        
+        if author or channel:
+            pdf.set_font('Arial', 'I', 12)
+            creator_info = ""
+            if author:
+                creator_info += f"Créateur: {author}"
+            if channel:
+                if creator_info:
+                    creator_info += " | "
+                creator_info += f"Chaîne: {channel}"
+            pdf.cell(0, 8, creator_info, ln=True, align='C')
+        
         pdf.ln(5)
         
         # Texte principal
@@ -435,6 +450,9 @@ def save_to_pdf(script_text: str, sources: list = None) -> str:
         with open(meta_filename, 'w', encoding='utf-8') as f:
             json.dump({
                 "timestamp": timestamp,
+                "title": title if title else "Script YouTube",
+                "author": author if author else "",
+                "channel": channel if channel else "",
                 "sources": sources if sources else [],
                 "source_count": len(sources) if sources else 0
             }, f, indent=2)
@@ -443,7 +461,10 @@ def save_to_pdf(script_text: str, sources: list = None) -> str:
         
     except Exception as e:
         print(f"Erreur sauvegarde PDF: {str(e)}")
+        import traceback
+        traceback.print_exc()
         return ""
+
 def save_as_text(script: dict, filename: str):
     """Sauvegarde le script en format texte si le PDF échoue."""
     with open(filename, 'w', encoding='utf-8') as f:
@@ -565,7 +586,7 @@ N'oubliez pas de liker cette vidéo et de vous abonner pour plus de contenu comm
             sources = selected_topic.get('sources', [])
             
             # Génération du PDF avec les sources
-            filename = save_to_pdf(script_text, sources)
+            filename = save_to_pdf(script_text, title=selected_topic['title'], author="Auteur Inconnu", channel="Chaîne Inconnue", sources=sources)
             if filename:
                 print(f"\nScript généré et sauvegardé: {filename}")
                 print(f"Sources incluses dans le PDF: {len(sources)}")
