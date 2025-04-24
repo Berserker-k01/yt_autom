@@ -222,18 +222,42 @@ def export_pdf_route():
         if not pdf_path:
             return jsonify({'error': 'Échec de la génération du PDF'}), 500
             
-        # Générer une URL absolue pour le téléchargement
-        base_url = request.url_root.rstrip('/')
-        pdf_url = f"/download/{os.path.basename(pdf_path)}"
-        
-        print(f"PDF généré avec succès: {pdf_path}")
-        print(f"URL de téléchargement: {base_url}{pdf_url}")
-        
-        # Retourner l'URL pour télécharger le PDF
-        return jsonify({
-            'pdf_url': pdf_url,
-            'message': 'PDF généré avec succès'
-        })
+        # Au lieu de renvoyer une URL, on lit le contenu du PDF et on l'encode en base64
+        try:
+            with open(pdf_path, 'rb') as pdf_file:
+                pdf_content = pdf_file.read()
+                
+            import base64
+            pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
+            
+            # Vérification que le PDF est valide
+            if not pdf_content.startswith(b'%PDF'):
+                # Si ce n'est pas un PDF valide, chercher une version .txt
+                txt_path = pdf_path.replace('.pdf', '.txt')
+                if os.path.exists(txt_path):
+                    with open(txt_path, 'rb') as txt_file:
+                        txt_content = txt_file.read()
+                    txt_base64 = base64.b64encode(txt_content).decode('utf-8')
+                    return jsonify({
+                        'file_data': txt_base64,
+                        'file_type': 'text/plain',
+                        'file_name': f"Script_YouTube_{datetime.now().strftime('%Y%m%d')}.txt",
+                        'message': 'Fichier texte généré (PDF invalide)'
+                    })
+                else:
+                    return jsonify({'error': 'PDF invalide et pas d\'alternative disponible'}), 500
+            
+            # Retourner le contenu du PDF encodé en base64
+            return jsonify({
+                'file_data': pdf_base64,
+                'file_type': 'application/pdf',
+                'file_name': f"Script_YouTube_{datetime.now().strftime('%Y%m%d')}.pdf",
+                'message': 'PDF généré avec succès'
+            })
+            
+        except Exception as e:
+            print(f"Erreur lors de la lecture du PDF: {str(e)}")
+            return jsonify({'error': f'Erreur lors de la lecture du PDF: {str(e)}'}), 500
         
     except Exception as e:
         print(f"Erreur lors de l'export PDF: {str(e)}")

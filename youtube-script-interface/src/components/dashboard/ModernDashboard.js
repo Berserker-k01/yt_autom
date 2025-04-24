@@ -20,6 +20,9 @@ const ModernDashboard = () => {
   const [loadingScript, setLoadingScript] = useState(false);
   const [sources, setSources] = useState([]);
   const [pdfUrl, setPdfUrl] = useState(null);
+  const [pdfData, setPdfData] = useState(null);
+  const [pdfFileName, setPdfFileName] = useState("");
+  const [pdfFileType, setPdfFileType] = useState("");
   const [error, setError] = useState(null);
   const [history, setHistory] = useState({ topics: [] });
   const [loadingHistory, setLoadingHistory] = useState(false);
@@ -152,6 +155,7 @@ const ModernDashboard = () => {
     setSelectedTopic(null);
     setScript(null);
     setPdfUrl(null);
+    setPdfData(null);
     setSources([]);
     setError(null);
     setStep(0);
@@ -166,6 +170,7 @@ const ModernDashboard = () => {
       if (step === 2) {
         setScript(null);
         setPdfUrl(null);
+        setPdfData(null);
       } else if (step === 1) {
         setSelectedTopic(null);
         setTopics([]);
@@ -186,6 +191,7 @@ const ModernDashboard = () => {
     setSelectedTopic(null);
     setScript(null);
     setPdfUrl(null);
+    setPdfData(null);
     setSources([]);
     
     try {
@@ -234,6 +240,7 @@ const ModernDashboard = () => {
     setError(null);
     setScript(null);
     setPdfUrl(null);
+    setPdfData(null);
     
     try {
       const res = await fetch(`${API_BASE}/generate-script`, {
@@ -273,6 +280,7 @@ const ModernDashboard = () => {
   const handleExportPDF = async () => {
     try {
       setPdfUrl(null);
+      setPdfData(null);
       const response = await fetch(`${API_BASE}/export-pdf`, {
         method: 'POST',
         headers: {
@@ -289,7 +297,15 @@ const ModernDashboard = () => {
       const data = await response.json();
       
       if (response.ok) {
-        setPdfUrl(data.pdf_url);
+        if (data.file_data) {
+          // Stocker les données du fichier encodées en base64
+          setPdfData(data.file_data);
+          setPdfFileName(data.file_name || "Script_YouTube.pdf");
+          setPdfFileType(data.file_type || "application/pdf");
+        } else if (data.pdf_url) {
+          // Fallback pour l'ancienne méthode d'URL
+          setPdfUrl(data.pdf_url);
+        }
       } else {
         setError('Erreur lors de l\'export PDF: ' + (data.error || 'Erreur inconnue'));
       }
@@ -299,11 +315,45 @@ const ModernDashboard = () => {
     }
   };
 
+  // Fonction pour télécharger le PDF à partir des données base64
+  const downloadFile = () => {
+    if (pdfData) {
+      try {
+        // Convertir base64 en Blob
+        const byteCharacters = atob(pdfData);
+        const byteNumbers = new Array(byteCharacters.length);
+        for (let i = 0; i < byteCharacters.length; i++) {
+          byteNumbers[i] = byteCharacters.charCodeAt(i);
+        }
+        const byteArray = new Uint8Array(byteNumbers);
+        const blob = new Blob([byteArray], { type: pdfFileType });
+        
+        // Créer un URL pour le blob
+        const url = window.URL.createObjectURL(blob);
+        
+        // Créer un lien et déclencher le téléchargement
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = pdfFileName;
+        document.body.appendChild(a);
+        a.click();
+        
+        // Nettoyer
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+      } catch (error) {
+        console.error('Erreur lors du téléchargement:', error);
+        setError('Erreur lors du téléchargement du fichier: ' + error.message);
+      }
+    }
+  };
+
   // Mettre à jour le script (utilisé par l'éditeur)
   const handleScriptUpdate = (updatedScript) => {
     setScript(updatedScript);
-    // Réinitialiser l'URL du PDF car le script a été modifié
+    // Réinitialiser l'URL et les données du PDF car le script a été modifié
     setPdfUrl(null);
+    setPdfData(null);
   };
 
   // Animation pour les transitions entre étapes
@@ -346,6 +396,9 @@ const ModernDashboard = () => {
             selectedTopic={selectedTopic}
             onExportPDF={handleExportPDF}
             pdfUrl={pdfUrl}
+            pdfData={pdfData}
+            pdfFileName={pdfFileName}
+            downloadFile={downloadFile}
             sources={sources}
             error={error}
             darkMode={darkMode}

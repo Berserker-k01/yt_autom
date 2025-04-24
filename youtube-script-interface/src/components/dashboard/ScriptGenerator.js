@@ -4,13 +4,16 @@ import ScriptEditor from '../script/ScriptEditor';
 
 const ScriptGenerator = ({ 
   script, 
+  onScriptUpdate,
   selectedTopic, 
   onExportPDF, 
   pdfUrl, 
+  pdfData,
+  pdfFileName,
+  downloadFile,
   sources,
   error,
-  darkMode,
-  onScriptUpdate  // Nouvelle prop pour mettre à jour le script
+  darkMode
 }) => {
   const [showFullScript, setShowFullScript] = useState(false);
   const [showSources, setShowSources] = useState(false);
@@ -265,7 +268,7 @@ const ScriptGenerator = ({
                     </button>
                   </div>
 
-                  {pdfUrl && (
+                  {(pdfData || pdfUrl) && (
                     <div style={{ 
                       backgroundColor: darkMode ? '#374151' : '#f0f9ff',
                       padding: '15px',
@@ -283,33 +286,61 @@ const ScriptGenerator = ({
                           🎉 Votre PDF est prêt !
                         </p>
                         <p style={{ margin: 0, fontSize: '0.9rem' }}>
-                          Cliquez sur le lien pour télécharger.
+                          Cliquez sur le bouton pour télécharger.
                         </p>
                       </div>
-                      <a 
-                        href={`${process.env.REACT_APP_API_URL || (window.location.origin.includes('localhost') ? 'http://localhost:5000' : 'https://yt-autom.onrender.com')}${pdfUrl}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        style={{
-                          backgroundColor: darkMode ? '#2563eb' : '#0284c7',
-                          color: 'white',
-                          padding: '8px 16px',
-                          borderRadius: '6px',
-                          textDecoration: 'none',
-                          fontWeight: 500,
-                          fontSize: '0.95rem',
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '8px'
-                        }}
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                          <path d="M12 2H2v20h20V12"></path>
-                          <path d="M16 2v4h4"></path>
-                          <path d="M22 2l-8 8"></path>
-                        </svg>
-                        Télécharger le PDF
-                      </a>
+                      
+                      {pdfData ? (
+                        <button 
+                          onClick={downloadFile}
+                          style={{
+                            backgroundColor: darkMode ? '#2563eb' : '#0284c7',
+                            color: 'white',
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            border: 'none',
+                            textDecoration: 'none',
+                            fontWeight: 500,
+                            fontSize: '0.95rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px',
+                            cursor: 'pointer'
+                          }}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                            <polyline points="7 10 12 15 17 10"></polyline>
+                            <line x1="12" y1="15" x2="12" y2="3"></line>
+                          </svg>
+                          Télécharger {pdfFileName ? pdfFileName.split('.').pop().toUpperCase() : 'PDF'}
+                        </button>
+                      ) : pdfUrl && (
+                        <a 
+                          href={`${process.env.REACT_APP_API_URL || (window.location.origin.includes('localhost') ? 'http://localhost:5000' : 'https://yt-autom.onrender.com')}${pdfUrl}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          style={{
+                            backgroundColor: darkMode ? '#2563eb' : '#0284c7',
+                            color: 'white',
+                            padding: '8px 16px',
+                            borderRadius: '6px',
+                            textDecoration: 'none',
+                            fontWeight: 500,
+                            fontSize: '0.95rem',
+                            display: 'flex',
+                            alignItems: 'center',
+                            gap: '8px'
+                          }}
+                        >
+                          <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M12 2H2v20h20V12"></path>
+                            <path d="M16 2v4h4"></path>
+                            <path d="M22 2l-8 8"></path>
+                          </svg>
+                          Télécharger le PDF
+                        </a>
+                      )}
                     </div>
                   )}
 
