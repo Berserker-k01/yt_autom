@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
+import ScriptEditor from '../script/ScriptEditor';
 
 const ScriptGenerator = ({ 
   script, 
@@ -8,10 +9,12 @@ const ScriptGenerator = ({
   pdfUrl, 
   sources,
   error,
-  darkMode
+  darkMode,
+  onScriptUpdate  // Nouvelle prop pour mettre à jour le script
 }) => {
   const [showFullScript, setShowFullScript] = useState(false);
   const [showSources, setShowSources] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
 
   // Un extrait du script pour l'aperçu
   const scriptExcerpt = script && script.length > 500 
@@ -51,32 +54,36 @@ const ScriptGenerator = ({
           </h2>
         );
       }
-      
-      // Si la ligne commence par ###, considérer comme sous-sous-titre
-      if (line.startsWith('### ')) {
+
+      // Si la ligne contient [SECTION], la formater comme une section
+      if (line.includes('[') && line.includes(']')) {
         return (
           <h3 key={index} style={{ 
             fontSize: '1.3rem', 
             fontWeight: 600, 
-            margin: '16px 0 8px',
-            color: darkMode ? '#fff' : '#374151' 
+            margin: '15px 0 10px',
+            color: darkMode ? '#d1d5db' : '#374151',
+            backgroundColor: darkMode ? 'rgba(31, 41, 55, 0.5)' : 'rgba(243, 244, 246, 0.8)',
+            padding: '8px 12px',
+            borderRadius: '6px',
+            display: 'inline-block'
           }}>
-            {line.substring(4)}
+            {line}
           </h3>
         );
       }
       
-      // Si c'est une ligne vide, ajouter un espace
-      if (line.trim() === '') {
-        return <div key={index} style={{ height: '0.5rem' }} />;
+      // Ligne vide
+      if (!line.trim()) {
+        return <div key={index} style={{ height: '12px' }}></div>;
       }
       
-      // Sinon, c'est un paragraphe normal
+      // Ligne normale
       return (
         <p key={index} style={{ 
-          margin: '8px 0',
-          lineHeight: 1.7,
-          color: darkMode ? 'rgba(255, 255, 255, 0.9)' : '#374151'
+          margin: '8px 0', 
+          lineHeight: 1.6,
+          color: darkMode ? '#e5e7eb' : '#374151'
         }}>
           {line}
         </p>
@@ -84,315 +91,314 @@ const ScriptGenerator = ({
     });
   };
 
+  const handleEditClick = () => {
+    setIsEditing(true);
+    setShowFullScript(true);
+  };
+
+  const handleScriptUpdate = (updatedScript) => {
+    if (onScriptUpdate) {
+      onScriptUpdate(updatedScript);
+    }
+  };
+
   return (
-    <div className="script-generator">
-      {/* Titre et description */}
-      <motion.div
-        initial={{ opacity: 0, y: -20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="section-header"
-        style={{ marginBottom: '25px' }}
-      >
-        <h2 style={{ 
-          fontSize: '1.5rem', 
-          fontWeight: 700,
-          marginBottom: '10px',
-          color: darkMode ? '#fff' : '#1f2937'
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      exit={{ opacity: 0, y: -20 }}
+      transition={{ duration: 0.5 }}
+      style={{ 
+        width: '100%',
+        backgroundColor: darkMode ? '#111827' : '#ffffff',
+        borderRadius: '10px',
+        boxShadow: '0 4px 6px rgba(0, 0, 0, 0.1)',
+        padding: '20px',
+        marginBottom: '30px',
+        border: darkMode ? '1px solid #1f2937' : '1px solid #e5e7eb'
+      }}
+    >
+      {error ? (
+        <div style={{ 
+          color: '#ef4444', 
+          padding: '20px', 
+          textAlign: 'center',
+          backgroundColor: darkMode ? '#292524' : '#fef2f2',
+          borderRadius: '8px',
+          marginBottom: '20px'
         }}>
-          {selectedTopic ? selectedTopic.title : 'Script généré'}
-        </h2>
-        <p style={{ 
-          color: darkMode ? 'rgba(255, 255, 255, 0.7)' : '#4b5563',
-          fontSize: '1rem',
-          lineHeight: 1.6
-        }}>
-          Votre script est prêt ! Vous pouvez l'exporter en PDF ou le copier directement.
-        </p>
-      </motion.div>
-
-      {/* Affichage des erreurs */}
-      {error && (
-        <motion.div
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="error-message"
-          style={{
-            padding: '12px 16px',
-            borderRadius: '8px',
-            background: darkMode ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2',
-            color: darkMode ? '#fca5a5' : '#dc2626',
-            marginBottom: '20px',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '10px'
-          }}
-        >
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <circle cx="12" cy="12" r="10"></circle>
-            <line x1="12" y1="8" x2="12" y2="12"></line>
-            <line x1="12" y1="16" x2="12.01" y2="16"></line>
-          </svg>
-          {error}
-        </motion.div>
-      )}
-
-      {/* Actions rapides */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.1 }}
-        className="script-actions"
-        style={{
-          display: 'flex',
-          gap: '10px',
-          marginBottom: '20px',
-          flexWrap: 'wrap'
-        }}
-      >
-        <button
-          onClick={onExportPDF}
-          style={{
-            padding: '12px 20px',
-            borderRadius: '10px',
-            background: darkMode ? 'rgba(239, 68, 68, 0.7)' : 'linear-gradient(135deg, #ef4444, #dc2626)',
-            color: '#fff',
-            fontWeight: 600,
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            boxShadow: '0 4px 12px rgba(239, 68, 68, 0.2)'
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
-            <polyline points="7 10 12 15 17 10"></polyline>
-            <line x1="12" y1="15" x2="12" y2="3"></line>
-          </svg>
-          Exporter en PDF
-        </button>
-        
-        <button
-          onClick={() => {
-            navigator.clipboard.writeText(script);
-            // Feedback visuel temporaire (pourrait être remplacé par un toast)
-            const btn = document.activeElement;
-            const originalText = btn.textContent;
-            btn.textContent = 'Copié !';
-            setTimeout(() => {
-              btn.textContent = originalText;
-            }, 2000);
-          }}
-          style={{
-            padding: '12px 20px',
-            borderRadius: '10px',
-            background: darkMode ? 'rgba(16, 185, 129, 0.7)' : 'linear-gradient(135deg, #10b981, #059669)',
-            color: '#fff',
-            fontWeight: 600,
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            boxShadow: '0 4px 12px rgba(16, 185, 129, 0.2)'
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"></path>
-            <rect x="8" y="2" width="8" height="4" rx="1" ry="1"></rect>
-          </svg>
-          Copier le script
-        </button>
-        
-        <button
-          onClick={() => setShowFullScript(!showFullScript)}
-          style={{
-            padding: '12px 20px',
-            borderRadius: '10px',
-            background: darkMode ? 'rgba(59, 130, 246, 0.7)' : 'linear-gradient(135deg, #3b82f6, #2563eb)',
-            color: '#fff',
-            fontWeight: 600,
-            border: 'none',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '8px',
-            boxShadow: '0 4px 12px rgba(59, 130, 246, 0.2)'
-          }}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-            {showFullScript ? (
-              <path d="M19 9l-7 7-7-7"></path>
-            ) : (
-              <path d="M5 15l7-7 7 7"></path>
-            )}
-          </svg>
-          {showFullScript ? 'Afficher moins' : 'Afficher tout'}
-        </button>
-      </motion.div>
-
-      {/* Affichage des sources */}
-      {sources && sources.length > 0 && (
+          <h3 style={{ marginTop: 0 }}>Erreur lors de la génération du script</h3>
+          <p>{error}</p>
+        </div>
+      ) : (
         <>
-          <motion.button
-            initial={{ opacity: 0, y: 10 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-            onClick={() => setShowSources(!showSources)}
-            style={{
-              marginBottom: '15px',
-              background: 'transparent',
-              border: 'none',
-              display: 'flex',
-              alignItems: 'center',
-              gap: '5px',
-              color: darkMode ? '#60a5fa' : '#2563eb',
-              fontWeight: 500,
-              cursor: 'pointer',
-              padding: '8px 0'
-            }}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-              {showSources ? (
-                <polyline points="18 15 12 9 6 15"></polyline>
-              ) : (
-                <polyline points="6 9 12 15 18 9"></polyline>
-              )}
-            </svg>
-            {showSources ? 'Masquer les sources' : 'Afficher les sources'}
-          </motion.button>
-          
-          <motion.div
-            initial={{ opacity: 0, height: 0 }}
-            animate={{ 
-              opacity: showSources ? 1 : 0,
-              height: showSources ? 'auto' : 0
-            }}
-            transition={{ duration: 0.3 }}
-            style={{
-              overflow: 'hidden',
-              marginBottom: showSources ? '20px' : 0
-            }}
-          >
-            <div style={{
-              padding: '16px',
-              borderRadius: '12px',
-              background: darkMode ? 'rgba(31, 41, 55, 0.7)' : 'rgba(59, 130, 246, 0.05)',
-              border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(59, 130, 246, 0.2)'}`,
-            }}>
-              <h3 style={{
-                fontSize: '1.1rem',
-                fontWeight: 600,
-                marginBottom: '12px',
-                color: darkMode ? '#fff' : '#1e3a8a'
+          {selectedTopic && (
+            <div style={{ marginBottom: '20px' }}>
+              <h2 style={{ 
+                fontSize: '1.8rem', 
+                fontWeight: 700, 
+                color: darkMode ? '#f3f4f6' : '#111827',
+                marginTop: 0
               }}>
-                Sources utilisées ({sources.length})
-              </h3>
-              <ul style={{
-                listStyleType: 'none',
-                padding: 0,
-                margin: 0,
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '8px'
+                {selectedTopic.title}
+              </h2>
+              <p style={{ 
+                color: darkMode ? '#9ca3af' : '#4b5563',
+                marginBottom: '15px', 
+                fontSize: '1.1rem'
               }}>
-                {sources.map((source, index) => (
-                  <li key={index} style={{
-                    fontSize: '0.9rem',
-                    color: darkMode ? 'rgba(255, 255, 255, 0.8)' : '#4b5563',
-                    display: 'flex',
-                    alignItems: 'flex-start',
-                    gap: '8px'
+                {selectedTopic.angle}
+              </p>
+            </div>
+          )}
+
+          {!isEditing ? (
+            // Mode aperçu du script
+            <div>
+              {script ? (
+                <div>
+                  <div style={{ 
+                    backgroundColor: darkMode ? '#1f2937' : '#f9fafb',
+                    padding: '20px',
+                    borderRadius: '8px',
+                    marginBottom: '20px',
+                    border: darkMode ? '1px solid #374151' : '1px solid #e5e7eb'
                   }}>
-                    <span style={{ color: darkMode ? '#60a5fa' : '#2563eb', marginRight: '4px' }}>[{index + 1}]</span>
-                    <a 
-                      href={source.startsWith('http') ? source : `https://www.google.com/search?q=${encodeURIComponent(source)}`} 
-                      target="_blank" 
-                      rel="noopener noreferrer"
-                      style={{
-                        color: darkMode ? '#60a5fa' : '#2563eb',
-                        textDecoration: 'none',
-                        wordBreak: 'break-word'
+                    {showFullScript ? formatText(script) : formatText(scriptExcerpt)}
+
+                    {!showFullScript && script && script.length > 500 && (
+                      <button
+                        onClick={() => setShowFullScript(true)}
+                        style={{ 
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          color: darkMode ? '#60a5fa' : '#2563eb',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          padding: '10px 0',
+                          marginTop: '10px',
+                          fontSize: '1rem'
+                        }}
+                      >
+                        Voir le script complet →
+                      </button>
+                    )}
+                  </div>
+
+                  <div style={{ 
+                    display: 'flex', 
+                    justifyContent: 'space-between',
+                    gap: '10px', 
+                    flexWrap: 'wrap',
+                    marginBottom: '20px'
+                  }}>
+                    <button
+                      onClick={handleEditClick}
+                      style={{ 
+                        backgroundColor: darkMode ? '#374151' : '#f3f4f6',
+                        color: darkMode ? '#e5e7eb' : '#1f2937',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '10px 20px',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        fontSize: '0.95rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
                       }}
                     >
-                      {source}
-                    </a>
-                  </li>
-                ))}
-              </ul>
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M12 20h9"></path>
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"></path>
+                      </svg>
+                      Éditer le script
+                    </button>
+
+                    {sources && sources.length > 0 && (
+                      <button
+                        onClick={() => setShowSources(!showSources)}
+                        style={{ 
+                          backgroundColor: darkMode ? '#374151' : '#f3f4f6',
+                          color: darkMode ? '#e5e7eb' : '#1f2937',
+                          border: 'none',
+                          borderRadius: '8px',
+                          padding: '10px 20px',
+                          fontWeight: 500,
+                          cursor: 'pointer',
+                          fontSize: '0.95rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M2 3h6a4 4 0 0 1 4 4v14a3 3 0 0 0-3-3H2z"></path>
+                          <path d="M22 3h-6a4 4 0 0 0-4 4v14a3 3 0 0 1 3-3h7z"></path>
+                        </svg>
+                        {showSources ? 'Masquer les sources' : `Voir les sources (${sources.length})`}
+                      </button>
+                    )}
+
+                    <button
+                      onClick={onExportPDF}
+                      style={{ 
+                        backgroundColor: darkMode ? '#2563eb' : '#2563eb',
+                        color: '#ffffff',
+                        border: 'none',
+                        borderRadius: '8px',
+                        padding: '10px 20px',
+                        fontWeight: 500,
+                        cursor: 'pointer',
+                        fontSize: '0.95rem',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px'
+                      }}
+                    >
+                      <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path>
+                        <polyline points="7 10 12 15 17 10"></polyline>
+                        <line x1="12" y1="15" x2="12" y2="3"></line>
+                      </svg>
+                      Exporter en PDF
+                    </button>
+                  </div>
+
+                  {pdfUrl && (
+                    <div style={{ 
+                      backgroundColor: darkMode ? '#374151' : '#f0f9ff',
+                      padding: '15px',
+                      borderRadius: '8px',
+                      marginBottom: '20px',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'space-between',
+                      gap: '10px',
+                      flexWrap: 'wrap',
+                      border: darkMode ? '1px solid #4b5563' : '1px solid #bae6fd'
+                    }}>
+                      <div style={{ color: darkMode ? '#e5e7eb' : '#0c4a6e' }}>
+                        <p style={{ margin: '0 0 5px 0', fontWeight: 500 }}>
+                          🎉 Votre PDF est prêt !
+                        </p>
+                        <p style={{ margin: 0, fontSize: '0.9rem' }}>
+                          Cliquez sur le lien pour télécharger.
+                        </p>
+                      </div>
+                      <a 
+                        href={pdfUrl} 
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        style={{
+                          backgroundColor: darkMode ? '#2563eb' : '#0284c7',
+                          color: 'white',
+                          padding: '8px 16px',
+                          borderRadius: '6px',
+                          textDecoration: 'none',
+                          fontWeight: 500,
+                          fontSize: '0.95rem',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '8px'
+                        }}
+                      >
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                          <path d="M12 2H2v20h20V12"></path>
+                          <path d="M16 2v4h4"></path>
+                          <path d="M22 2l-8 8"></path>
+                        </svg>
+                        Télécharger le PDF
+                      </a>
+                    </div>
+                  )}
+
+                  {showSources && sources && sources.length > 0 && (
+                    <div style={{ 
+                      backgroundColor: darkMode ? '#1f2937' : '#f9fafb',
+                      padding: '20px',
+                      borderRadius: '8px',
+                      border: darkMode ? '1px solid #374151' : '1px solid #e5e7eb'
+                    }}>
+                      <h3 style={{ 
+                        margin: '0 0 15px 0', 
+                        color: darkMode ? '#f3f4f6' : '#1f2937',
+                        fontSize: '1.2rem'
+                      }}>
+                        Sources ({sources.length})
+                      </h3>
+                      <ul style={{ 
+                        listStyleType: 'none',
+                        padding: 0,
+                        margin: 0
+                      }}>
+                        {sources.map((source, index) => (
+                          <li key={index} style={{ 
+                            marginBottom: '12px',
+                            paddingBottom: '12px',
+                            borderBottom: darkMode ? '1px solid #374151' : '1px solid #e5e7eb',
+                            color: darkMode ? '#d1d5db' : '#4b5563',
+                            fontSize: '0.95rem'
+                          }}>
+                            <div style={{ display: 'flex', gap: '10px' }}>
+                              <div style={{ 
+                                fontWeight: 700, 
+                                color: darkMode ? '#60a5fa' : '#2563eb',
+                                minWidth: '25px'
+                              }}>
+                                [{index + 1}]
+                              </div>
+                              <a 
+                                href={source} 
+                                target="_blank" 
+                                rel="noopener noreferrer"
+                                style={{ 
+                                  color: darkMode ? '#93c5fd' : '#2563eb',
+                                  textDecoration: 'none',
+                                  wordBreak: 'break-all'
+                                }}
+                              >
+                                {source}
+                              </a>
+                            </div>
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <div style={{ 
+                  textAlign: 'center', 
+                  padding: '30px',
+                  backgroundColor: darkMode ? '#1f2937' : '#f9fafb',
+                  borderRadius: '8px',
+                  color: darkMode ? '#9ca3af' : '#6b7280'
+                }}>
+                  <p style={{ fontSize: '1.1rem', marginBottom: '10px' }}>
+                    Générer un script pour ce sujet
+                  </p>
+                  <p style={{ fontSize: '0.95rem', margin: 0 }}>
+                    Une fois le script généré, vous pourrez l'éditer et l'exporter en PDF.
+                  </p>
+                </div>
+              )}
             </div>
-          </motion.div>
+          ) : (
+            // Mode édition du script avec le nouveau composant ScriptEditor
+            <ScriptEditor 
+              script={script}
+              sources={sources}
+              topic={selectedTopic?.title}
+              onSave={(updatedScript) => {
+                handleScriptUpdate(updatedScript);
+                setIsEditing(false);
+              }}
+            />
+          )}
         </>
       )}
-
-      {/* Affichage du script */}
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5, delay: 0.2 }}
-        className="script-preview"
-        style={{
-          marginTop: '20px',
-          background: darkMode ? 'rgba(31, 41, 55, 0.7)' : '#fff',
-          borderRadius: '12px',
-          padding: '25px',
-          boxShadow: '0 4px 12px rgba(0, 0, 0, 0.08)',
-          border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.05)' : 'rgba(0, 0, 0, 0.03)'}`,
-          maxHeight: showFullScript ? 'none' : '400px',
-          overflow: showFullScript ? 'visible' : 'hidden',
-          position: 'relative'
-        }}
-      >
-        {!showFullScript && (
-          <div style={{
-            position: 'absolute',
-            bottom: 0,
-            left: 0,
-            width: '100%',
-            height: '100px',
-            background: `linear-gradient(to bottom, transparent, ${darkMode ? 'rgba(31, 41, 55, 0.95)' : 'rgba(255, 255, 255, 0.95)'})`,
-            borderBottomLeftRadius: '12px',
-            borderBottomRightRadius: '12px',
-            pointerEvents: 'none'
-          }}/>
-        )}
-        
-        {/* Rendu du script */}
-        <div className="script-content" style={{
-          color: darkMode ? '#fff' : '#1f2937',
-          fontSize: '1rem',
-          lineHeight: 1.7
-        }}>
-          {formatText(showFullScript ? script : scriptExcerpt)}
-        </div>
-        
-        {!showFullScript && (
-          <motion.button
-            whileHover={{ scale: 1.05 }}
-            onClick={() => setShowFullScript(true)}
-            style={{
-              position: 'absolute',
-              bottom: '20px',
-              left: '50%',
-              transform: 'translateX(-50%)',
-              background: darkMode ? 'rgba(59, 130, 246, 0.7)' : '#3b82f6',
-              color: '#fff',
-              border: 'none',
-              padding: '8px 20px',
-              borderRadius: '20px',
-              fontWeight: 600,
-              cursor: 'pointer',
-              boxShadow: '0 4px 12px rgba(59, 130, 246, 0.3)',
-              zIndex: 10
-            }}
-          >
-            Afficher plus
-          </motion.button>
-        )}
-      </motion.div>
-    </div>
+    </motion.div>
   );
 };
 

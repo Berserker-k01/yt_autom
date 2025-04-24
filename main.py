@@ -592,5 +592,140 @@ N'oubliez pas de liker cette vidéo et de vous abonner pour plus de contenu comm
     except ValueError:
         print("Entrée invalide - Veuillez entrer un nombre ou 'n' pour quitter")
 
+def modify_script_with_ai(original_script: str, modification_request: str, user_context: dict = None) -> str:
+    """Modifie un script existant selon les demandes spécifiques de l'utilisateur."""
+    # Construction du prompt avec le contexte utilisateur si disponible
+    user_context_str = ""
+    if user_context and any(user_context.values()):
+        user_context_str = f"""
+Informations sur le créateur:
+- Nom de la chaîne: {user_context.get('channel_name', 'Non spécifié')}
+- Nom du YouTubeur: {user_context.get('youtuber_name', 'Non spécifié')}
+- Style vidéo préféré: {user_context.get('video_style', 'Non spécifié')}
+- Approche habituelle: {user_context.get('approach_style', 'Non spécifié')}
+- Public cible: {user_context.get('target_audience', 'Non spécifié')}
+"""
+    
+    # Prompt de modification de script
+    modification_prompt = f"""En tant qu'expert en rédaction de scripts YouTube, modifie le script suivant selon cette demande :
+
+DEMANDE DE MODIFICATION:
+{modification_request}
+
+SCRIPT ORIGINAL:
+{original_script}
+
+{user_context_str}
+
+Instructions:
+1. Conserve la structure en sections (ex: [HOOK], [INTRODUCTION], etc.)
+2. Conserve le ton et le style global du script mais applique les modifications demandées
+3. Assure-toi que les transitions restent fluides
+4. Retourne uniquement le script modifié, sans commentaires ni explications
+5. Assure-toi que le script reste captivant et adapté au format YouTube
+"""
+
+    print(f"Modification du script avec la demande : {modification_request[:100]}...")
+    response = gemini_generate(modification_prompt)
+    print(f"Script modifié généré ({len(response)} caractères)")
+    
+    return response
+
+def estimate_reading_time(script: str) -> dict:
+    """Estime le temps de lecture d'un script et fournit une analyse détaillée."""
+    # Analyse du texte
+    words = script.split()
+    word_count = len(words)
+    
+    # Analyse des sections
+    sections = []
+    current_section = {"title": "Sans titre", "text": "", "start_pos": 0}
+    lines = script.split('\n')
+    
+    for line_num, line in enumerate(lines):
+        if '[' in line and ']' in line and line.strip().startswith('['):
+            # Si on a trouvé une nouvelle section et qu'on a déjà du texte, on sauvegarde la section précédente
+            if current_section["text"]:
+                section_words = len(current_section["text"].split())
+                current_section["word_count"] = section_words
+                current_section["estimated_time"] = round(section_words / 150 * 60)  # secondes
+                sections.append(current_section)
+            
+            # Nouvelle section
+            section_title = line.strip()
+            current_section = {
+                "title": section_title,
+                "text": "",
+                "start_pos": line_num,
+                "line_num": line_num
+            }
+        else:
+            # Ajouter à la section courante
+            current_section["text"] += line + " "
+    
+    # Ajouter la dernière section
+    if current_section["text"]:
+        section_words = len(current_section["text"].split())
+        current_section["word_count"] = section_words
+        current_section["estimated_time"] = round(section_words / 150 * 60)  # secondes
+        sections.append(current_section)
+    
+    # Calcul du temps total (150 mots/min est la vitesse moyenne de parole)
+    total_seconds = round(word_count / 150 * 60)
+    minutes, seconds = divmod(total_seconds, 60)
+    
+    # Calcul de la répartition du temps
+    total_minutes = max(1, round(total_seconds / 60))
+    
+    # Analyse avancée
+    sentence_count = len([s for s in script.replace('!', '.').replace('?', '.').split('.') if s.strip()])
+    avg_sentence_length = word_count / max(1, sentence_count)
+    
+    # Formatage pour l'affichage
+    formatted_time = f"{minutes:02d}:{seconds:02d}"
+    
+    return {
+        "total_words": word_count,
+        "total_sentences": sentence_count,
+        "avg_sentence_length": round(avg_sentence_length, 1),
+        "total_seconds": total_seconds,
+        "formatted_time": formatted_time,
+        "minutes": int(minutes),
+        "seconds": int(seconds),
+        "sections": sections,
+        "sections_count": len(sections),
+        "estimated_retention": calculate_retention_estimate(word_count, sections)
+    }
+
+def calculate_retention_estimate(word_count: int, sections: list) -> dict:
+    """Calcule une estimation approximative de la rétention d'audience basée sur des métriques YouTube standards."""
+    # Heuristiques basées sur des statistiques YouTube
+    
+    # Indice de base selon la longueur (plus c'est long, plus la rétention diminue en moyenne)
+    base_retention = 95 - min(40, (word_count / 150 * 60) / 60 * 10)
+    
+    # Bonus structurel (plus il y a de sections bien délimitées, meilleure est la rétention)
+    sections_bonus = min(5, len(sections) * 0.5)
+    
+    # Check si le script a un hook et une conclusion clairs
+    has_hook = any("hook" in section["title"].lower() for section in sections)
+    has_conclusion = any("conclusion" in section["title"].lower() for section in sections)
+    hook_bonus = 3 if has_hook else 0
+    conclusion_bonus = 2 if has_conclusion else 0
+    
+    # Calculer le score final (clamp entre 30% et 85%)
+    retention_score = base_retention + sections_bonus + hook_bonus + conclusion_bonus
+    retention_score = max(30, min(85, retention_score))
+    
+    return {
+        "percentage": round(retention_score),
+        "factors": {
+            "base_retention": round(base_retention, 1),
+            "sections_bonus": round(sections_bonus, 1),
+            "hook_bonus": hook_bonus,
+            "conclusion_bonus": conclusion_bonus
+        }
+    }
+
 if __name__ == "__main__":
     main()

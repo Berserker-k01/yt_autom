@@ -269,45 +269,41 @@ const ModernDashboard = () => {
     }
   };
 
-  // Fonction pour exporter en PDF
+  // Exporter le script en PDF
   const handleExportPDF = async () => {
-    if (!script || !selectedTopic) {
-      setError('Aucun script à exporter.');
-      return;
-    }
-    
     try {
-      const res = await fetch(`${API_BASE}/export-pdf`, {
+      setPdfUrl(null);
+      const response = await fetch(`${API_BASE}/export-pdf`, {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ 
-          script, 
-          topic: selectedTopic.title,
-          profile_info: userProfile,
-          sources: selectedTopic.sources || sources
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          script: script,
+          profile: userProfile,
+          topic: selectedTopic ? selectedTopic.title : 'Script YouTube',
+          sources: sources
         })
       });
       
-      if (!res.ok) {
-        throw new Error(`Erreur lors de l'export PDF: ${res.status}`);
+      const data = await response.json();
+      
+      if (response.ok) {
+        setPdfUrl(data.pdf_url);
+      } else {
+        setError('Erreur lors de l\'export PDF: ' + (data.error || 'Erreur inconnue'));
       }
-      
-      // Transformation de la réponse en blob pour créer un lien de téléchargement
-      const blob = await res.blob();
-      const url = window.URL.createObjectURL(blob);
-      setPdfUrl(url);
-      
-      // Créer un lien temporaire pour télécharger le PDF
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `script_${selectedTopic.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.pdf`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-    } catch (e) {
-      console.error('Erreur lors de l\'export PDF:', e);
-      setError(`Erreur lors de l'export PDF: ${e.message}`);
+    } catch (error) {
+      console.error('Erreur:', error);
+      setError('Erreur lors de l\'export PDF: ' + error.message);
     }
+  };
+
+  // Mettre à jour le script (utilisé par l'éditeur)
+  const handleScriptUpdate = (updatedScript) => {
+    setScript(updatedScript);
+    // Réinitialiser l'URL du PDF car le script a été modifié
+    setPdfUrl(null);
   };
 
   // Animation pour les transitions entre étapes
@@ -350,9 +346,10 @@ const ModernDashboard = () => {
             selectedTopic={selectedTopic}
             onExportPDF={handleExportPDF}
             pdfUrl={pdfUrl}
-            sources={selectedTopic?.sources || sources}
+            sources={sources}
             error={error}
             darkMode={darkMode}
+            onScriptUpdate={handleScriptUpdate}
           />
         );
       default:

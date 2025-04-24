@@ -10,7 +10,7 @@ import tempfile
 
 # Permet d'importer main.py depuis le dossier parent
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from main import generate_topics, generate_script, save_to_pdf
+from main import generate_topics, generate_script, save_to_pdf, modify_script_with_ai, estimate_reading_time
 
 # Import des modèles de base de données
 from models import db, User, UserProfile
@@ -802,6 +802,72 @@ def login_simple():
         import traceback
         traceback.print_exc()
         return jsonify({'error': f"Erreur lors de la connexion: {str(e)}"}), 500
+
+# Route pour demander une modification de script par IA
+@app.route('/modify-script', methods=['POST'])
+def modify_script_route():
+    try:
+        data = request.get_json()
+        original_script = data.get('script', '')
+        modification_request = data.get('request', '')
+        profile = data.get('profile', {})
+        
+        if not original_script:
+            return jsonify({'error': 'Un script original est requis'}), 400
+        if not modification_request:
+            return jsonify({'error': 'Une demande de modification est requise'}), 400
+        
+        # Extraire les informations du profil
+        youtuber_name = profile.get('youtuber_name', '')
+        channel_name = profile.get('channel_name', '')
+        
+        # Demander à l'IA de modifier le script
+        modified_script = modify_script_with_ai(
+            original_script, 
+            modification_request,
+            {
+                'youtuber_name': youtuber_name,
+                'channel_name': channel_name,
+                'video_style': profile.get('content_style', 'informative'),
+                'approach_style': profile.get('tone', 'professionnel'),
+                'target_audience': profile.get('target_audience', 'adultes')
+            }
+        )
+        
+        # Estimer le temps de lecture du script modifié
+        estimated_time = estimate_reading_time(modified_script)
+        
+        return jsonify({
+            'modified_script': modified_script,
+            'estimated_reading_time': estimated_time
+        })
+        
+    except Exception as e:
+        print(f"Erreur lors de la modification du script: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Erreur lors de la modification du script: {str(e)}'}), 500
+
+# Route pour estimer le temps de lecture d'un script
+@app.route('/estimate-time', methods=['POST'])
+def estimate_time_route():
+    try:
+        data = request.get_json()
+        script = data.get('script', '')
+        
+        if not script:
+            return jsonify({'error': 'Un script est requis'}), 400
+        
+        # Estimer le temps de lecture
+        estimated_time = estimate_reading_time(script)
+        
+        return jsonify({
+            'estimated_reading_time': estimated_time
+        })
+        
+    except Exception as e:
+        print(f"Erreur lors de l'estimation du temps de lecture: {str(e)}")
+        return jsonify({'error': 'Erreur lors de l\'estimation du temps de lecture'}), 500
 
 # Initialiser la base de données et démarrer l'application
 with app.app_context():
