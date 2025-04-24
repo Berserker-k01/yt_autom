@@ -13,6 +13,14 @@ const ScriptEditor = ({ script, sources, topic, onSave }) => {
   const [savedRecently, setSavedRecently] = useState(false);
   const [aiModifying, setAiModifying] = useState(false);
   const [showAdvancedStats, setShowAdvancedStats] = useState(false);
+  
+  // Détecter si nous sommes en production (déployé sur Render) ou en développement local
+  const isProduction = window.location.hostname !== 'localhost';
+  
+  // Choisir l'URL de l'API en fonction de l'environnement
+  const API_BASE = isProduction 
+    ? 'https://yt-autom.onrender.com' 
+    : process.env.REACT_APP_API_URL || 'http://localhost:5000';
 
   useEffect(() => {
     if (script) {
@@ -43,11 +51,10 @@ const ScriptEditor = ({ script, sources, topic, onSave }) => {
     setIsLoading(true);
 
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-      const response = await axios.post(`${apiUrl}/modify-script`, {
+      const response = await axios.post(`${API_BASE}/modify-script`, {
         script: editedScript,
         request: aiRequest,
-        profile
+        profile: profile || {}  
       });
 
       if (response.data.modified_script) {
@@ -70,8 +77,7 @@ const ScriptEditor = ({ script, sources, topic, onSave }) => {
     if (!text.trim()) return;
 
     try {
-      const apiUrl = process.env.REACT_APP_API_URL || 'http://localhost:5000';
-      const response = await axios.post(`${apiUrl}/estimate-time`, {
+      const response = await axios.post(`${API_BASE}/estimate-time`, {
         script: text
       });
 

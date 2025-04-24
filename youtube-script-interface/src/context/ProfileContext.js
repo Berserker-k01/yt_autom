@@ -3,6 +3,9 @@ import React, { createContext, useState, useContext, useEffect } from 'react';
 // Créer le contexte de profil
 const ProfileContext = createContext();
 
+// Exporter directement le contexte
+export { ProfileContext };
+
 // Fonction pour récupérer l'URL de l'API selon l'environnement
 const getApiBaseUrl = () => {
   return process.env.NODE_ENV === 'production' 
