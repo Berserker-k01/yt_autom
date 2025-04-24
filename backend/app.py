@@ -118,19 +118,25 @@ def generate_topics_route():
         content_type = profile.get('content_type', 'tech')
         
         # Générer les sujets avec les informations du profil
-        result = generate_topics(theme, profile_info={
+        result = generate_topics(theme, user_context={
             'youtuber_name': youtuber_name,
             'channel_name': channel_name,
-            'content_type': content_type
+            'content_type': content_type,
+            'video_style': profile.get('content_style', 'informative'),
+            'approach_style': profile.get('tone', 'professionnel'),
+            'target_audience': profile.get('target_audience', 'adultes'),
+            'video_length': profile.get('video_length', '10-15 minutes')
         })
         
         # Sauvegarder dans l'historique avec l'utilisateur si disponible
         save_theme_to_history(theme, youtuber_name)
         
-        return jsonify(result)
+        return jsonify({"topics": result})
     except Exception as e:
         print(f"Erreur lors de la génération des sujets: {str(e)}")
-        return jsonify({'error': 'Erreur lors de la génération des sujets'}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Erreur lors de la génération des sujets: {str(e)}'}), 500
 
 # Route pour générer un script
 @app.route('/generate-script', methods=['POST'])
