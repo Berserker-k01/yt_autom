@@ -249,6 +249,28 @@ def download_pdf(filename):
             print(f"Fichier PDF introuvable: {file_path}")
             return jsonify({'error': 'Fichier PDF introuvable'}), 404
             
+        # Vérifier si le fichier est lisible
+        try:
+            with open(file_path, 'rb') as f:
+                # Lire un peu du fichier pour vérifier qu'il est valide
+                header = f.read(10)
+                if not header.startswith(b'%PDF'):
+                    print(f"Le fichier {file_path} n'est pas un PDF valide")
+                    # Si ce n'est pas un PDF valide, chercher une version .txt
+                    txt_path = file_path.replace('.pdf', '.txt')
+                    if os.path.exists(txt_path):
+                        return send_file(
+                            txt_path,
+                            as_attachment=True,
+                            download_name=f"Script_YouTube_{datetime.now().strftime('%Y%m%d')}.txt",
+                            mimetype='text/plain'
+                        )
+                    else:
+                        return jsonify({'error': 'Le fichier PDF est corrompu et aucune alternative n\'est disponible'}), 500
+        except Exception as e:
+            print(f"Erreur lors de la vérification du PDF: {str(e)}")
+            return jsonify({'error': 'Erreur lors de la lecture du fichier PDF'}), 500
+            
         # Définir un nom de fichier pour le téléchargement
         base_name = os.path.basename(file_path)
         download_name = f"Script_YouTube_{datetime.now().strftime('%Y%m%d')}.pdf"

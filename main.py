@@ -332,135 +332,128 @@ Informations sur le créateur:
     return response.strip() if response else ""
 
 def save_to_pdf(script_text: str, title: str = None, author: str = None, channel: str = None, sources: list = None) -> str:
-    """Version améliorée de sauvegarde en PDF avec sources et système d'indexation."""
+    """Version simplifiée et robuste de sauvegarde en PDF."""
     import tempfile
+    
     try:
-        # Configuration pour le PDF avec support des accents 
-        # Utiliser explicitement /tmp pour Render (Linux)
+        # Configuration pour le PDF
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        
+        # Créer le nom de fichier avec le chemin complet
         if os.name == 'nt':  # Windows
-            with tempfile.NamedTemporaryFile(delete=False, suffix=f'_video_{timestamp}.pdf') as tmp:
-                filename = tmp.name
+            temp_dir = tempfile.gettempdir()
+            filename = os.path.join(temp_dir, f'script_video_{timestamp}.pdf')
+            # Créer aussi un fichier texte de secours
+            txt_filename = os.path.join(temp_dir, f'script_video_{timestamp}.txt')
         else:  # Linux (Render)
-            filename = f"/tmp/video_{timestamp}.pdf"
+            filename = f"/tmp/script_video_{timestamp}.pdf"
+            txt_filename = f"/tmp/script_video_{timestamp}.txt"
         
         print(f"Création de PDF à l'emplacement: {filename}")
         
-        # Remplacer les caractères problématiques par leurs équivalents simples
-        replacements = {
-            'œ': 'oe',  # œ (oe ligature) -> oe
-            'Œ': 'OE',  # Œ (OE ligature) -> OE
-            '…': '...', # ellipsis
-            '’': "'",   # apostrophe typographique
-            '“': '"',   # guillemet ouvrant
-            '”': '"',   # guillemet fermant
-            '–': '-',   # tiret moyen
-            '—': '--',  # tiret long
-            ' ': ' ',   # espace insécable
-        }
-        
-        for char, replacement in replacements.items():
-            script_text = script_text.replace(char, replacement)
-        
-        # Création du PDF avec encodage pour les accents
-        pdf = FPDF()
-        # Utiliser une police standard disponible partout au lieu d'un chemin spécifique à Windows
-        pdf.add_page()
-        pdf.set_auto_page_break(auto=True, margin=15)
-        
-        # Titre et informations d'auteur
-        pdf.set_font('Arial', 'B', 16)
-        if title:
-            pdf.cell(0, 10, f"Script Vidéo: {title}", ln=True, align='C')
-        else:
-            pdf.cell(0, 10, "Script Vidéo YouTube", ln=True, align='C')
-        
-        if author or channel:
-            pdf.set_font('Arial', 'I', 12)
-            creator_info = ""
-            if author:
-                creator_info += f"Créateur: {author}"
-            if channel:
-                if creator_info:
-                    creator_info += " | "
-                creator_info += f"Chaîne: {channel}"
-            pdf.cell(0, 8, creator_info, ln=True, align='C')
-        
-        pdf.ln(5)
-        
-        # Texte principal
-        pdf.set_font('Arial', '', 12)
-        
-        # Traitement des lignes
-        lines = script_text.split('\n')
-        for line in lines:
-            # Formater les titres (entre crochets)
-            if '[' in line and ']' in line and line.find('[') < line.find(']'):
-                pdf.ln(3)  # Espace avant titre
-                pdf.set_font('Arial', 'B', 13)
-                pdf.multi_cell(0, 8, line)
-                pdf.set_font('Arial', '', 12)
-            else:
-                # Texte normal
-                try:
-                    # Filtrer caractères vraiment problématiques tout en gardant les accents
-                    filtered_line = ''
-                    for char in line:
-                        # Garder lettres, chiffres, ponctuation et accents français
-                        if char in 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789 .,;:!?()[]{}+-*/=@#$%&\"\'\n\t\ràâäçèéêëîïôöùûüÿÀÂÄÇÈÉÊËÎÏÔÖÙÛÜßœŒ':
-                            filtered_line += char
-                        else:
-                            filtered_line += ' '
-                    pdf.multi_cell(0, 8, filtered_line)
-                except Exception as e:
-                    print(f"Erreur ligne ({e}): {line[:30]}...")
-                    pdf.multi_cell(0, 8, "[Texte avec caracteres speciaux non affiches]")
+        # Toujours créer un fichier texte de secours
+        with open(txt_filename, 'w', encoding='utf-8') as f:
+            f.write("=" * 50 + "\n")
+            f.write(f"TITRE: {title or 'Script YouTube'}\n")
+            f.write(f"AUTEUR: {author or 'Non spécifié'}\n")
+            f.write(f"CHAÎNE: {channel or 'Non spécifiée'}\n")
+            f.write("=" * 50 + "\n\n")
+            f.write(script_text)
             
-        # Sauvegarde avec encodage
-        # Ajouter une section pour les sources s'il y en a
-        if sources and len(sources) > 0:
+            if sources and len(sources) > 0:
+                f.write("\n\n" + "=" * 50 + "\n")
+                f.write("SOURCES:\n")
+                for i, source in enumerate(sources, 1):
+                    f.write(f"[{i}] {source}\n")
+        
+        print(f"Fichier texte de secours créé: {txt_filename}")
+            
+        # Version simplifiée avec FPDF
+        try:
+            # Nettoyage du texte de tous les caractères non-ASCII
+            cleaned_text = ""
+            for char in script_text:
+                if ord(char) < 128 or char in 'àâäçèéêëîïôöùûüÿÀÂÄÇÈÉÊËÎÏÔÖÙÛÜŸ':
+                    cleaned_text += char
+                else:
+                    cleaned_text += ' '
+            
+            # Créer PDF basique
+            from fpdf import FPDF
+            pdf = FPDF()
             pdf.add_page()
             
-            # Titre de la section des sources
+            # Titre
             pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 10, "Sources et Références", ln=True, align='C')
+            pdf.cell(0, 10, (title or "Script YouTube")[:50], 0, 1, 'C')
+            
+            # Infos auteur
+            if author or channel:
+                pdf.set_font('Arial', 'I', 12)
+                info = ""
+                if author: 
+                    info += f"Par: {author}"
+                if channel:
+                    if info: 
+                        info += " | "
+                    info += f"Chaîne: {channel}"
+                pdf.cell(0, 8, info, 0, 1, 'C')
+            
+            # Contenu principal
+            pdf.set_font('Arial', '', 12)
             pdf.ln(5)
             
-            # Liste des sources avec indices
-            pdf.set_font('Arial', '', 12)
-            for i, source in enumerate(sources, 1):
-                pdf.set_font('Arial', 'B', 12)
-                pdf.cell(10, 8, f"[{i}]", ln=0)
+            # Traiter le texte par petits morceaux pour éviter les erreurs
+            lines = cleaned_text.split('\n')
+            for line in lines:
+                if not line.strip():
+                    pdf.ln(4)
+                    continue
+                
+                if '[' in line and ']' in line and line.find('[') < line.find(']'):
+                    pdf.ln(4)
+                    pdf.set_font('Arial', 'B', 13)
+                    pdf.multi_cell(0, 8, line[:80])  # Limiter la longueur pour éviter les erreurs
+                    pdf.set_font('Arial', '', 12)
+                else:
+                    # Diviser les longues lignes en segments de 80 caractères
+                    for i in range(0, len(line), 80):
+                        segment = line[i:i+80]
+                        if segment.strip():
+                            pdf.multi_cell(0, 8, segment)
+            
+            # Sources
+            if sources and len(sources) > 0:
+                pdf.add_page()
+                pdf.set_font('Arial', 'B', 16)
+                pdf.cell(0, 10, "Sources", 0, 1, 'C')
+                pdf.ln(5)
+                
                 pdf.set_font('Arial', '', 12)
-                pdf.multi_cell(0, 8, source)
+                for i, source in enumerate(sources, 1):
+                    source_text = str(source)
+                    if len(source_text) > 80:
+                        source_text = source_text[:80] + "..."
+                    pdf.multi_cell(0, 8, f"[{i}] {source_text}")
             
-            # Ajouter un guide d'utilisation
-            pdf.ln(10)
-            pdf.set_font('Arial', 'B', 13)
-            pdf.cell(0, 10, "Guide d'utilisation des références", ln=True)
-            pdf.set_font('Arial', '', 12)
-            pdf.multi_cell(0, 8, "Les sources sont numérotées de [1] à [{0}]. Utilisez ces indices pour retrouver facilement la source correspondante.".format(len(sources)))
-        
-        # Sauvegarde du PDF
-        pdf.output(filename, 'F')
-        print(f"PDF généré avec succès: {filename}")
-        
-        # Créer aussi un fichier JSON avec les métadonnées
-        meta_filename = filename.replace(".pdf", "_meta.json")
-        with open(meta_filename, 'w', encoding='utf-8') as f:
-            json.dump({
-                "timestamp": timestamp,
-                "title": title if title else "Script YouTube",
-                "author": author if author else "",
-                "channel": channel if channel else "",
-                "sources": sources if sources else [],
-                "source_count": len(sources) if sources else 0
-            }, f, indent=2)
+            # Sauvegarder le PDF
+            pdf.output(filename)
             
-        return filename
-        
+            # Vérifier la création du PDF
+            if os.path.exists(filename) and os.path.getsize(filename) > 100:
+                print(f"PDF généré avec succès: {filename}")
+                return filename
+            else:
+                print("PDF non généré ou trop petit, utilisation du fichier texte")
+                return txt_filename
+                
+        except Exception as e:
+            print(f"Erreur FPDF: {str(e)}")
+            print(f"Utilisation du fichier texte à la place: {txt_filename}")
+            return txt_filename
+            
     except Exception as e:
-        print(f"Erreur sauvegarde PDF: {str(e)}")
+        print(f"Erreur critique: {str(e)}")
         import traceback
         traceback.print_exc()
         return ""
