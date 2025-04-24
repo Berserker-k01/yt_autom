@@ -21,17 +21,25 @@
     "path": "^0.12.7",
     "react": "^19.1.0",
     "react-dom": "^19.1.0",
+    "react-helmet": "^6.1.0",
+    "react-lazy-load-image-component": "^1.6.0",
     "react-markdown": "^9.0.1",
     "react-router-dom": "^6.22.0",
     "react-scripts": "5.0.1",
     "web-vitals": "^2.1.4"
   },
+  "devDependencies": {
+    "@craco/craco": "^7.1.0",
+    "compression-webpack-plugin": "^10.0.0",
+    "terser-webpack-plugin": "^5.3.9"
+  },
   "scripts": {
     "start": "NODE_ENV=production node index.js",
     "start-win": "set NODE_ENV=production && node index.js",
-    "dev": "react-scripts start",
-    "build": "react-scripts build",
-    "test": "react-scripts test",
+    "dev": "craco start",
+    "build": "craco build",
+    "analyze": "source-map-explorer 'build/static/js/*.js'",
+    "test": "craco test",
     "eject": "react-scripts eject"
   },
   "eslintConfig": {
