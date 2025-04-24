@@ -157,16 +157,35 @@ def generate_script_route():
         content_style = profile.get('content_style', 'informative')
         
         # Générer le script avec les informations du profil
-        result = generate_script(topic, research, profile_info={
+        script_text = generate_script(topic, research, user_context={
             'youtuber_name': youtuber_name,
             'channel_name': channel_name,
-            'content_style': content_style
-        }, sources=sources)
+            'content_style': content_style,
+            'video_style': profile.get('content_style', 'informative'),
+            'approach_style': profile.get('tone', 'professionnel'),
+            'target_audience': profile.get('target_audience', 'adultes'),
+            'video_length': profile.get('video_length', '10-15 minutes')
+        })
         
-        return jsonify(result)
+        # Générer le PDF si le script a été généré avec succès
+        if script_text:
+            pdf_path = save_to_pdf(script_text, sources)
+            
+            result = {
+                'script': script_text,
+                'pdf_url': f"/download/{os.path.basename(pdf_path)}",
+                'sources': sources
+            }
+            
+            return jsonify(result)
+        else:
+            return jsonify({'error': 'Échec de la génération du script'}), 500
+            
     except Exception as e:
         print(f"Erreur lors de la génération du script: {str(e)}")
-        return jsonify({'error': 'Erreur lors de la génération du script'}), 500
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Erreur lors de la génération du script: {str(e)}'}), 500
 
 # Route pour exporter en PDF
 @app.route('/export-pdf', methods=['POST'])
