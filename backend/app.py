@@ -244,21 +244,50 @@ def download_pdf(filename):
         else:  # Linux (Render)
             file_path = f"/tmp/{filename}"
         
+        print(f"Tentative de téléchargement du PDF depuis: {file_path}")
+        
         # Vérifier si le fichier existe
         if not os.path.exists(file_path):
             print(f"Fichier PDF introuvable: {file_path}")
-            return jsonify({'error': 'Fichier PDF introuvable'}), 404
+            # Recherche élargie dans plusieurs répertoires potentiels
+            potential_paths = [
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', filename),
+                os.path.join(os.path.dirname(os.path.abspath(__file__)), filename),
+                os.path.join('/tmp', filename),
+                os.path.join(tempfile.gettempdir(), filename)
+            ]
+            
+            found = False
+            for path in potential_paths:
+                if os.path.exists(path):
+                    file_path = path
+                    found = True
+                    print(f"Fichier trouvé dans un emplacement alternatif: {file_path}")
+                    break
+                    
+            if not found:
+                return jsonify({'error': 'Fichier PDF introuvable'}), 404
+        
+        # Vérifier la taille du fichier
+        file_size = os.path.getsize(file_path)
+        print(f"Taille du fichier: {file_size} octets")
+        
+        if file_size == 0:
+            return jsonify({'error': 'Le fichier PDF est vide'}), 500
             
         # Vérifier si le fichier est lisible
         try:
             with open(file_path, 'rb') as f:
                 # Lire un peu du fichier pour vérifier qu'il est valide
                 header = f.read(10)
+                f.seek(0)  # Revenir au début du fichier
+                
                 if not header.startswith(b'%PDF'):
                     print(f"Le fichier {file_path} n'est pas un PDF valide")
                     # Si ce n'est pas un PDF valide, chercher une version .txt
                     txt_path = file_path.replace('.pdf', '.txt')
                     if os.path.exists(txt_path):
+                        print(f"Renvoi du fichier texte alternatif: {txt_path}")
                         return send_file(
                             txt_path,
                             as_attachment=True,
@@ -267,9 +296,13 @@ def download_pdf(filename):
                         )
                     else:
                         return jsonify({'error': 'Le fichier PDF est corrompu et aucune alternative n\'est disponible'}), 500
+                        
+                # Lire tout le contenu du fichier
+                file_content = f.read()
+                
         except Exception as e:
-            print(f"Erreur lors de la vérification du PDF: {str(e)}")
-            return jsonify({'error': 'Erreur lors de la lecture du fichier PDF'}), 500
+            print(f"Erreur lors de la lecture du fichier: {str(e)}")
+            return jsonify({'error': f'Erreur lors de la lecture du fichier: {str(e)}'}), 500
             
         # Définir un nom de fichier pour le téléchargement
         base_name = os.path.basename(file_path)
@@ -277,16 +310,15 @@ def download_pdf(filename):
         
         print(f"Envoi du fichier: {file_path} avec nom de téléchargement: {download_name}")
         
-        # Envoyer le fichier PDF
-        return send_file(
-            file_path,
-            as_attachment=True,
-            download_name=download_name,
-            mimetype='application/pdf'
-        )
+        # Solution alternative en cas d'échec de send_file
+        response = make_response(file_content)
+        response.headers['Content-Type'] = 'application/pdf'
+        response.headers['Content-Disposition'] = f'attachment; filename="{download_name}"'
+        
+        return response
         
     except Exception as e:
-        print(f"Erreur lors du téléchargement du PDF: {str(e)}")
+        print(f"Erreur critique lors du téléchargement du PDF: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Erreur lors du téléchargement du PDF: {str(e)}'}), 500

@@ -287,7 +287,7 @@ const ScriptGenerator = ({
                         </p>
                       </div>
                       <a 
-                        href={pdfUrl} 
+                        href={pdfUrl.startsWith('http') ? pdfUrl : `${window.location.origin.includes('localhost') ? 'http://localhost:5000' : 'https://yt-autom.onrender.com'}${pdfUrl}`}
                         target="_blank"
                         rel="noopener noreferrer"
                         style={{
