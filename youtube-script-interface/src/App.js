@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { HashRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ProfileProvider } from './context/ProfileContext';
 import { ThemeProvider } from './context/ThemeContext';
 import './App.css';
@@ -966,7 +966,7 @@ function App() {
   return (
     <ThemeProvider>
       <ProfileProvider>
-        <Router>
+        <HashRouter>
           <ModernHeader />
           <Routes>
             <Route path="/" element={<Navigate to="/dashboard" />} />
@@ -982,7 +982,7 @@ function App() {
             {/* Route de capture pour les pages non trouvées */}
             <Route path="*" element={<Navigate to="/" />} />
           </Routes>
-        </Router>
+        </HashRouter>
       </ProfileProvider>
     </ThemeProvider>
   );

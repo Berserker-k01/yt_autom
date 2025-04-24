@@ -1,5 +1,5 @@
 services:
-  # Backend Python service
+  # Backend Python service - API pour l'automatisation de contenu YouTube
   - type: web
     name: youtube-script-generator
     env: python
@@ -13,12 +13,13 @@ services:
       - key: FRONTEND_URL
         value: https://yt-autom-frontend.onrender.com
 
-  # Frontend React service - configuration spéciale pour SPA
+  # Frontend React service - Interface utilisateur
   - type: web
-    name: youtube-script-interface
+    name: yt-autom-frontend
     env: node
+    runtime: node
     buildCommand: cd youtube-script-interface && npm install && npm run build
-    startCommand: cd youtube-script-interface && node rewrite.js
+    startCommand: cd youtube-script-interface && npm run start
     envVars:
       - key: NODE_ENV
         value: production
