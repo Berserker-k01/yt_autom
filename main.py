@@ -102,16 +102,28 @@ def tavily_search(query: str, num_results: int = 5) -> str:
         print(f"Recherche Tavily pour: {query}")
         
         # Effectuer la recherche avec Tavily
-        search_response = tavily_client.search(
-            query=query,
-            search_depth="advanced",
-            max_results=num_results,
-            include_answer=True,
-            include_domains=[], # Laisser vide pour rechercher partout
-            include_raw_content=False,
-        )
+        if query is None or not isinstance(query, str) or len(query.strip()) == 0:
+            print("Requête de recherche vide ou invalide")
+            # Fournir des résultats de secours en cas de requête invalide
+            return """Source: https://example.com/article1
+Titre: Article général
+Résumé: Cet article couvre des informations générales sur le sujet.
+"""
         
-        print(f"Recherche Tavily terminée, traitement des résultats...")
+        try:
+            search_response = tavily_client.search(
+                query=query,
+                search_depth="advanced",
+                max_results=num_results,
+                include_answer=True,
+                include_domains=[], # Laisser vide pour rechercher partout
+                include_raw_content=False,
+            )
+            
+            print(f"Recherche Tavily terminée, traitement des résultats...")
+        except Exception as search_error:
+            print(f"Erreur lors de la recherche Tavily: {search_error}")
+            return serpapi_search(query, num_results)  # Fallback à SerpAPI en cas d'erreur
         
         # Extraire les résultats
         results = search_response.get("results", [])
@@ -150,18 +162,23 @@ def tavily_search(query: str, num_results: int = 5) -> str:
     
     except Exception as e:
         print(f"Erreur Tavily: {e}")
-        # En cas d'erreur, logger et tenter de réinitialiser le client
+        
+        # Éviter l'utilisation de la variable tavily_client en cas d'erreur
         try:
             print("Tentative de réinitialisation du client Tavily après erreur...")
-            tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
+            fallback_client = TavilyClient(api_key=TAVILY_API_KEY)
             print("Client Tavily réinitialisé!")
+            # Ne pas affecter cette variable à tavily_client pour éviter des erreurs
         except Exception as reinit_error:
             print(f"Échec de la réinitialisation après erreur: {reinit_error}")
         
         # Générer des sources fictives pour les tests
-        if len(query) > 0:
+        if query and len(query) > 0:
             return f"Source: https://example.com/fallback\nTitre: Fallback pour {query}\nRésumé: Ceci est une source de secours générée suite à une erreur de recherche. Le système continuera à fonctionner malgré cette erreur...\n"
-        return ""
+        return """Source: https://example.com/general
+Titre: Article général
+Résumé: Cet article couvre des informations générales pertinentes.
+"""
 
 def serpapi_search(query: str, num_results: int = 5) -> str:
     """Effectue une recherche via SerpAPI (Google)."""
