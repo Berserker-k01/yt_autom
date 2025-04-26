@@ -92,6 +92,8 @@ def gemini_generate(prompt: str) -> str:
 
 def tavily_search(query: str, num_results: int = 5) -> str:
     """Effectue une recherche via Tavily API."""
+    global tavily_client
+    
     if not TAVILY_AVAILABLE or tavily_client is None:
         print("Tavily non disponible, utilisation de SerpAPI comme fallback")
         return serpapi_search(query, num_results)
@@ -150,7 +152,6 @@ def tavily_search(query: str, num_results: int = 5) -> str:
         print(f"Erreur Tavily: {e}")
         # En cas d'erreur, logger et tenter de réinitialiser le client
         try:
-            global tavily_client
             print("Tentative de réinitialisation du client Tavily après erreur...")
             tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
             print("Client Tavily réinitialisé!")
@@ -567,18 +568,18 @@ IMPORTANT: Écris le texte EXACT à dire dans la vidéo, comme si tu étais {you
                 print("Échec de la récupération d'une réponse valide de Gemini, génération d'un script basique...")
                 # Dernier recours: un script générique très simple
                 fallback_script = f"""[HOOK]
-Bienvenue à tous ! Aujourd'hui, nous allons explorer un sujet fascinant : {topic}.
+Bienvenue à cette vidéo sur {topic}! Aujourd'hui nous allons explorer ce sujet fascinant.
 
 [INTRODUCTION]
 Je suis {youtuber_name}, et dans cette vidéo, nous allons découvrir ensemble les aspects les plus intéressants de {topic}.
 
-[SECTION 1: PRÉSENTATION]
-Commençons par comprendre ce qu'est réellement {topic} et pourquoi c'est un sujet important à connaître.
+[PARTIE 1]
+Commençons par comprendre les bases. Ce sujet touche plusieurs aspects de notre quotidien...
 
-[SECTION 2: ANALYSE]
-Maintenant que nous avons les bases, explorons plus en détail les différentes facettes de ce sujet.
+[PARTIE 2]
+Maintenant que nous avons les bases, explorons plus en détail les différentes facettes de ce sujet...
 
-[SECTION 3: APPLICATIONS]
+[PARTIE 3]
 Voyons maintenant comment ces connaissances peuvent être appliquées dans la vie quotidienne.
 
 [CONCLUSION]
@@ -586,7 +587,8 @@ En résumé, nous avons vu que {topic} est un sujet riche et complexe qui mérit
 
 Si vous avez apprécié cette vidéo, n'oubliez pas de liker, commenter et vous abonner pour ne manquer aucun contenu. Merci d'avoir regardé, et à bientôt pour une nouvelle vidéo !
 """
-                return fallback_script
+                
+            return fallback_script
         
         return response.strip()
         
@@ -1067,7 +1069,7 @@ Informations sur le créateur:
         elif "professionnel" in target_audience.lower() or "business" in target_audience.lower():
             audience_guidance = "Maintiens un vocabulaire professionnel et des exemples pertinents pour un public d'affaires."
         elif "expert" in target_audience.lower():
-            audience_guidance = "Conserve la profondeur technique et ne simplifie pas excessivement les concepts."
+            audience_guidance = "Aborde des concepts avancés sans simplifier excessivement."
     
     # Assurer les mentions de marque
     branding_guidance = ""
