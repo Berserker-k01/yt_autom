@@ -7,33 +7,52 @@ const ModernHeader = () => {
   const navigate = useNavigate();
   const { theme, darkMode, toggleDarkMode } = useTheme();
   const [userProfile, setUserProfile] = useState(null);
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
 
-  // Récupérer le profil utilisateur du localStorage
+  // Vérifier l'état d'authentification et récupérer le profil utilisateur
   useEffect(() => {
-    const savedProfile = localStorage.getItem('ytautom_profile');
-    if (savedProfile) {
-      try {
-        const profile = JSON.parse(savedProfile);
-        setUserProfile(profile);
-      } catch (error) {
-        console.error('Erreur lors de la récupération du profil:', error);
+    const checkAuth = () => {
+      const auth = localStorage.getItem('ytautom_auth');
+      setIsAuthenticated(auth === 'true');
+      
+      const savedProfile = localStorage.getItem('ytautom_profile');
+      if (savedProfile) {
+        try {
+          const profile = JSON.parse(savedProfile);
+          setUserProfile(profile);
+        } catch (error) {
+          console.error('Erreur lors de la récupération du profil:', error);
+        }
       }
-    }
+    };
+    
+    // Vérifier au chargement
+    checkAuth();
+    
+    // Ajouter un event listener pour les changements de stockage (pour détecter les connexions/déconnexions)
+    window.addEventListener('storage', checkAuth);
+    
+    return () => {
+      window.removeEventListener('storage', checkAuth);
+    };
   }, []);
 
   // Gérer la déconnexion
   const handleLogout = () => {
     // Supprimer TOUTES les données d'authentification et de configuration
     localStorage.removeItem('ytautom_auth');
-    localStorage.removeItem('ytautom_profile'); // Supprimer également le profil
+    // Ne pas supprimer le profil pour permettre une reconnexion facile
     localStorage.removeItem('ytautom_profile_configured'); // Important: supprimer ce flag pour éviter la boucle
     
     // Marquer que l'utilisateur vient de se déconnecter pour éviter la redirection automatique
     sessionStorage.setItem('from_logout', 'true');
     
-    // Rediriger vers la page de profil
-    navigate('/profile');
+    // Mettre à jour l'état local
+    setIsAuthenticated(false);
+    
+    // Rediriger vers la page de connexion
+    navigate('/login');
   };
 
   // Gérer le redimensionnement de la fenêtre
@@ -68,7 +87,7 @@ const ModernHeader = () => {
           transition={{ duration: 0.5 }}
           style={{ display: 'flex', alignItems: 'center' }}
         >
-          <Link to="/dashboard" style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
+          <Link to={isAuthenticated ? "/dashboard" : "/"} style={{ textDecoration: 'none', display: 'flex', alignItems: 'center' }}>
             <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" strokeWidth="2" fill="none" strokeLinecap="round" strokeLinejoin="round" style={{ color: theme.colors.primary.main }}>
               <circle cx="12" cy="12" r="10"></circle>
               <polygon points="10 8 16 12 10 16 10 8"></polygon>
@@ -135,45 +154,126 @@ const ModernHeader = () => {
             }
           }}
         >
-          {/* Bouton du tableau de bord */}
-          <Link 
-            to="/dashboard" 
-            className="nav-link"
-            style={{ 
-              color: theme.colors.text.primary,
-              textDecoration: 'none',
-              padding: '8px 12px',
-              borderRadius: theme.shape.borderRadius,
-              fontWeight: 500,
-              transition: 'all 0.2s ease',
-              ':hover': {
-                background: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'
-              }
-            }}
-            onClick={() => setMenuOpen(false)}
-          >
-            Tableau de bord
-          </Link>
+          {/* Afficher les boutons selon l'état d'authentification */}
+          {isAuthenticated ? (
+            <>
+              {/* Bouton du tableau de bord */}
+              <Link 
+                to="/dashboard" 
+                className="nav-link"
+                style={{ 
+                  color: theme.colors.text.primary,
+                  textDecoration: 'none',
+                  padding: '8px 12px',
+                  borderRadius: theme.shape.borderRadius,
+                  fontWeight: 500,
+                  transition: 'all 0.2s ease',
+                }}
+                onClick={() => setMenuOpen(false)}
+              >
+                Tableau de bord
+              </Link>
 
-          {/* Bouton de profil */}
-          <Link 
-            to="/profile" 
-            className="nav-link"
-            style={{ 
-              color: theme.colors.text.primary,
-              textDecoration: 'none',
-              padding: '8px 12px',
-              borderRadius: theme.shape.borderRadius,
-              fontWeight: 500,
-              transition: 'all 0.2s ease',
-              ':hover': {
-                background: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'
-              }
-            }}
-            onClick={() => setMenuOpen(false)}
-          >
-            Profil
-          </Link>
+              {/* Bouton de profil */}
+              <Link 
+                to="/profile" 
+                className="nav-link"
+                style={{ 
+                  color: theme.colors.text.primary,
+                  textDecoration: 'none',
+                  padding: '8px 12px',
+                  borderRadius: theme.shape.borderRadius,
+                  fontWeight: 500,
+                  transition: 'all 0.2s ease',
+                }}
+                onClick={() => setMenuOpen(false)}
+              >
+                Profil
+              </Link>
+              
+              {/* Bouton de déconnexion */}
+              <button 
+                onClick={handleLogout}
+                style={{
+                  background: darkMode ? 'rgba(220, 38, 38, 0.1)' : 'rgba(248, 113, 113, 0.1)',
+                  color: darkMode ? '#f87171' : '#dc2626',
+                  border: `1px solid ${darkMode ? 'rgba(220, 38, 38, 0.3)' : 'rgba(248, 113, 113, 0.3)'}`,
+                  padding: '8px 16px',
+                  borderRadius: theme.shape.borderRadius,
+                  cursor: 'pointer',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease',
+                }}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+                  <polyline points="16 17 21 12 16 7"></polyline>
+                  <line x1="21" y1="12" x2="9" y2="12"></line>
+                </svg>
+                Déconnexion
+              </button>
+            </>
+          ) : (
+            <>
+              {/* Bouton de connexion */}
+              <Link 
+                to="/login" 
+                className="nav-link"
+                style={{ 
+                  background: darkMode ? 'rgba(37, 99, 235, 0.1)' : 'rgba(59, 130, 246, 0.1)',
+                  color: darkMode ? '#60a5fa' : '#2563eb',
+                  border: `1px solid ${darkMode ? 'rgba(37, 99, 235, 0.3)' : 'rgba(59, 130, 246, 0.3)'}`,
+                  padding: '8px 16px',
+                  borderRadius: theme.shape.borderRadius,
+                  textDecoration: 'none',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease',
+                }}
+                onClick={() => setMenuOpen(false)}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M15 3h4a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-4"></path>
+                  <polyline points="10 17 15 12 10 7"></polyline>
+                  <line x1="15" y1="12" x2="3" y2="12"></line>
+                </svg>
+                Se connecter
+              </Link>
+              
+              {/* Bouton d'inscription */}
+              <Link 
+                to="/register" 
+                className="nav-link"
+                style={{ 
+                  background: darkMode ? 'rgba(16, 185, 129, 0.1)' : 'rgba(5, 150, 105, 0.1)',
+                  color: darkMode ? '#34d399' : '#059669',
+                  border: `1px solid ${darkMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(5, 150, 105, 0.3)'}`,
+                  padding: '8px 16px',
+                  borderRadius: theme.shape.borderRadius,
+                  textDecoration: 'none',
+                  fontWeight: 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  transition: 'all 0.2s ease',
+                }}
+                onClick={() => setMenuOpen(false)}
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
+                  <circle cx="8.5" cy="7" r="4"></circle>
+                  <line x1="20" y1="8" x2="20" y2="14"></line>
+                  <line x1="23" y1="11" x2="17" y2="11"></line>
+                </svg>
+                S'inscrire
+              </Link>
+            </>
+          )}
 
           {/* Bouton pour basculer le mode sombre */}
           <button
@@ -189,9 +289,6 @@ const ModernHeader = () => {
               justifyContent: 'center',
               color: theme.colors.text.primary,
               transition: 'all 0.2s ease',
-              ':hover': {
-                background: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'
-              }
             }}
           >
             {darkMode ? (
@@ -211,57 +308,6 @@ const ModernHeader = () => {
                 <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
               </svg>
             )}
-          </button>
-
-          {/* Avatar et nom d'utilisateur */}
-          {userProfile && (
-            <div style={{ 
-              display: 'flex', 
-              alignItems: 'center',
-              gap: '8px',
-              padding: '8px 12px',
-              borderRadius: theme.shape.borderRadius,
-              background: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'
-            }}>
-              <div style={{ 
-                width: '32px', 
-                height: '32px', 
-                borderRadius: '50%', 
-                background: theme.colors.primary.gradient,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                color: '#fff',
-                fontWeight: 'bold',
-                fontSize: '14px'
-              }}>
-                {userProfile.youtuber_name ? userProfile.youtuber_name.charAt(0).toUpperCase() : '?'}
-              </div>
-              <span style={{ fontWeight: 500 }}>
-                {userProfile.youtuber_name || 'Utilisateur'}
-              </span>
-            </div>
-          )}
-
-          {/* Bouton de déconnexion */}
-          <button 
-            onClick={handleLogout}
-            className="btn-primary"
-            style={{ 
-              background: theme.colors.error.main,
-              color: theme.colors.error.contrastText,
-              padding: '8px 16px',
-              borderRadius: theme.shape.buttonBorderRadius,
-              border: 'none',
-              cursor: 'pointer',
-              fontWeight: 600,
-              transition: 'all 0.2s ease',
-              ':hover': {
-                background: theme.colors.error.dark
-              }
-            }}
-          >
-            Déconnexion
           </button>
         </motion.div>
       </div>
