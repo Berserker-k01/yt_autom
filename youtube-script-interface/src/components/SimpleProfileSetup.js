@@ -129,10 +129,17 @@ const SimpleProfileSetup = () => {
   
   const addCustomOption = () => {
     if (newCustomKey && newCustomValue) {
-      setCustomOptions(prev => ({ 
-        ...prev, 
-        [newCustomKey]: newCustomValue 
-      }));
+      // Utiliser une fonction de mise à jour pour garantir l'état le plus récent
+      setCustomOptions(prevOptions => {
+        const updatedOptions = { 
+          ...prevOptions, 
+          [newCustomKey]: newCustomValue 
+        };
+        console.log('Options personnalisées mises à jour:', updatedOptions);
+        return updatedOptions;
+      });
+      
+      // Réinitialiser les champs après l'ajout
       setNewCustomKey('');
       setNewCustomValue('');
     }
@@ -140,9 +147,12 @@ const SimpleProfileSetup = () => {
   
   // Supprimer une préférence personnalisée
   const removeCustomOption = (key) => {
-    const updatedOptions = { ...customOptions };
-    delete updatedOptions[key];
-    setCustomOptions(updatedOptions);
+    setCustomOptions(prevOptions => {
+      const updatedOptions = { ...prevOptions };
+      delete updatedOptions[key];
+      console.log('Options personnalisées après suppression:', updatedOptions);
+      return updatedOptions;
+    });
   };
   
   // Rediriger vers le tableau de bord si le profil est déjà configuré
@@ -384,20 +394,62 @@ const SimpleProfileSetup = () => {
             initial="hidden"
             animate="visible"
             variants={formControls}
+            style={{ 
+              marginBottom: '20px',
+              padding: '20px',
+              borderRadius: '10px',
+              backgroundColor: darkMode ? 'rgba(30, 41, 59, 0.5)' : 'rgba(241, 245, 249, 0.6)',
+              border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.2)' : 'rgba(226, 232, 240, 0.8)'}`
+            }}
           >
-            <label>Préférences personnalisées <span className="optional-label">(facultatif)</span></label>
-            <p className="custom-options-info">Ajoutez des préférences spécifiques qui seront prises en compte lors de la génération de contenu</p>
+            <label style={{ 
+              display: 'block', 
+              marginBottom: '8px',
+              color: darkMode ? '#f3f4f6' : '#111827',
+              fontWeight: 500
+            }}>
+              Préférences personnalisées <span style={{ color: darkMode ? '#9ca3af' : '#6b7280', fontSize: '0.875rem' }}>(facultatif)</span>
+            </label>
             
-            <div className="custom-options-list">
+            <p style={{ 
+              margin: '0 0 16px 0',
+              fontSize: '0.875rem',
+              color: darkMode ? '#d1d5db' : '#4b5563'
+            }}>
+              Ajoutez des préférences spécifiques qui seront prises en compte lors de la génération de contenu
+            </p>
+            
+            <div style={{ marginBottom: '16px' }}>
               {Object.entries(customOptions).map(([key, value]) => (
-                <div className="custom-option-item" key={key}>
-                  <div className="custom-option-content">
+                <div key={key} style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.5)' : '#fff',
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  marginBottom: '8px',
+                  border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#e5e7eb'}`
+                }}>
+                  <div style={{ 
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    color: darkMode ? '#e5e7eb' : '#1f2937'
+                  }}>
                     <strong>{key}:</strong> {value}
                   </div>
                   <button 
-                    type="button" 
-                    className="remove-option-btn" 
+                    type="button"
                     onClick={() => removeCustomOption(key)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: darkMode ? '#ef4444' : '#dc2626',
+                      fontSize: '1.25rem',
+                      cursor: 'pointer',
+                      padding: '0 8px',
+                      borderRadius: '4px'
+                    }}
                   >
                     ×
                   </button>
@@ -405,30 +457,64 @@ const SimpleProfileSetup = () => {
               ))}
             </div>
             
-            <div className="add-custom-option">
-              <div className="custom-option-inputs">
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px'
+            }}>
+              <div style={{
+                display: 'flex',
+                gap: '10px',
+                flexWrap: 'wrap'
+              }}>
                 <input
                   type="text"
                   value={newCustomKey}
                   onChange={(e) => setNewCustomKey(e.target.value)}
                   placeholder="Nom de la préférence"
-                  className="custom-key-input"
+                  style={{
+                    flex: '1',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`,
+                    backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                    color: darkMode ? '#f9fafb' : '#1f2937',
+                    minWidth: '120px'
+                  }}
                 />
                 <input
                   type="text"
                   value={newCustomValue}
                   onChange={(e) => setNewCustomValue(e.target.value)}
                   placeholder="Valeur"
-                  className="custom-value-input"
+                  style={{
+                    flex: '1',
+                    padding: '12px 16px',
+                    borderRadius: '8px',
+                    border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`,
+                    backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                    color: darkMode ? '#f9fafb' : '#1f2937',
+                    minWidth: '120px'
+                  }}
                 />
               </div>
               <button 
-                type="button" 
-                className="add-option-btn btn-gradient btn-blue-purple" 
+                type="button"
                 onClick={addCustomOption}
                 disabled={!newCustomKey || !newCustomValue}
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  backgroundColor: '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontWeight: 500,
+                  cursor: (!newCustomKey || !newCustomValue) ? 'not-allowed' : 'pointer',
+                  opacity: (!newCustomKey || !newCustomValue) ? 0.6 : 1,
+                  transition: 'all 0.2s ease'
+                }}
               >
-                Ajouter
+                Ajouter cette préférence
               </button>
             </div>
           </motion.div>
