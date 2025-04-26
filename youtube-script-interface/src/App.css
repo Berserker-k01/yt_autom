@@ -1,3 +1,58 @@
+/* Mode sombre */
+:root {
+  --background-light: #ffffff;
+  --text-light: #1f2937;
+  --border-light: rgba(226, 232, 240, 0.8);
+  --card-bg-light: #ffffff;
+  --input-bg-light: #ffffff;
+  
+  --background-dark: #111827;
+  --text-dark: #f9fafb;
+  --border-dark: rgba(55, 65, 81, 0.5);
+  --card-bg-dark: #1f2937;
+  --input-bg-dark: #1f2937;
+}
+
+body {
+  background-color: var(--background-light);
+  color: var(--text-light);
+  transition: all 0.3s ease;
+}
+
+body.dark-mode {
+  background-color: var(--background-dark);
+  color: var(--text-dark);
+}
+
+.dark-mode .App {
+  background-color: var(--card-bg-dark);
+  color: var(--text-dark);
+  border-color: var(--border-dark);
+  box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2), 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+.dark-mode h1, 
+.dark-mode h2, 
+.dark-mode h3 {
+  color: #e5e7eb;
+}
+
+.dark-mode .card {
+  background-color: var(--card-bg-dark);
+  border-color: var(--border-dark);
+  color: var(--text-dark);
+}
+
+.dark-mode input,
+.dark-mode textarea,
+.dark-mode select {
+  background-color: var(--input-bg-dark);
+  color: var(--text-dark);
+  border-color: var(--border-dark);
+}
+
+/* Styles de base */
+
 .App {
   text-align: center;
   font-family: 'Inter', 'Segoe UI', 'Roboto', sans-serif;
