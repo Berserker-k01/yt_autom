@@ -33,6 +33,15 @@ app.config['PERMANENT_SESSION_LIFETIME'] = timedelta(days=7)  # Session persista
 # Initialisation de la base de données
 db.init_app(app)
 
+# Initialisation du gestionnaire de connexion
+login_manager = LoginManager()
+login_manager.init_app(app)
+login_manager.login_view = 'login'
+
+@login_manager.user_loader
+def load_user(user_id):
+    return User.query.get(int(user_id))
+
 # Configurer CORS pour fonctionner avec l'environnement de production
 frontend_url = os.environ.get('FRONTEND_URL', '*')
 CORS(app, resources={r"/*": {"origins": "*", "supports_credentials": True, "expose_headers": ["Content-Disposition", "Content-Type", "Content-Length"]}}, allow_headers=["Content-Type", "Accept"], max_age=86400)
@@ -41,11 +50,11 @@ CORS(app, resources={r"/*": {"origins": "*", "supports_credentials": True, "expo
 user_profiles = {}
 
 # Système d'authentification désactivé en faveur d'une approche simplifiée
-print("🔓 Système de profil simplifié activé")
+print(" Système de profil simplifié activé")
 
 # Configuration pour l'authentification désactivée
 app.config['LOGIN_DISABLED'] = True
-print("⚠️ Authentification désactivée, utilisation du système de profil simplifié")
+print(" Authentification désactivée, utilisation du système de profil simplifié")
 
 # Route pour enregistrer le profil
 @app.route('/api/save-profile', methods=['POST'])
@@ -269,7 +278,7 @@ def export_pdf_route():
 @app.route('/download/<filename>', methods=['GET'])
 def download_pdf(filename):
     try:
-        print(f"⬇️ Demande de téléchargement du fichier: {filename}")
+        print(f" Demande de téléchargement du fichier: {filename}")
         
         # Déterminer le chemin du fichier selon l'OS
         if os.name == 'nt':  # Windows
@@ -293,18 +302,18 @@ def download_pdf(filename):
         for path in potential_paths:
             if os.path.exists(path):
                 file_path = path
-                print(f"✅ Fichier trouvé à l'emplacement: {file_path}")
+                print(f" Fichier trouvé à l'emplacement: {file_path}")
                 break
         
         # Si aucun fichier n'est trouvé
         if not file_path:
-            print(f"❌ Fichier PDF introuvable: {filename}")
+            print(f" Fichier PDF introuvable: {filename}")
             print(f"Chemins recherchés: {potential_paths}")
             return jsonify({'error': 'Fichier PDF introuvable'}), 404
         
         # Vérifier si le fichier est lisible et valide
         if os.path.getsize(file_path) == 0:
-            print(f"⚠️ Fichier vide: {file_path}")
+            print(f" Fichier vide: {file_path}")
             return jsonify({'error': 'Le fichier PDF est vide'}), 500
         
         try:
@@ -314,11 +323,11 @@ def download_pdf(filename):
                 
                 # Si ce n'est pas un PDF valide
                 if not header.startswith(b'%PDF'):
-                    print(f"⚠️ Fichier non valide comme PDF: {file_path}")
+                    print(f" Fichier non valide comme PDF: {file_path}")
                     # Chercher une version texte
                     txt_path = file_path.replace('.pdf', '.txt')
                     if os.path.exists(txt_path):
-                        print(f"📄 Utilisation de l'alternative texte: {txt_path}")
+                        print(f" Utilisation de l'alternative texte: {txt_path}")
                         return send_file(
                             txt_path,
                             as_attachment=True,
@@ -326,13 +335,13 @@ def download_pdf(filename):
                             mimetype='text/plain'
                         )
                     else:
-                        return jsonify({'error': 'Fichier PDF corrompu et sans alternative'}), 500
+                        return jsonify({'error': 'PDF invalide et pas d\'alternative disponible'}), 500
                 
                 # Lire tout le contenu pour l'envoyer manuellement
                 f.seek(0)
                 file_content = f.read()
         except Exception as e:
-            print(f"❌ Erreur lors de la lecture du fichier: {str(e)}")
+            print(f" Erreur lors de la lecture du fichier: {str(e)}")
             return jsonify({'error': f'Erreur lors de la lecture du fichier: {str(e)}'}), 500
         
         # Définir un nom de fichier convivial pour le téléchargement
@@ -346,11 +355,11 @@ def download_pdf(filename):
         response.headers.set('Content-Length', str(len(file_content)))
         response.headers.set('Access-Control-Allow-Origin', '*')
         
-        print(f"📤 Envoi du fichier {file_path} (taille: {len(file_content)} octets)")
+        print(f" Envoi du fichier {file_path} (taille: {len(file_content)} octets)")
         return response
         
     except Exception as e:
-        print(f"❌ Erreur critique lors du téléchargement: {str(e)}")
+        print(f" Erreur critique lors du téléchargement: {str(e)}")
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Erreur lors du téléchargement: {str(e)}'}), 500
@@ -412,7 +421,7 @@ def register():
         return response
         
     try:
-        print("📝 Traitement d'une demande d'inscription...")
+        print(" Traitement d'une demande d'inscription...")
         data = request.get_json()
         username = data.get('username')
         email = data.get('email')
@@ -518,7 +527,7 @@ def login():
         return response
         
     try:
-        print("🔒 Tentative de connexion...")
+        print(" Tentative de connexion...")
         data = request.get_json()
         
         # Extraire les données de connexion
@@ -627,7 +636,7 @@ def setup_profile():
         return response
         
     try:
-        print(f"💻 Configuration du profil pour l'utilisateur {current_user.username}...")
+        print(f" Configuration du profil pour l'utilisateur {current_user.username}...")
         data = request.get_json()
         
         # Vérification des données minimales requises
