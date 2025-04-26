@@ -30,26 +30,29 @@ const ModernHeader = () => {
     // Vérifier au chargement
     checkAuth();
     
-    // Ajouter un event listener pour les changements de stockage (pour détecter les connexions/déconnexions)
+    // Ajouter un event listener pour les changements de stockage et l'événement personnalisé
     window.addEventListener('storage', checkAuth);
+    window.addEventListener('auth_changed', checkAuth);
     
     return () => {
       window.removeEventListener('storage', checkAuth);
+      window.removeEventListener('auth_changed', checkAuth);
     };
   }, []);
 
   // Gérer la déconnexion
   const handleLogout = () => {
-    // Supprimer TOUTES les données d'authentification et de configuration
+    // Supprimer les données d'authentification mais garder le profil
     localStorage.removeItem('ytautom_auth');
-    // Ne pas supprimer le profil pour permettre une reconnexion facile
-    localStorage.removeItem('ytautom_profile_configured'); // Important: supprimer ce flag pour éviter la boucle
     
     // Marquer que l'utilisateur vient de se déconnecter pour éviter la redirection automatique
     sessionStorage.setItem('from_logout', 'true');
     
     // Mettre à jour l'état local
     setIsAuthenticated(false);
+    
+    // Notifier les autres composants du changement d'état
+    window.dispatchEvent(new Event('auth_changed'));
     
     // Rediriger vers la page de connexion
     navigate('/login');
@@ -78,7 +81,7 @@ const ModernHeader = () => {
         boxShadow: theme.shadows.sm
       }}
     >
-      <div className="header-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
+      <div className="header-container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%', padding: '0 20px' }}>
         {/* Logo et titre */}
         <motion.div 
           className="logo-container"
@@ -139,7 +142,7 @@ const ModernHeader = () => {
           style={{ 
             display: 'flex', 
             alignItems: 'center',
-            gap: '20px',
+            gap: '16px',
             '@media (max-width: 768px)': {
               position: 'fixed',
               top: menuOpen ? '0' : '-100%',
@@ -190,6 +193,41 @@ const ModernHeader = () => {
               >
                 Profil
               </Link>
+              
+              {/* Affichage du nom d'utilisateur si disponible */}
+              {userProfile && userProfile.youtuber_name && (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  padding: '6px 12px',
+                  borderRadius: '20px',
+                  background: darkMode ? 'rgba(31, 41, 55, 0.5)' : 'rgba(249, 250, 251, 0.8)',
+                  border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.2)' : 'rgba(229, 231, 235, 0.8)'}`,
+                }}>
+                  <div style={{
+                    width: '28px',
+                    height: '28px',
+                    borderRadius: '50%',
+                    background: 'linear-gradient(135deg, #2563eb, #4f46e5)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#ffffff',
+                    fontWeight: 600,
+                    fontSize: '0.8rem'
+                  }}>
+                    {userProfile.youtuber_name.charAt(0).toUpperCase()}
+                  </div>
+                  <span style={{
+                    color: darkMode ? '#e5e7eb' : '#374151',
+                    fontWeight: 500,
+                    fontSize: '0.9rem'
+                  }}>
+                    {userProfile.youtuber_name}
+                  </span>
+                </div>
+              )}
               
               {/* Bouton de déconnexion */}
               <button 

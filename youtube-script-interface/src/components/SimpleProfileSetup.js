@@ -68,15 +68,14 @@ const SimpleProfileSetup = () => {
     }
   }, []);
   
-  const handleSubmit = async (e) => {
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setError(null);
+
+    if (loading) return;
     setLoading(true);
-    
-    // Toutes les valeurs sont maintenant directement utilisées telles quelles
-    
-    // Créer l'objet profil
-    const profileData = {
+
+    // Enregistrer les préférences utilisateur
+    const userPreferences = {
       youtuber_name: youtuberName,
       channel_name: channelName,
       language,
@@ -85,34 +84,42 @@ const SimpleProfileSetup = () => {
       content_style: contentStyle,
       custom_options: customOptions
     };
+
+    // Enregistrer dans le localStorage
+    localStorage.setItem('ytautom_profile', JSON.stringify(userPreferences));
     
-    try {
-      // Envoyer au backend si disponible
-      try {
-        const response = await axios.post(
-          `${API_BASE}/api/save-profile`,
-          profileData,
-          { timeout: 3000 }
-        );
-        console.log('Profil enregistré sur le serveur:', response.data);
-      } catch (apiError) {
-        console.warn('Impossible de sauvegarder sur le serveur, utilisation du mode local:', apiError.message);
-      }
-      
-      // Toujours sauvegarder localement
-      localStorage.setItem('ytautom_profile', JSON.stringify(profileData));
-      localStorage.setItem('ytautom_auth', 'true');
-      localStorage.setItem('ytautom_profile_configured', 'true'); // Marquer le profil comme configuré
-      
+    // IMPORTANT: Marquer que l'utilisateur a configuré son profil
+    localStorage.setItem('ytautom_profile_configured', 'true');
+    
+    // Notifier les autres composants du changement
+    window.dispatchEvent(new Event('auth_changed'));
+
+    // Animation de succès
+    setTimeout(() => {
+      setLoading(false);
       // Rediriger vers le tableau de bord
       navigate('/dashboard');
-    } catch (err) {
-      console.error('Erreur:', err);
-      setError('Erreur lors de la sauvegarde du profil. Veuillez réessayer.');
-    } finally {
-      setLoading(false);
-    }
+    }, 1500);
   };
+  
+  // Vérifier si le profil a déjà été configuré et rediriger si nécessaire
+  useEffect(() => {
+    const profileConfigured = localStorage.getItem('ytautom_profile_configured') === 'true';
+    const auth = localStorage.getItem('ytautom_auth') === 'true';
+    const fromLogout = sessionStorage.getItem('from_logout') === 'true';
+    
+    // Si l'utilisateur vient de se déconnecter, ne pas rediriger
+    if (fromLogout) {
+      sessionStorage.removeItem('from_logout');
+      return;
+    }
+    
+    // Si l'utilisateur est authentifié et a déjà configuré son profil, rediriger vers le dashboard
+    if (auth && profileConfigured) {
+      console.log('Profil déjà configuré, redirection vers le dashboard...');
+      navigate('/dashboard');
+    }
+  }, [navigate]);
   
   // Simples gestionnaires pour les champs de texte
   const handleContentTypeChange = (e) => {
@@ -154,16 +161,6 @@ const SimpleProfileSetup = () => {
       return updatedOptions;
     });
   };
-  
-  // Rediriger vers le tableau de bord si le profil est déjà configuré
-  useEffect(() => {
-    if (profileAlreadyConfigured) {
-      const timer = setTimeout(() => {
-        navigate('/dashboard');
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [profileAlreadyConfigured, navigate]);
   
   // Animation pour les groupes de formulaire
   const formControls = {

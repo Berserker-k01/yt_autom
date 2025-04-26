@@ -67,8 +67,20 @@ const Login = () => {
             email: savedUsername
           }));
           
-          console.log('Redirection vers le tableau de bord');
-          navigate('/dashboard', { replace: true });
+          // Vérifier si le profil a déjà été configuré
+          const profileConfigured = localStorage.getItem('ytautom_profile_configured');
+          
+          console.log('Connexion réussie, redirection...');
+          
+          // Utiliser un événement personnalisé pour informer les autres composants
+          window.dispatchEvent(new Event('auth_changed'));
+          
+          // Rediriger en fonction de l'état du profil
+          if (profileConfigured === 'true') {
+            navigate('/dashboard', { replace: true });
+          } else {
+            navigate('/profile', { replace: true });
+          }
         } else {
           setError('Identifiants incorrects. Vérifiez votre nom d\'utilisateur et mot de passe.');
         }
