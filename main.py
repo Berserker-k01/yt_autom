@@ -381,16 +381,46 @@ def generate_script(topic: str, research: str, user_context: dict = None) -> str
     
     # Construction du prompt avec le contexte utilisateur si disponible
     user_context_str = ""
-    if user_context and any(user_context.values()):
+    youtuber_name = "Non spécifié"
+    channel_name = "Non spécifié"
+    video_style = "Non spécifié"
+    approach_style = "Non spécifié"
+    target_audience = "Non spécifié"
+    video_length = "10-15 minutes"
+    language = "français"
+    content_type = "général"
+    
+    # Extraire toutes les informations disponibles du profil
+    if user_context:
+        youtuber_name = user_context.get('youtuber_name', 'Non spécifié')
+        channel_name = user_context.get('channel_name', 'Non spécifié')
+        video_style = user_context.get('video_style', 'Non spécifié')
+        approach_style = user_context.get('approach_style', user_context.get('tone', 'professionnel'))
+        target_audience = user_context.get('target_audience', user_context.get('audience_age', 'adultes'))
+        video_length = user_context.get('video_length', '10-15 minutes')
+        language = user_context.get('language', 'français')
+        content_type = user_context.get('content_type', 'général')
+        
+        # Vérifier les options personnalisées
+        custom_options = user_context.get('custom_options', {})
+        
         user_context_str = f"""
 Informations sur le créateur:
-- Nom de la chaîne: {user_context.get('channel_name', 'Non spécifié')}
-- Nom du YouTubeur: {user_context.get('youtuber_name', 'Non spécifié')}
-- Style vidéo préféré: {user_context.get('video_style', 'Non spécifié')}
-- Approche habituelle: {user_context.get('approach_style', 'Non spécifié')}
-- Public cible: {user_context.get('target_audience', 'Non spécifié')}
-- Durée vidéo préférée: {user_context.get('video_length', 'Non spécifié')}
+- Nom de la chaîne: {channel_name}
+- Nom du YouTubeur: {youtuber_name}
+- Langue principale: {language}
+- Type de contenu: {content_type}
+- Style vidéo préféré: {video_style}
+- Approche habituelle: {approach_style}
+- Public cible: {target_audience}
+- Durée vidéo préférée: {video_length}
 """
+
+        # Ajouter les options personnalisées si présentes
+        if custom_options and len(custom_options) > 0:
+            user_context_str += "\nPréférences personnalisées du créateur:\n"
+            for key, value in custom_options.items():
+                user_context_str += f"- {key}: {value}\n"
     
     # Adapter le prompt en fonction de la disponibilité des recherches supplémentaires
     additional_research_section = ""
@@ -400,27 +430,74 @@ Recherches complémentaires (à intégrer dans le script pour l'enrichir):
 {additional_research}
 """
     
+    # Construire un prompt plus personnalisé basé sur le profil
+    intro_style = ""
+    if video_style and video_style.lower() != "non spécifié":
+        if "informatif" in video_style.lower():
+            intro_style = "Adopte un ton informatif et éducatif, en expliquant clairement les concepts."
+        elif "divertissant" in video_style.lower():
+            intro_style = "Utilise de l'humour et un ton dynamique pour capter l'attention."
+        elif "tutoriel" in video_style.lower():
+            intro_style = "Explique étape par étape avec des instructions claires et précises."
+        elif "vlog" in video_style.lower():
+            intro_style = "Adopte un ton conversationnel et partage des anecdotes personnelles."
+    
+    # Adjust for audience
+    audience_adaptation = ""
+    if target_audience and target_audience.lower() != "non spécifié":
+        if "enfant" in target_audience.lower() or "jeune" in target_audience.lower():
+            audience_adaptation = "Utilise un langage simple et des exemples ludiques adaptés à un jeune public."
+        elif "professionnel" in target_audience.lower() or "business" in target_audience.lower():
+            audience_adaptation = "Emploie un vocabulaire technique approprié et des exemples professionnels pertinents."
+        elif "expert" in target_audience.lower():
+            audience_adaptation = "Aborde des concepts avancés sans simplifier excessivement."
+    
+    # Adapter la longueur du script
+    length_guidance = ""
+    if video_length and video_length.lower() != "non spécifié":
+        # Extraire les minutes approximatives
+        minutes = 10
+        if "-" in video_length:
+            parts = video_length.replace("minutes", "").replace("minute", "").strip().split("-")
+            if len(parts) >= 2 and parts[1].strip().isdigit():
+                minutes = int(parts[1].strip())
+        elif video_length.replace("minutes", "").replace("minute", "").strip().isdigit():
+            minutes = int(video_length.replace("minutes", "").replace("minute", "").strip())
+            
+        word_count = minutes * 150  # Environ 150 mots par minute
+        length_guidance = f"Crée un script d'environ {word_count} mots pour une vidéo de {minutes} minutes."
+    
+    # Salutation personnalisée si le nom est disponible
+    greeting = ""
+    if youtuber_name and youtuber_name.lower() != "non spécifié":
+        greeting = f"Inclus une salutation personnalisée: 'Salut tout le monde, c'est {youtuber_name} et bienvenue sur {channel_name}'."
+    
     # Prompt avec instructions pour la génération du script
-    script_prompt = f"""Tu es un rédacteur professionnel YouTube, expert en storytelling et pédagogie.
-    Rédige un script vidéo complet sur : "{topic}"
-    
-    Contraintes :
-    - Structure le texte en sections titrées (ex : [HOOK], [INTRODUCTION], etc.)
-    - Dans chaque section, rédige tout ce qui doit être dit, phrase par phrase, comme si tu écrivais le texte exact à prononcer dans la vidéo.
-    - Le texte doit être fluide, captivant, sans fautes, et donner envie d'écouter jusqu'au bout.
-    - Utilise des exemples concrets, des chiffres, des anecdotes, des transitions naturelles et un call-to-action final.
-    - Inclus des statistiques et données récentes issues des recherches.
-    - Cite les sources pertinentes dans le contenu.
-    - Réponds uniquement avec le texte du script, sans plan, sans bullet points, sans résumé.
-    {user_context_str}
-    
-    Contexte et recherches primaires :
-    {research}
-    {additional_research_section}
-    
-    Le script doit être adapté au style et à la personnalité du créateur mentionnés ci-dessus.
-    Commence directement par le [HOOK] puis enchaîne les sections.
-    """
+    script_prompt = f"""Tu es un rédacteur professionnel YouTube francophone, expert en storytelling et pédagogie.
+Rédige un script vidéo complet sur : "{topic}"
+
+Contexte créateur:
+{user_context_str}
+
+Contraintes :
+- Structure le texte en sections titrées (ex : [HOOK], [INTRODUCTION], etc.)
+- Dans chaque section, rédige tout ce qui doit être dit, phrase par phrase, comme si tu écrivais le texte exact à prononcer dans la vidéo.
+- Le texte doit être fluide, captivant, sans fautes, et donner envie d'écouter jusqu'au bout.
+- Utilise des exemples concrets, des chiffres, des anecdotes, des transitions naturelles.
+- Inclus des statistiques et données récentes issues des recherches.
+- Cite les sources pertinentes dans le contenu.
+- {greeting}
+- {intro_style}
+- {audience_adaptation}
+- {length_guidance}
+- Termine par un call-to-action adapté à la chaîne: invite à s'abonner, liker et partager.
+
+Contexte et recherches primaires :
+{research}
+{additional_research_section}
+
+Commence directement par le [HOOK] puis enchaîne les sections.
+"""
 
     response = gemini_generate(script_prompt)
     # Affichage de debug pour tracer ce que retourne Gemini
@@ -811,17 +888,71 @@ def modify_script_with_ai(original_script: str, modification_request: str, user_
     else:
         print("Tavily non disponible ou aucun sujet détecté, pas de recherche supplémentaire")
     
+    # Extraire les informations du profil
+    youtuber_name = "Non spécifié"
+    channel_name = "Non spécifié"
+    video_style = "Non spécifié"
+    approach_style = "Non spécifié"
+    target_audience = "Non spécifié"
+    language = "français"
+    content_type = "général"
+    custom_options = {}
+    
     # Construction du prompt avec le contexte utilisateur si disponible
     user_context_str = ""
-    if user_context and any(user_context.values()):
+    if user_context:
+        youtuber_name = user_context.get('youtuber_name', 'Non spécifié')
+        channel_name = user_context.get('channel_name', 'Non spécifié')
+        video_style = user_context.get('video_style', user_context.get('content_style', 'Non spécifié'))
+        approach_style = user_context.get('approach_style', user_context.get('tone', 'professionnel'))
+        target_audience = user_context.get('target_audience', user_context.get('audience_age', 'adultes'))
+        language = user_context.get('language', 'français')
+        content_type = user_context.get('content_type', 'général')
+        custom_options = user_context.get('custom_options', {})
+        
         user_context_str = f"""
 Informations sur le créateur:
-- Nom de la chaîne: {user_context.get('channel_name', 'Non spécifié')}
-- Nom du YouTubeur: {user_context.get('youtuber_name', 'Non spécifié')}
-- Style vidéo préféré: {user_context.get('video_style', 'Non spécifié')}
-- Approche habituelle: {user_context.get('approach_style', 'Non spécifié')}
-- Public cible: {user_context.get('target_audience', 'Non spécifié')}
+- Nom de la chaîne: {channel_name}
+- Nom du YouTubeur: {youtuber_name}
+- Langue principale: {language}
+- Type de contenu: {content_type}
+- Style vidéo préféré: {video_style}
+- Approche habituelle: {approach_style}
+- Public cible: {target_audience}
 """
+        
+        # Ajouter les options personnalisées si présentes
+        if custom_options and len(custom_options) > 0:
+            user_context_str += "\nPréférences personnalisées du créateur:\n"
+            for key, value in custom_options.items():
+                user_context_str += f"- {key}: {value}\n"
+    
+    # Personnalisation supplémentaire basée sur le profil
+    style_guidance = ""
+    if video_style and video_style.lower() != "non spécifié":
+        if "informatif" in video_style.lower():
+            style_guidance = "Garde un ton informatif et factuel. Assure-toi que les explications sont claires et pédagogiques."
+        elif "divertissant" in video_style.lower():
+            style_guidance = "Maintiens un ton énergique et divertissant. N'hésite pas à utiliser l'humour et des anecdotes engageantes."
+        elif "tutoriel" in video_style.lower():
+            style_guidance = "Conserve une structure claire avec des étapes bien définies. Assure-toi que les instructions sont précises."
+        elif "vlog" in video_style.lower():
+            style_guidance = "Garde le style conversationnel et personnel du script. Assure-toi que ça semble naturel et authentique."
+            
+    # Personnalisation pour l'audience
+    audience_guidance = ""
+    if target_audience and target_audience.lower() != "non spécifié":
+        if "enfant" in target_audience.lower() or "jeune" in target_audience.lower():
+            audience_guidance = "Garde un langage simple et des explications accessibles pour un jeune public."
+        elif "professionnel" in target_audience.lower() or "business" in target_audience.lower():
+            audience_guidance = "Maintiens un vocabulaire professionnel et des exemples pertinents pour un public d'affaires."
+        elif "expert" in target_audience.lower():
+            audience_guidance = "Conserve la profondeur technique et ne simplifie pas excessivement les concepts."
+    
+    # Assurer les mentions de marque
+    branding_guidance = ""
+    if youtuber_name and youtuber_name.lower() != "non spécifié" and channel_name and channel_name.lower() != "non spécifié":
+        branding_guidance = f"Assure-toi que les références au créateur ('{youtuber_name}') et à la chaîne ('{channel_name}') sont correctement maintenues dans le script."
     
     # Adapter le prompt en fonction de la disponibilité des informations supplémentaires
     additional_info_section = ""
@@ -840,17 +971,21 @@ DEMANDE DE MODIFICATION:
 SCRIPT ORIGINAL:
 {original_script}
 
+CONTEXTE CRÉATEUR:
 {user_context_str}
 {additional_info_section}
 
 Instructions:
 1. Conserve la structure en sections (ex: [HOOK], [INTRODUCTION], etc.)
-2. Conserve le ton et le style global du script mais applique les modifications demandées
-3. Intègre subtilement les nouvelles informations et données pertinentes des recherches supplémentaires
-4. Assure-toi que les transitions restent fluides
-5. Retourne uniquement le script modifié, sans commentaires ni explications
-6. Assure-toi que le script reste captivant et adapté au format YouTube
-7. Cite les sources si pertinent dans le contenu
+2. {style_guidance}
+3. {audience_guidance}
+4. {branding_guidance}
+5. Intègre subtilement les nouvelles informations et données pertinentes des recherches supplémentaires
+6. Assure-toi que les transitions restent fluides
+7. Retourne uniquement le script modifié, sans commentaires ni explications
+8. Assure-toi que le script reste captivant et adapté au format YouTube
+9. Cite les sources si pertinent dans le contenu
+10. Conserve ou améliore le call-to-action à la fin (invitation à s'abonner, liker, etc.)
 """
 
     print(f"Modification du script avec la demande : {modification_request[:100]}...")

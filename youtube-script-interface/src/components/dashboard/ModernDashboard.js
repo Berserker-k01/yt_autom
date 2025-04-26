@@ -7,6 +7,7 @@ import { useTheme } from '../../context/ThemeContext';
 import ThemeSelector from './ThemeSelector';
 import TopicsList from './TopicsList';
 import ScriptGenerator from './ScriptGenerator';
+import DirectScriptGenerator from './DirectScriptGenerator';
 
 const ModernDashboard = () => {
   const navigate = useNavigate();
@@ -27,6 +28,7 @@ const ModernDashboard = () => {
   const [history, setHistory] = useState({ topics: [] });
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
+  const [showDirectScriptGenerator, setShowDirectScriptGenerator] = useState(false);
 
   // SOLUTION DE CONTOURNEMENT : URL codée en dur pour le déploiement
   const BACKEND_URL_PRODUCTION = 'https://yt-autom.onrender.com';
@@ -120,7 +122,7 @@ const ModernDashboard = () => {
     localStorage.setItem('ytautom_history', JSON.stringify(defaultHistory));
   };
   
-  // Fonction pour mettre à jour l'historique local après une génération réussie
+  // Mettre à jour l'historique local après une génération réussie
   const updateLocalHistory = (theme) => {
     try {
       // Récupérer l'historique actuel
@@ -159,10 +161,16 @@ const ModernDashboard = () => {
     setSources([]);
     setError(null);
     setStep(0);
+    setShowDirectScriptGenerator(false);
   };
   
   // Fonction pour revenir à l'étape précédente
   const goBack = () => {
+    if (showDirectScriptGenerator) {
+      setShowDirectScriptGenerator(false);
+      return;
+    }
+    
     if (step > 0) {
       setStep(step - 1);
       
@@ -200,7 +208,7 @@ const ModernDashboard = () => {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ 
           theme: themeInput,
-          profile_info: userProfile  // Renommer "profile" en "profile_info" pour correspondre au backend
+          profile: userProfile  // Utiliser "profile" pour correspondre au backend
         })
       });
       
@@ -249,7 +257,7 @@ const ModernDashboard = () => {
         body: JSON.stringify({ 
           topic: topic.title, 
           research: '',
-          profile_info: userProfile,
+          profile: userProfile,  // Utiliser "profile" pour correspondre au backend
           sources: topic.sources || []
         })
       });
@@ -315,7 +323,7 @@ const ModernDashboard = () => {
     }
   };
 
-  // Fonction pour télécharger le PDF à partir des données base64
+  // Télécharger le PDF à partir des données base64
   const downloadFile = () => {
     if (pdfData) {
       try {
@@ -356,6 +364,16 @@ const ModernDashboard = () => {
     setPdfData(null);
   };
 
+  // Gérer un script généré directement
+  const handleDirectScriptGenerated = (scriptData) => {
+    setScript(scriptData.script);
+    setPdfUrl(scriptData.pdfUrl);
+    setSources(scriptData.sources);
+    setSelectedTopic({ title: scriptData.title });
+    setStep(2);
+    setShowDirectScriptGenerator(false);
+  };
+
   // Animation pour les transitions entre étapes
   const pageVariants = {
     initial: { opacity: 0, x: 100 },
@@ -363,7 +381,7 @@ const ModernDashboard = () => {
     exit: { opacity: 0, x: -100 }
   };
 
-  // Rendu conditionnel en fonction de l'étape active
+  // Rendu conditionnel en fonction de l'étape
   const renderStepContent = () => {
     switch (step) {
       case 0:
@@ -406,206 +424,249 @@ const ModernDashboard = () => {
           />
         );
       default:
-        return null;
+        return <div>Étape inconnue</div>;
     }
   };
 
   return (
     <div className="dashboard-container" style={{
-      background: darkMode ? theme.colors.background.default : theme.colors.background.gradient,
-      minHeight: '100vh',
       padding: '20px',
-      paddingTop: '80px'
+      maxWidth: '1200px',
+      margin: '0 auto',
+      minHeight: '100vh'
     }}>
-      <div className="dashboard-content" style={{
-        maxWidth: '1200px',
-        margin: '0 auto',
-        padding: '20px'
+      {/* En-tête avec titre et boutons d'action */}
+      <div className="dashboard-header" style={{
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        marginBottom: '30px'
       }}>
-        {/* Barre de progression */}
-        <div className="step-progress" style={{
-          marginBottom: '40px'
-        }}>
-          <div className="step-bar" style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            position: 'relative',
-            margin: '0 auto',
-            maxWidth: '600px'
-          }}>
-            {['1. Thème', '2. Sujets tendances', '3. Script & PDF'].map((label, idx) => {
-              const status = idx < step ? 'completed' : idx === step ? 'active' : 'upcoming';
-              
-              return (
-                <div 
-                  key={idx} 
-                  className={`step-indicator ${status}`}
-                  style={{
-                    padding: '10px 20px',
-                    borderRadius: theme.shape.buttonBorderRadius,
-                    margin: '0 8px',
-                    background: idx === step 
-                      ? theme.colors.primary.gradient
-                      : idx < step 
-                        ? darkMode ? 'rgba(59, 130, 246, 0.2)' : '#dbeafe'
-                        : darkMode ? 'rgba(255, 255, 255, 0.1)' : '#f1f5f9',
-                    color: idx === step 
-                      ? '#fff' 
-                      : idx < step 
-                        ? darkMode ? theme.colors.primary.light : theme.colors.primary.dark
-                        : darkMode ? 'rgba(255, 255, 255, 0.7)' : '#64748b',
-                    fontWeight: idx === step ? 700 : idx < step ? 600 : 400,
-                    fontSize: '16px',
-                    border: idx === step 
-                      ? `2px solid ${darkMode ? theme.colors.primary.light : theme.colors.primary.dark}`
-                      : '2px solid transparent',
-                    boxShadow: idx === step ? theme.shadows.md : 'none',
-                    transition: 'all 0.3s',
-                    position: 'relative',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    flexGrow: 1,
-                    zIndex: 10 - idx
-                  }}
-                >
-                  {/* Indicateur pour les étapes complétées */}
-                  {idx < step && (
-                    <span style={{ marginRight: '8px', fontSize: '14px' }}>✓</span>
-                  )}
-                  {label}
-                </div>
-              );
-            })}
-            
-            {/* Ligne de connexion */}
-            <div style={{
-              position: 'absolute',
-              height: '2px',
-              background: darkMode ? 'rgba(255, 255, 255, 0.1)' : '#e2e8f0',
-              top: '50%',
-              width: '100%',
-              zIndex: 1
-            }} />
-            
-            {/* Ligne de progression */}
-            <div style={{
-              position: 'absolute',
-              height: '2px',
-              background: theme.colors.primary.main,
-              top: '50%',
-              width: `${step * 50}%`,
-              zIndex: 1,
-              transition: 'width 0.5s ease'
-            }} />
-          </div>
-        </div>
+        <motion.h1 
+          initial={{ opacity: 0, y: -20 }}
+          animate={{ opacity: 1, y: 0 }}
+          style={{ 
+            color: darkMode ? '#fff' : '#1f2937',
+            fontSize: '1.875rem',
+            fontWeight: 700
+          }}
+        >
+          {showDirectScriptGenerator 
+            ? 'Créer un script directement' 
+            : step === 0 
+              ? 'Créer du contenu YouTube' 
+              : step === 1 
+                ? 'Choisir un sujet tendance' 
+                : 'Votre script est prêt !'}
+        </motion.h1>
         
-        {/* En-tête avec boutons d'action */}
-        <div className="dashboard-header" style={{
+        <div className="action-buttons" style={{
           display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-          marginBottom: '20px'
+          gap: '10px'
         }}>
-          <motion.h1 
-            initial={{ opacity: 0, y: -20 }}
-            animate={{ opacity: 1, y: 0 }}
-            style={{ 
-              color: darkMode ? '#fff' : theme.colors.text.primary,
-              fontSize: '2rem',
-              fontWeight: 700,
-              marginBottom: '8px'
-            }}
-          >
-            {step === 0 ? 'Créer du contenu YouTube' : 
-             step === 1 ? 'Choisir un sujet tendance' : 
-             'Votre script est prêt !'}
-          </motion.h1>
-          
-          <div className="action-buttons" style={{
-            display: 'flex',
-            gap: '10px'
-          }}>
-            {step > 0 && (
-              <motion.button
-                initial={{ opacity: 0, scale: 0.9 }}
-                animate={{ opacity: 1, scale: 1 }}
-                className="btn-back"
-                onClick={goBack}
-                style={{
-                  padding: '10px 20px',
-                  borderRadius: theme.shape.buttonBorderRadius,
-                  background: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
-                  border: 'none',
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  cursor: 'pointer',
-                  color: darkMode ? '#fff' : theme.colors.text.primary,
-                  fontWeight: 500,
-                  transition: 'all 0.2s ease'
-                }}
-              >
-                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                  <path d="M19 12H5M12 19l-7-7 7-7"/>
-                </svg>
-                Retour
-              </motion.button>
-            )}
-            
+          {(step > 0 || showDirectScriptGenerator) && (
             <motion.button
               initial={{ opacity: 0, scale: 0.9 }}
               animate={{ opacity: 1, scale: 1 }}
-              className="btn-reset"
-              onClick={resetAll}
+              className="btn-back"
+              onClick={goBack}
               style={{
-                padding: '10px 20px',
-                borderRadius: theme.shape.buttonBorderRadius,
-                background: theme.colors.grey[darkMode ? 700 : 200],
+                padding: '10px 16px',
+                borderRadius: '8px',
+                background: darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)',
                 border: 'none',
                 display: 'flex',
                 alignItems: 'center',
                 gap: '8px',
                 cursor: 'pointer',
-                color: darkMode ? '#fff' : theme.colors.text.primary,
+                color: darkMode ? '#e5e7eb' : '#374151',
                 fontWeight: 500,
                 transition: 'all 0.2s ease'
               }}
             >
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
-                <path d="M3 3v5h5"/>
+                <path d="M19 12H5M12 19l-7-7 7-7"/>
               </svg>
-              Recommencer
+              Retour
             </motion.button>
-          </div>
+          )}
+          
+          <motion.button
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="btn-reset"
+            onClick={resetAll}
+            style={{
+              padding: '10px 16px',
+              borderRadius: '8px',
+              background: darkMode ? 'rgba(107, 114, 128, 0.2)' : 'rgba(229, 231, 235, 0.7)',
+              border: `1px solid ${
+                darkMode ? 'rgba(75, 85, 99, 0.3)' : 'rgba(209, 213, 219, 0.8)'
+              }`,
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              cursor: 'pointer',
+              color: darkMode ? '#e5e7eb' : '#374151',
+              fontWeight: 500,
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8"/>
+              <path d="M3 3v5h5"/>
+            </svg>
+            Recommencer
+          </motion.button>
         </div>
-        
-        {/* Contenu principal avec animation de transition */}
-        <AnimatePresence mode="wait">
+      </div>
+
+      {/* Barre d'étapes (visible seulement si on n'est pas en mode génération directe) */}
+      {!showDirectScriptGenerator && (
+        <div className="steps-container" style={{
+          marginBottom: '30px',
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          flexWrap: 'wrap',
+          gap: '20px'
+        }}>
+          {/* Étapes standard */}
+          <div style={{ 
+            display: 'flex', 
+            alignItems: 'center', 
+            flexWrap: 'wrap',
+            gap: '10px'
+          }}>
+            {['Thème', 'Sujets', 'Script'].map((label, idx) => (
+              <motion.div
+                key={idx}
+                initial={{ opacity: 0.8 }}
+                animate={{ opacity: 1 }}
+                className={`step-box ${idx === step ? 'active' : idx < step ? 'completed' : ''}`}
+                style={{
+                  padding: '10px 20px',
+                  borderRadius: '24px',
+                  cursor: idx < step ? 'pointer' : 'default',
+                  background: idx === step 
+                    ? (darkMode ? 'rgba(59, 130, 246, 0.2)' : 'rgba(59, 130, 246, 0.1)')
+                    : idx < step 
+                      ? (darkMode ? 'rgba(16, 185, 129, 0.2)' : 'rgba(16, 185, 129, 0.1)') 
+                      : (darkMode ? 'rgba(107, 114, 128, 0.2)' : 'rgba(229, 231, 235, 0.5)'),
+                  color: idx === step 
+                    ? (darkMode ? '#3b82f6' : '#2563eb')
+                    : idx < step 
+                      ? (darkMode ? '#10b981' : '#047857')
+                      : (darkMode ? '#9ca3af' : '#6b7280'),
+                  border: `1px solid ${
+                    idx === step 
+                      ? (darkMode ? 'rgba(59, 130, 246, 0.3)' : 'rgba(59, 130, 246, 0.2)')
+                      : idx < step 
+                        ? (darkMode ? 'rgba(16, 185, 129, 0.3)' : 'rgba(16, 185, 129, 0.2)')
+                        : (darkMode ? 'rgba(107, 114, 128, 0.2)' : 'rgba(229, 231, 235, 0.8)')
+                  }`,
+                  fontWeight: idx === step ? 600 : 500,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px'
+                }}
+                onClick={() => {
+                  // Permettre de revenir à une étape précédente
+                  if (idx < step) {
+                    setStep(idx);
+                    
+                    // Réinitialiser les données des étapes suivantes
+                    if (idx < 1) {
+                      setSelectedTopic(null);
+                      setScript(null);
+                    }
+                    if (idx < 2) {
+                      setScript(null);
+                    }
+                  }
+                }}
+              >
+                <span style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  width: '24px',
+                  height: '24px',
+                  borderRadius: '50%',
+                  background: idx === step 
+                    ? (darkMode ? '#3b82f6' : '#2563eb')
+                    : idx < step 
+                      ? (darkMode ? '#10b981' : '#047857')
+                      : (darkMode ? '#4b5563' : '#9ca3af'),
+                  color: '#fff',
+                  fontSize: '0.75rem',
+                  fontWeight: 600
+                }}>
+                  {idx < step ? '✓' : idx + 1}
+                </span>
+                {label}
+              </motion.div>
+            ))}
+          </div>
+          
+          {/* Option pour générer directement un script */}
+          <motion.div
+            initial={{ opacity: 0.8 }}
+            animate={{ opacity: 1 }}
+          >
+            <button
+              onClick={() => setShowDirectScriptGenerator(true)}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '8px',
+                padding: '10px 16px',
+                borderRadius: '24px',
+                border: `1px solid ${darkMode ? 'rgba(236, 72, 153, 0.3)' : 'rgba(236, 72, 153, 0.2)'}`,
+                background: darkMode ? 'rgba(236, 72, 153, 0.2)' : 'rgba(236, 72, 153, 0.1)',
+                color: darkMode ? '#ec4899' : '#be185d',
+                fontWeight: 500,
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Créer un script directement
+            </button>
+          </motion.div>
+        </div>
+      )}
+      
+      {/* Contenu principal avec animation de transition */}
+      <AnimatePresence mode="wait">
+        {showDirectScriptGenerator ? (
+          <DirectScriptGenerator
+            key="direct-script"
+            userProfile={userProfile}
+            API_BASE={API_BASE}
+            darkMode={darkMode}
+            onBack={() => setShowDirectScriptGenerator(false)}
+            onScriptGenerated={handleDirectScriptGenerated}
+          />
+        ) : (
           <motion.div
             key={step}
             initial="initial"
             animate="animate"
             exit="exit"
             variants={pageVariants}
-            transition={{ duration: 0.4 }}
-            style={{
-              background: darkMode ? 'rgba(31, 41, 55, 0.7)' : 'rgba(255, 255, 255, 0.8)',
-              borderRadius: theme.shape.borderRadius,
-              padding: '30px',
-              boxShadow: theme.shadows.lg,
-              backdropFilter: 'blur(10px)',
-              border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : 'rgba(0, 0, 0, 0.05)'}`,
-              overflow: 'hidden',
-              position: 'relative'
+            transition={{ 
+              type: 'spring', 
+              stiffness: 300, 
+              damping: 30 
             }}
           >
             {renderStepContent()}
           </motion.div>
-        </AnimatePresence>
-      </div>
+        )}
+      </AnimatePresence>
     </div>
   );
 };

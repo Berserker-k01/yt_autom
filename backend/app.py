@@ -204,9 +204,9 @@ def export_pdf_route():
         if not script:
             return jsonify({'error': 'Script manquant'}), 400
             
-        # Extraire les informations du profil
-        youtuber_name = profile.get('fullName', 'YouTuber')
-        channel_name = profile.get('channelName', 'Ma Chaîne YouTube')
+        # Extraire les informations du profil avec les bonnes clés
+        youtuber_name = profile.get('youtuber_name', 'YouTuber')
+        channel_name = profile.get('channel_name', 'Ma Chaîne YouTube')
         
         print(f"Génération du PDF pour {youtuber_name}, chaîne: {channel_name}, sujet: {topic}")
         
@@ -917,21 +917,89 @@ def modify_script_route():
 def estimate_time_route():
     try:
         data = request.get_json()
-        script = data.get('script', '')
+        
+        if not data:
+            return jsonify({'error': 'Aucune donnée reçue'}), 400
+            
+        script = data.get('script')
         
         if not script:
-            return jsonify({'error': 'Un script est requis'}), 400
+            return jsonify({'error': 'Script manquant'}), 400
         
         # Estimer le temps de lecture
-        estimated_time = estimate_reading_time(script)
+        estimation = estimate_reading_time(script)
         
-        return jsonify({
-            'estimated_reading_time': estimated_time
+        return jsonify(estimation)
+    except Exception as e:
+        print(f"Erreur lors de l'estimation du temps: {str(e)}")
+        return jsonify({'error': f'Erreur lors de l\'estimation: {str(e)}'}), 500
+
+# Route pour générer directement un script à partir d'une idée
+@app.route('/generate-direct-script', methods=['POST'])
+def generate_direct_script_route():
+    try:
+        data = request.get_json()
+        
+        if not data:
+            return jsonify({'error': 'Aucune donnée reçue'}), 400
+            
+        idea = data.get('idea', '')
+        profile = data.get('profile', {})
+        
+        if not idea:
+            return jsonify({'error': 'Une idée est requise'}), 400
+        
+        # Extraire les informations du profil
+        youtuber_name = profile.get('youtuber_name', '')
+        channel_name = profile.get('channel_name', '')
+        content_style = profile.get('content_style', 'informative')
+        
+        # Rechercher des informations sur l'idée
+        research = fetch_research(idea)
+        
+        if not research:
+            print("Aucune recherche trouvée, utilisation d'un contexte minimal.")
+            research = f"Idée de vidéo YouTube: {idea}"
+        
+        # Générer le script avec les informations du profil
+        script_text = generate_script(idea, research, user_context={
+            'youtuber_name': youtuber_name,
+            'channel_name': channel_name,
+            'content_style': content_style,
+            'video_style': profile.get('content_style', 'informative'),
+            'approach_style': profile.get('tone', 'professionnel'),
+            'target_audience': profile.get('target_audience', 'adultes'),
+            'video_length': profile.get('video_length', '10-15 minutes'),
+            'language': profile.get('language', 'français'),
+            'content_type': profile.get('content_type', 'général'),
+            'custom_options': profile.get('custom_options', {})
         })
         
+        # Extraire des sources fictives pour le moment (pourra être amélioré)
+        sources = [
+            f"https://example.com/ressource-sur-{idea.replace(' ', '-').lower()}",
+            f"https://info-youtube.com/idee-{idea.replace(' ', '-').lower()}"
+        ]
+        
+        # Générer le PDF si le script a été généré avec succès
+        if script_text:
+            pdf_path = save_to_pdf(script_text, title=idea, author=youtuber_name, channel=channel_name, sources=sources)
+            
+            result = {
+                'script': script_text,
+                'pdf_url': f"/download/{os.path.basename(pdf_path)}",
+                'sources': sources
+            }
+            
+            return jsonify(result)
+        else:
+            return jsonify({'error': 'Échec de la génération du script'}), 500
+            
     except Exception as e:
-        print(f"Erreur lors de l'estimation du temps de lecture: {str(e)}")
-        return jsonify({'error': 'Erreur lors de l\'estimation du temps de lecture'}), 500
+        print(f"Erreur lors de la génération directe du script: {str(e)}")
+        import traceback
+        traceback.print_exc()
+        return jsonify({'error': f'Erreur lors de la génération du script: {str(e)}'}), 500
 
 # Initialiser la base de données et démarrer l'application
 with app.app_context():
