@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import axios from 'axios';
 import { motion } from 'framer-motion';
+import { useTheme } from '../context/ThemeContext';
 
 // Détermine l'URL de l'API selon l'environnement
 const API_BASE = process.env.NODE_ENV === 'production' 
@@ -12,6 +13,7 @@ const SimpleProfileSetup = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const { darkMode } = useTheme();
   
   // Informations du profil
   const [youtuberName, setYoutuberName] = useState('');
@@ -169,16 +171,31 @@ const SimpleProfileSetup = () => {
 
   if (profileAlreadyConfigured) {
     return (
-      <div className="profile-setup-container">
+      <div className={`profile-setup-container ${darkMode ? 'dark-mode' : ''}`} style={{
+        backgroundColor: darkMode ? '#111827' : '#f9fafb',
+        minHeight: '100vh',
+        display: 'flex',
+        justifyContent: 'center',
+        alignItems: 'center',
+        padding: '20px'
+      }}>
         <motion.div 
           className="profile-card"
           initial={{ opacity: 0, scale: 0.9 }}
           animate={{ opacity: 1, scale: 1 }}
           transition={{ duration: 0.5 }}
+          style={{
+            backgroundColor: darkMode ? '#1f2937' : '#ffffff',
+            color: darkMode ? '#f9fafb' : '#1f2937',
+            padding: '32px',
+            borderRadius: '12px',
+            boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+            border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.2)' : 'rgba(226, 232, 240, 0.8)'}`
+          }}
         >
           <div className="success-icon">✓</div>
-          <h2>Profil déjà configuré</h2>
-          <p>Votre profil a déjà été configuré. Vous allez être redirigé vers le tableau de bord...</p>
+          <h2 style={{ color: darkMode ? '#e5e7eb' : '#1f2937' }}>Profil déjà configuré</h2>
+          <p style={{ color: darkMode ? '#d1d5db' : '#6b7280' }}>Votre profil a déjà été configuré. Vous allez être redirigé vers le tableau de bord...</p>
           <div className="loading-dots">
             <span></span>
             <span></span>
@@ -190,37 +207,53 @@ const SimpleProfileSetup = () => {
   }
 
   return (
-    <div className="profile-setup-container">
+    <div className={`profile-setup-container ${darkMode ? 'dark-mode' : ''}`} style={{
+      backgroundColor: darkMode ? '#111827' : '#f9fafb',
+      minHeight: '100vh',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: '20px'
+    }}>
       <motion.div 
         className="profile-card"
         initial={{ opacity: 0, y: 30 }}
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.6, ease: [0.6, -0.05, 0.01, 0.99] }}
+        style={{
+          width: '100%',
+          maxWidth: '700px',
+          backgroundColor: darkMode ? '#1f2937' : '#ffffff',
+          padding: '32px',
+          borderRadius: '12px',
+          boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+          border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.2)' : 'rgba(226, 232, 240, 0.8)'}`
+        }}
       >
         <motion.h2
           initial={{ opacity: 0, y: -10 }}
           animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
+          style={{
+            fontSize: '1.75rem',
+            fontWeight: 700,
+            marginBottom: '24px',
+            textAlign: 'center',
+            color: darkMode ? '#f9fafb' : '#1f2937'
+          }}
         >
-          Personnalisez votre expérience
+          Configurez votre profil YouTubeur
         </motion.h2>
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-        >
-          Ces informations nous aideront à personnaliser vos scripts vidéo YouTube.
-        </motion.p>
         
         {error && (
-          <motion.div 
-            className="error-message"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3 }}
-          >
+          <div className="error-message" style={{
+            padding: '12px 16px',
+            borderRadius: '8px',
+            backgroundColor: darkMode ? 'rgba(239, 68, 68, 0.2)' : '#fee2e2',
+            color: darkMode ? '#fca5a5' : '#dc2626',
+            marginBottom: '20px'
+          }}>
             {error}
-          </motion.div>
+          </div>
         )}
         
         <form onSubmit={handleSubmit}>

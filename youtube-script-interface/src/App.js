@@ -2,12 +2,15 @@ import React, { useState, useEffect } from 'react';
 import { HashRouter, Routes, Route, Navigate } from 'react-router-dom';
 import { ProfileProvider } from './context/ProfileContext';
 import { ThemeProvider } from './context/ThemeContext';
+import { AuthProvider } from './context/AuthContext';
 import './App.css';
 
 // Importation des composants personnalisés
 import SimpleProfileSetup from './components/SimpleProfileSetup';
 import ModernHeader from './components/common/ModernHeader';
 import ModernDashboard from './components/dashboard/ModernDashboard';
+import Login from './components/auth/Login';
+import Register from './components/auth/Register';
 
 function StepBar({ step }) {
   const steps = [
@@ -960,30 +963,34 @@ function App() {
 
   // Rediriger vers la page d'authentification si non connecté
   const PrivateRoute = ({ children }) => {
-    return isAuthenticated() ? children : <Navigate to="/profile" />;
+    return isAuthenticated() ? children : <Navigate to="/login" />;
   };
 
   return (
     <ThemeProvider>
-      <ProfileProvider>
-        <HashRouter>
-          <ModernHeader />
-          <Routes>
-            <Route path="/" element={<Navigate to="/dashboard" />} />
-            <Route path="/profile" element={<SimpleProfileSetup />} />
-            <Route 
-              path="/dashboard" 
-              element={
-                <PrivateRoute>
-                  <ModernDashboard />
-                </PrivateRoute>
-              } 
-            />
-            {/* Route de capture pour les pages non trouvées */}
-            <Route path="*" element={<Navigate to="/" />} />
-          </Routes>
-        </HashRouter>
-      </ProfileProvider>
+      <AuthProvider>
+        <ProfileProvider>
+          <HashRouter>
+            <ModernHeader />
+            <Routes>
+              <Route path="/" element={<Navigate to="/dashboard" />} />
+              <Route path="/profile" element={<SimpleProfileSetup />} />
+              <Route path="/login" element={<Login />} />
+              <Route path="/register" element={<Register />} />
+              <Route 
+                path="/dashboard" 
+                element={
+                  <PrivateRoute>
+                    <ModernDashboard />
+                  </PrivateRoute>
+                } 
+              />
+              {/* Route de capture pour les pages non trouvées */}
+              <Route path="*" element={<Navigate to="/" />} />
+            </Routes>
+          </HashRouter>
+        </ProfileProvider>
+      </AuthProvider>
     </ThemeProvider>
   );
 }
