@@ -5,7 +5,15 @@ from datetime import datetime
 import requests
 from fpdf import FPDF
 import google.generativeai as genai
-from tavily import TavilyClient
+
+# Import optionnel de Tavily
+try:
+    from tavily import TavilyClient
+    TAVILY_AVAILABLE = True
+    print("Tavily importé avec succès")
+except ImportError:
+    TAVILY_AVAILABLE = False
+    print("Tavily non disponible, utilisation de SerpAPI comme fallback")
 
 # Charge les variables d'environnement
 load_dotenv()
@@ -19,8 +27,15 @@ TAVILY_API_KEY = "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"  # Clé API Tavily
 genai.configure(api_key=GEMINI_API_KEY)
 model = genai.GenerativeModel('gemini-1.5-flash')
 
-# Configuration de Tavily
-tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
+# Configuration de Tavily si disponible
+tavily_client = None
+if TAVILY_AVAILABLE:
+    try:
+        tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
+        print("Client Tavily initialisé avec succès")
+    except Exception as e:
+        print(f"Erreur lors de l'initialisation du client Tavily: {e}")
+        TAVILY_AVAILABLE = False
 
 def gemini_generate(prompt: str) -> str:
     """Génère du texte avec Gemini."""
@@ -54,6 +69,10 @@ def gemini_generate(prompt: str) -> str:
 
 def tavily_search(query: str, num_results: int = 5) -> str:
     """Effectue une recherche via Tavily API."""
+    if not TAVILY_AVAILABLE:
+        print("Tavily non disponible, utilisation de SerpAPI comme fallback")
+        return serpapi_search(query, num_results)
+    
     try:
         print(f"Recherche Tavily pour: {query}")
         
@@ -351,9 +370,14 @@ IMPORTANT: Réponds UNIQUEMENT avec un JSON valide de cette forme:
 
 def generate_script(topic: str, research: str, user_context: dict = None) -> str:
     """Génère un script détaillé avec Tavily + Gemini et retourne le texte intégral."""
-    # Récupérer des informations supplémentaires avec Tavily pour enrichir le script
-    print(f"Recherche d'informations supplémentaires sur Tavily pour: {topic}")
-    additional_research = tavily_search(f"{topic} faits statistiques études expert tendances", num_results=3)
+    # Récupérer des informations supplémentaires avec Tavily ou SerpAPI
+    print(f"Recherche d'informations supplémentaires pour: {topic}")
+    if TAVILY_AVAILABLE:
+        additional_research = tavily_search(f"{topic} faits statistiques études expert tendances", num_results=3)
+    else:
+        # Utiliser simplement les recherches existantes si Tavily n'est pas disponible
+        print("Tavily non disponible, utilisation des recherches existantes uniquement")
+        additional_research = ""
     
     # Construction du prompt avec le contexte utilisateur si disponible
     user_context_str = ""
@@ -368,12 +392,20 @@ Informations sur le créateur:
 - Durée vidéo préférée: {user_context.get('video_length', 'Non spécifié')}
 """
     
+    # Adapter le prompt en fonction de la disponibilité des recherches supplémentaires
+    additional_research_section = ""
+    if additional_research:
+        additional_research_section = f"""
+Recherches complémentaires (à intégrer dans le script pour l'enrichir):
+{additional_research}
+"""
+    
     # Prompt avec instructions pour la génération du script
     script_prompt = f"""Tu es un rédacteur professionnel YouTube, expert en storytelling et pédagogie.
     Rédige un script vidéo complet sur : "{topic}"
     
     Contraintes :
-    - Structure le texte en sections titrées (ex : [HOOK], [INTRODUCTION], [PARTIE 1], etc.)
+    - Structure le texte en sections titrées (ex : [HOOK], [INTRODUCTION], etc.)
     - Dans chaque section, rédige tout ce qui doit être dit, phrase par phrase, comme si tu écrivais le texte exact à prononcer dans la vidéo.
     - Le texte doit être fluide, captivant, sans fautes, et donner envie d'écouter jusqu'au bout.
     - Utilise des exemples concrets, des chiffres, des anecdotes, des transitions naturelles et un call-to-action final.
@@ -384,9 +416,7 @@ Informations sur le créateur:
     
     Contexte et recherches primaires :
     {research}
-    
-    Recherches complémentaires (à intégrer dans le script pour l'enrichir):
-    {additional_research}
+    {additional_research_section}
     
     Le script doit être adapté au style et à la personnalité du créateur mentionnés ci-dessus.
     Commence directement par le [HOOK] puis enchaîne les sections.
@@ -408,17 +438,19 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
         # Créer le nom de fichier avec le chemin complet
         if os.name == 'nt':  # Windows
             temp_dir = tempfile.gettempdir()
-            filename = os.path.join(temp_dir, f'script_video_{timestamp}.pdf')
-            # Créer aussi un fichier texte de secours
-            txt_filename = os.path.join(temp_dir, f'script_video_{timestamp}.txt')
         else:  # Linux (Render)
-            filename = f"/tmp/script_video_{timestamp}.pdf"
-            txt_filename = f"/tmp/script_video_{timestamp}.txt"
+            temp_dir = '/tmp'
+            
+        if not title:
+            title = "Script_YouTube"
+            
+        safe_title = "".join([c if c.isalnum() or c in " -_" else "_" for c in title])
+        filename = os.path.join(temp_dir, f"{safe_title}_{timestamp}.pdf")
         
         print(f"Création de PDF à l'emplacement: {filename}")
         
         # Toujours créer un fichier texte de secours
-        with open(txt_filename, 'w', encoding='utf-8') as f:
+        with open(filename.replace('.pdf', '.txt'), 'w', encoding='utf-8') as f:
             f.write("=" * 50 + "\n")
             f.write(f"TITRE: {title or 'Script YouTube'}\n")
             f.write(f"AUTEUR: {author or 'Non spécifié'}\n")
@@ -432,7 +464,7 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                 for i, source in enumerate(sources, 1):
                     f.write(f"[{i}] {source}\n")
         
-        print(f"Fichier texte de secours créé: {txt_filename}")
+        print(f"Fichier texte de secours créé: {filename.replace('.pdf', '.txt')}")
             
         # Version simplifiée avec FPDF
         try:
@@ -511,12 +543,12 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                 return filename
             else:
                 print("PDF non généré ou trop petit, utilisation du fichier texte")
-                return txt_filename
+                return filename.replace('.pdf', '.txt')
                 
         except Exception as e:
             print(f"Erreur FPDF: {str(e)}")
-            print(f"Utilisation du fichier texte à la place: {txt_filename}")
-            return txt_filename
+            print(f"Utilisation du fichier texte à la place: {filename.replace('.pdf', '.txt')}")
+            return filename.replace('.pdf', '.txt')
             
     except Exception as e:
         print(f"Erreur critique: {str(e)}")
@@ -658,71 +690,6 @@ N'oubliez pas de liker cette vidéo et de vous abonner pour plus de contenu comm
     except ValueError:
         print("Entrée invalide - Veuillez entrer un nombre ou 'n' pour quitter")
 
-def modify_script_with_ai(original_script: str, modification_request: str, user_context: dict = None) -> str:
-    """Modifie un script existant selon les demandes spécifiques de l'utilisateur en utilisant Tavily pour enrichir le contenu."""
-    # Extraire le sujet du script pour rechercher des informations supplémentaires
-    script_lines = original_script.split('\n')
-    topic = ""
-    for line in script_lines[:10]:  # Regarder dans les 10 premières lignes pour trouver le sujet
-        if ("[HOOK]" in line or "[INTRODUCTION]" in line) and len(line) > 10:
-            topic = line.replace("[HOOK]", "").replace("[INTRODUCTION]", "").strip()
-            break
-    
-    if not topic and len(script_lines) > 0:
-        topic = script_lines[0].strip()
-    
-    print(f"Sujet détecté pour la recherche: {topic}")
-    
-    # Rechercher des informations supplémentaires liées à la demande de modification
-    additional_info = ""
-    if topic:
-        print(f"Recherche d'informations supplémentaires sur Tavily pour enrichir la modification...")
-        search_query = f"{topic} {modification_request}"
-        additional_info = tavily_search(search_query, num_results=2)
-        print(f"Informations supplémentaires récupérées ({len(additional_info)} caractères)")
-    
-    # Construction du prompt avec le contexte utilisateur si disponible
-    user_context_str = ""
-    if user_context and any(user_context.values()):
-        user_context_str = f"""
-Informations sur le créateur:
-- Nom de la chaîne: {user_context.get('channel_name', 'Non spécifié')}
-- Nom du YouTubeur: {user_context.get('youtuber_name', 'Non spécifié')}
-- Style vidéo préféré: {user_context.get('video_style', 'Non spécifié')}
-- Approche habituelle: {user_context.get('approach_style', 'Non spécifié')}
-- Public cible: {user_context.get('target_audience', 'Non spécifié')}
-"""
-    
-    # Prompt de modification de script
-    modification_prompt = f"""En tant qu'expert en rédaction de scripts YouTube, modifie le script suivant selon cette demande :
-
-DEMANDE DE MODIFICATION:
-{modification_request}
-
-SCRIPT ORIGINAL:
-{original_script}
-
-{user_context_str}
-
-INFORMATIONS SUPPLÉMENTAIRES POUR ENRICHIR LE CONTENU:
-{additional_info}
-
-Instructions:
-1. Conserve la structure en sections (ex: [HOOK], [INTRODUCTION], etc.)
-2. Conserve le ton et le style global du script mais applique les modifications demandées
-3. Intègre subtilement les nouvelles informations et données pertinentes des recherches supplémentaires
-4. Assure-toi que les transitions restent fluides
-5. Retourne uniquement le script modifié, sans commentaires ni explications
-6. Assure-toi que le script reste captivant et adapté au format YouTube
-7. Cite les sources si pertinent dans le contenu
-"""
-
-    print(f"Modification du script avec la demande : {modification_request[:100]}...")
-    response = gemini_generate(modification_prompt)
-    print(f"Script modifié généré ({len(response)} caractères)")
-    
-    return response
-
 def estimate_reading_time(script: str) -> dict:
     """Estime le temps de lecture d'un script et fournit une analyse détaillée."""
     # Analyse du texte
@@ -818,6 +785,79 @@ def calculate_retention_estimate(word_count: int, sections: list) -> dict:
             "conclusion_bonus": conclusion_bonus
         }
     }
+
+def modify_script_with_ai(original_script: str, modification_request: str, user_context: dict = None) -> str:
+    """Modifie un script existant selon les demandes spécifiques de l'utilisateur en utilisant Tavily pour enrichir le contenu."""
+    # Extraire le sujet du script pour rechercher des informations supplémentaires
+    script_lines = original_script.split('\n')
+    topic = ""
+    for line in script_lines[:10]:  # Regarder dans les 10 premières lignes pour trouver le sujet
+        if ("[HOOK]" in line or "[INTRODUCTION]" in line) and len(line) > 10:
+            topic = line.replace("[HOOK]", "").replace("[INTRODUCTION]", "").strip()
+            break
+    
+    if not topic and len(script_lines) > 0:
+        topic = script_lines[0].strip()
+    
+    print(f"Sujet détecté pour la recherche: {topic}")
+    
+    # Rechercher des informations supplémentaires liées à la demande de modification
+    additional_info = ""
+    if topic and TAVILY_AVAILABLE:
+        print(f"Recherche d'informations supplémentaires sur Tavily pour enrichir la modification...")
+        search_query = f"{topic} {modification_request}"
+        additional_info = tavily_search(search_query, num_results=2)
+        print(f"Informations supplémentaires récupérées ({len(additional_info)} caractères)")
+    else:
+        print("Tavily non disponible ou aucun sujet détecté, pas de recherche supplémentaire")
+    
+    # Construction du prompt avec le contexte utilisateur si disponible
+    user_context_str = ""
+    if user_context and any(user_context.values()):
+        user_context_str = f"""
+Informations sur le créateur:
+- Nom de la chaîne: {user_context.get('channel_name', 'Non spécifié')}
+- Nom du YouTubeur: {user_context.get('youtuber_name', 'Non spécifié')}
+- Style vidéo préféré: {user_context.get('video_style', 'Non spécifié')}
+- Approche habituelle: {user_context.get('approach_style', 'Non spécifié')}
+- Public cible: {user_context.get('target_audience', 'Non spécifié')}
+"""
+    
+    # Adapter le prompt en fonction de la disponibilité des informations supplémentaires
+    additional_info_section = ""
+    if additional_info:
+        additional_info_section = f"""
+INFORMATIONS SUPPLÉMENTAIRES POUR ENRICHIR LE CONTENU:
+{additional_info}
+"""
+    
+    # Prompt de modification de script
+    modification_prompt = f"""En tant qu'expert en rédaction de scripts YouTube, modifie le script suivant selon cette demande :
+
+DEMANDE DE MODIFICATION:
+{modification_request}
+
+SCRIPT ORIGINAL:
+{original_script}
+
+{user_context_str}
+{additional_info_section}
+
+Instructions:
+1. Conserve la structure en sections (ex: [HOOK], [INTRODUCTION], etc.)
+2. Conserve le ton et le style global du script mais applique les modifications demandées
+3. Intègre subtilement les nouvelles informations et données pertinentes des recherches supplémentaires
+4. Assure-toi que les transitions restent fluides
+5. Retourne uniquement le script modifié, sans commentaires ni explications
+6. Assure-toi que le script reste captivant et adapté au format YouTube
+7. Cite les sources si pertinent dans le contenu
+"""
+
+    print(f"Modification du script avec la demande : {modification_request[:100]}...")
+    response = gemini_generate(modification_prompt)
+    print(f"Script modifié généré ({len(response)} caractères)")
+    
+    return response
 
 if __name__ == "__main__":
     main()
