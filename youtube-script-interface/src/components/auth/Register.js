@@ -74,7 +74,8 @@ const Register = () => {
         email: email || username
       }));
       
-      navigate('/profile');
+      // Redirection avec remplacement de l'historique pour éviter les problèmes de navigation
+      navigate('/profile', { replace: true });
       setLoading(false);
     }, 800);
   };

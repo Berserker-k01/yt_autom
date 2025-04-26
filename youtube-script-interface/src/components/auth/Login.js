@@ -30,10 +30,10 @@ const Login = () => {
         // Déterminer où rediriger l'utilisateur
         if (response && response.user && response.user.setupRequired) {
           console.log('Redirection vers la page de configuration du profil');
-          window.location.href = '/profile-setup'; // Utiliser window.location pour une redirection plus fiable
+          navigate('/profile-setup', { replace: true });
         } else {
           console.log('Redirection vers le tableau de bord');
-          window.location.href = '/dashboard';
+          navigate('/dashboard', { replace: true });
         }
       }, 300);
     } catch (err) {
@@ -45,6 +45,41 @@ const Login = () => {
     } finally {
       setLoading(false);
     }
+  };
+
+  // Méthode de connexion simplifiée pour la démo
+  const handleSimpleLogin = (e) => {
+    e.preventDefault();
+    setError(null);
+    setLoading(true);
+    
+    setTimeout(() => {
+      // Vérifier si les identifiants existent en localStorage
+      const savedUsername = localStorage.getItem('ytautom_username');
+      const savedPassword = localStorage.getItem('ytautom_password');
+      
+      if (savedUsername && savedPassword && email && password) {
+        if (email === savedUsername && password === savedPassword) {
+          // Authentification réussie
+          localStorage.setItem('ytautom_auth', 'true');
+          localStorage.setItem('ytautom_user', JSON.stringify({
+            username: savedUsername,
+            email: savedUsername
+          }));
+          
+          console.log('Redirection vers le tableau de bord');
+          navigate('/dashboard', { replace: true });
+        } else {
+          setError('Identifiants incorrects. Vérifiez votre nom d\'utilisateur et mot de passe.');
+        }
+      } else if (!savedUsername || !savedPassword) {
+        setError('Aucun compte trouvé. Veuillez créer un compte.');
+      } else {
+        setError('Veuillez remplir tous les champs.');
+      }
+      
+      setLoading(false);
+    }, 800);
   };
 
   return (
@@ -80,7 +115,7 @@ const Login = () => {
           color: darkMode ? '#f9fafb' : '#1f2937'
         }}>Connexion</h2>
         
-        <form onSubmit={handleSubmit}>
+        <form onSubmit={handleSimpleLogin}>
           {error && (
             <motion.div
               initial={{ opacity: 0, y: -10 }}
