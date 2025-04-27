@@ -280,6 +280,11 @@ const SimpleProfileSetup = () => {
                 onChange={(e) => setYoutuberName(e.target.value)}
                 required
                 placeholder="Comment souhaitez-vous être appelé?"
+                style={{
+                  backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                  color: darkMode ? '#f9fafb' : '#1f2937',
+                  border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`
+                }}
               />
               <span className="input-icon">👤</span>
             </div>
@@ -300,6 +305,11 @@ const SimpleProfileSetup = () => {
                 value={channelName}
                 onChange={(e) => setChannelName(e.target.value)}
                 placeholder="Le nom de votre chaîne YouTube"
+                style={{
+                  backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                  color: darkMode ? '#f9fafb' : '#1f2937',
+                  border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`
+                }}
               />
               <span className="input-icon">📺</span>
             </div>
@@ -320,6 +330,11 @@ const SimpleProfileSetup = () => {
                 value={language}
                 onChange={(e) => setLanguage(e.target.value)}
                 placeholder="Entrez votre langue principale (ex: Français, Anglais...)"
+                style={{
+                  backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                  color: darkMode ? '#f9fafb' : '#1f2937',
+                  border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`
+                }}
               />
               <span className="input-icon">🌐</span>
             </div>
@@ -340,6 +355,11 @@ const SimpleProfileSetup = () => {
                 value={contentType}
                 onChange={handleContentTypeChange}
                 placeholder="Entrez votre type de contenu (ex: Technologie, Jeux vidéo...)"
+                style={{
+                  backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                  color: darkMode ? '#f9fafb' : '#1f2937',
+                  border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`
+                }}
               />
               <span className="input-icon">📊</span>
             </div>
@@ -360,6 +380,11 @@ const SimpleProfileSetup = () => {
                 value={audienceAge}
                 onChange={(e) => setAudienceAge(e.target.value)}
                 placeholder="Entrez l'âge de votre audience (ex: 18-24, 25-34, Tous âges...)"
+                style={{
+                  backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                  color: darkMode ? '#f9fafb' : '#1f2937',
+                  border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`
+                }}
               />
               <span className="input-icon">👥</span>
             </div>
@@ -380,6 +405,11 @@ const SimpleProfileSetup = () => {
                 value={contentStyle}
                 onChange={handleContentStyleChange}
                 placeholder="Entrez votre style de contenu (ex: Informatif, Divertissant...)"
+                style={{
+                  backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                  color: darkMode ? '#f9fafb' : '#1f2937',
+                  border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`
+                }}
               />
               <span className="input-icon">🎭</span>
             </div>
