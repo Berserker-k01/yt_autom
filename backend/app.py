@@ -365,93 +365,110 @@ def export_pdf_route():
 
 # Route pour télécharger un PDF généré
 @app.route('/download/<filename>', methods=['GET'])
-def download_pdf(filename):
+def download_file(filename):
+    """Route pour télécharger un fichier généré (PDF ou texte)."""
     try:
-        print(f" Demande de téléchargement du fichier: {filename}")
+        print(f"Demande de téléchargement pour: {filename}")
         
-        # Déterminer le chemin du fichier selon l'OS
+        # Trouver le fichier dans le répertoire temporaire
         if os.name == 'nt':  # Windows
-            # Définir les chemins possibles pour le fichier
-            base_directory = os.path.dirname(os.path.abspath(__file__))
-            root_directory = os.path.join(base_directory, '..')
-            potential_paths = [
-                os.path.join(root_directory, filename),
-                os.path.join(base_directory, filename),
-                os.path.join(tempfile.gettempdir(), filename)
-            ]
-        else:  # Linux (Render)
-            potential_paths = [
-                f"/tmp/{filename}",
-                os.path.join(os.path.dirname(os.path.abspath(__file__)), filename),
-                os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', filename)
-            ]
+            temp_dir = tempfile.gettempdir()
+        else:  # Linux/Render
+            temp_dir = '/tmp'
+            
+        file_path = os.path.join(temp_dir, filename)
+        print(f" Recherche de: {file_path}")
         
-        # Parcourir tous les chemins potentiels
-        file_path = None
-        for path in potential_paths:
-            if os.path.exists(path):
-                file_path = path
-                print(f" Fichier trouvé à l'emplacement: {file_path}")
-                break
-        
-        # Si aucun fichier n'est trouvé
-        if not file_path:
-            print(f" Fichier PDF introuvable: {filename}")
-            print(f"Chemins recherchés: {potential_paths}")
-            return jsonify({'error': 'Fichier PDF introuvable'}), 404
+        # Vérifier si le fichier existe
+        if not os.path.exists(file_path):
+            print(f" Fichier non trouvé: {file_path}")
+            
+            # Si c'est un fichier simplifié qui est demandé, vérifier si le fichier original existe
+            if "_simplified_" in filename:
+                original_filename = filename.replace("_simplified_", "_")
+                original_path = os.path.join(temp_dir, original_filename)
+                if os.path.exists(original_path):
+                    print(f" Fichier simplifié non trouvé, mais original trouvé: {original_path}")
+                    file_path = original_path
+                    # Continuer avec ce fichier
+                else:
+                    return jsonify({'error': 'Fichier PDF introuvable'}), 404
+            else:
+                return jsonify({'error': 'Fichier PDF introuvable'}), 404
         
         # Vérifier si le fichier est lisible et valide
         if os.path.getsize(file_path) == 0:
             print(f" Fichier vide: {file_path}")
             return jsonify({'error': 'Le fichier PDF est vide'}), 500
         
+        # Déterminer si le fichier est un PDF ou un TXT
+        is_pdf = filename.lower().endswith('.pdf')
+        is_txt = filename.lower().endswith('.txt')
+        
+        # Déterminer le nom de fichier à utiliser pour le téléchargement
+        download_name = f"Script_YouTube_{datetime.now().strftime('%Y%m%d')}"
+        download_name += ".pdf" if is_pdf else ".txt"
+        
         try:
-            with open(file_path, 'rb') as f:
-                # Lire les premières lignes pour vérifier la validité
-                header = f.read(10)
+            # Si c'est un fichier PDF, vérifier qu'il est valide
+            if is_pdf:
+                with open(file_path, 'rb') as f:
+                    header = f.read(10)
+                    
+                    # Si ce n'est pas un PDF valide, chercher une version simplifiée
+                    if not header.startswith(b'%PDF'):
+                        print(f" Fichier non valide comme PDF: {file_path}")
+                        
+                        # Chercher une version PDF simplifiée si elle existe
+                        if "_simplified_" not in filename:
+                            simplified_filename = filename.replace(".pdf", "_simplified_.pdf")
+                            simplified_path = os.path.join(temp_dir, simplified_filename)
+                            if os.path.exists(simplified_path):
+                                print(f" Utilisation de la version simplifiée: {simplified_path}")
+                                return send_file(
+                                    simplified_path,
+                                    as_attachment=True,
+                                    download_name=download_name,
+                                    mimetype='application/pdf'
+                                )
+                        
+                        # Si non, chercher une version texte
+                        txt_path = file_path.replace('.pdf', '.txt')
+                        if os.path.exists(txt_path):
+                            print(f" Utilisation de l'alternative texte: {txt_path}")
+                            return send_file(
+                                txt_path,
+                                as_attachment=True,
+                                download_name=download_name.replace(".pdf", ".txt"),
+                                mimetype='text/plain'
+                            )
+                        else:
+                            # Tenter d'envoyer le fichier PDF même s'il n'est pas valide
+                            print(f" Tentative d'envoi du fichier PDF potentiellement invalide")
+                            return send_file(
+                                file_path,
+                                as_attachment=True,
+                                download_name=download_name,
+                                mimetype='application/pdf'
+                            )
+            
+            # Envoyer le fichier (qu'il soit PDF ou TXT)
+            mimetype = 'application/pdf' if is_pdf else 'text/plain'
+            print(f" Envoi du fichier {file_path} ({os.path.getsize(file_path)} octets)")
+            return send_file(
+                file_path,
+                as_attachment=True,
+                download_name=download_name,
+                mimetype=mimetype
+            )
                 
-                # Si ce n'est pas un PDF valide
-                if not header.startswith(b'%PDF'):
-                    print(f" Fichier non valide comme PDF: {file_path}")
-                    # Chercher une version texte
-                    txt_path = file_path.replace('.pdf', '.txt')
-                    if os.path.exists(txt_path):
-                        print(f" Utilisation de l'alternative texte: {txt_path}")
-                        return send_file(
-                            txt_path,
-                            as_attachment=True,
-                            download_name=f"Script_YouTube_{datetime.now().strftime('%Y%m%d')}.txt",
-                            mimetype='text/plain'
-                        )
-                    else:
-                        return jsonify({'error': 'PDF invalide et pas d\'alternative disponible'}), 500
-                
-                # Lire tout le contenu pour l'envoyer manuellement
-                f.seek(0)
-                file_content = f.read()
         except Exception as e:
-            print(f" Erreur lors de la lecture du fichier: {str(e)}")
+            print(f" Erreur lors de la lecture/envoi du fichier: {str(e)}")
             return jsonify({'error': f'Erreur lors de la lecture du fichier: {str(e)}'}), 500
-        
-        # Définir un nom de fichier convivial pour le téléchargement
-        download_name = f"Script_YouTube_{datetime.now().strftime('%Y%m%d')}.pdf"
-        
-        # Créer une réponse manuellement
-        from flask import make_response
-        response = make_response(file_content)
-        response.headers.set('Content-Type', 'application/pdf')
-        response.headers.set('Content-Disposition', f'attachment; filename="{download_name}"')
-        response.headers.set('Content-Length', str(len(file_content)))
-        response.headers.set('Access-Control-Allow-Origin', '*')
-        
-        print(f" Envoi du fichier {file_path} (taille: {len(file_content)} octets)")
-        return response
-        
+    
     except Exception as e:
         print(f" Erreur critique lors du téléchargement: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': f'Erreur lors du téléchargement: {str(e)}'}), 500
+        return jsonify({'error': f'Erreur critique lors du téléchargement: {str(e)}'}), 500
 
 # Route pour consulter l'historique des sujets
 @app.route('/topics-history', methods=['GET'])

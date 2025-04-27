@@ -811,6 +811,7 @@ Merci d'avoir regardé cette vidéo. N'oubliez pas de vous abonner et liker !
 def save_to_pdf(script_text: str, title: str = None, author: str = None, channel: str = None, sources: list = None) -> str:
     """Version simplifiée et robuste de sauvegarde en PDF."""
     import tempfile
+    from fpdf import FPDF
     
     try:
         # Configuration pour le PDF
@@ -836,7 +837,7 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
             script_text = "Contenu du script non disponible. Veuillez réessayer la génération."
             print("AVERTISSEMENT: Texte de script invalide ou vide")
         
-        # Toujours créer un fichier texte de secours
+        # Toujours créer un fichier texte de secours (mais ne pas le retourner automatiquement)
         try:
             with open(txt_filename, 'w', encoding='utf-8') as f:
                 f.write("=" * 50 + "\n")
@@ -855,135 +856,144 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
             print(f"Fichier texte de secours créé: {txt_filename}")
         except Exception as txt_error:
             print(f"Erreur lors de la création du fichier texte: {txt_error}")
-            # Si même le fichier texte échoue, nous avons un problème sérieux
-            return txt_filename
         
-        # En cas de problème avec la génération PDF, retourner au moins le fichier texte
+        # Utilisation de fpdf pour générer un PDF standard sans trop de personnalisation
+        # qui pourrait causer des problèmes avec les caractères spéciaux
         try:
-            # Utiliser une approche plus robuste pour les caractères spéciaux
-            from fpdf import FPDF
-            
-            # Création d'une classe PDF personnalisée avec support des accents
-            class PDF(FPDF):
-                def header(self):
-                    pass  # Pas d'en-tête
-                
-                def footer(self):
-                    # Position à 1.5 cm du bas
-                    self.set_y(-15)
-                    self.set_font('Arial', 'I', 8)
-                    self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
-            
-            # Initialiser le PDF
-            pdf = PDF()
+            # Créer un PDF de base
+            pdf = FPDF()
             pdf.add_page()
             
-            # Encodage pour les caractères accentués
-            pdf.add_font('Arial', '', '', uni=True)
-            pdf.add_font('Arial', 'B', '', uni=True)
+            # Ajouter le titre
+            pdf.set_font("Arial", "B", 16)
+            pdf.cell(0, 10, safe_title[:40], 0, 1, "C")
             
-            # Titre avec limite de caractères
-            pdf.set_font('Arial', 'B', 16)
-            safe_title = (title or "Script YouTube")[:60]
-            pdf.cell(0, 10, safe_title, 0, 1, 'C')
-            
-            # Infos auteur
+            # Ajouter les informations sur l'auteur
             if author or channel:
-                pdf.set_font('Arial', 'I', 12)
+                pdf.set_font("Arial", "I", 12)
                 info = ""
                 if author:
-                    info += f"Par: {author[:30]}"
+                    info += f"Par: {author[:20]}"
                 if channel:
                     if info:
                         info += " | "
-                    info += f"Chaîne: {channel[:30]}"
-                pdf.cell(0, 8, info, 0, 1, 'C')
+                    info += f"Chaîne: {channel[:20]}"
+                pdf.cell(0, 8, info, 0, 1, "C")
             
-            # Contenu principal
-            pdf.set_font('Arial', '', 12)
+            # Ajouter le contenu principal
+            pdf.set_font("Arial", "", 12)
             pdf.ln(5)
             
-            # Traiter le texte ligne par ligne avec gestion des caractères spéciaux
-            try:
-                lines = script_text.split('\n')
+            # Traiter le texte ligne par ligne sans chercher à gérer les caractères spéciaux complexes
+            lines = script_text.split('\n')
+            
+            for line in lines:
+                if not line.strip():
+                    pdf.ln(4)
+                    continue
                 
-                for line in lines:
-                    # Sauter les lignes vides
-                    if not line.strip():
-                        pdf.ln(4)
-                        continue
-                    
-                    # Préparation des titres de section
-                    if '[' in line and ']' in line and line.strip().startswith('['):
-                        pdf.ln(4)
-                        pdf.set_font('Arial', 'B', 13)
-                        # Utiliser l'encodage utf-8 pour les caractères spéciaux
-                        safe_line = line[:70]
-                        pdf.multi_cell(0, 8, safe_line)
-                        pdf.set_font('Arial', '', 12)
-                    else:
-                        # Diviser en segments raisonnables
-                        max_segment = 80  # Taille raisonnable pour éviter les problèmes
-                        for i in range(0, len(line), max_segment):
-                            segment = line[i:i+max_segment]
-                            if segment.strip():
-                                try:
-                                    pdf.multi_cell(0, 8, segment)
-                                except Exception as cell_error:
-                                    print(f"Erreur lors de l'écriture d'un segment: {cell_error}")
-                                    # Essayer de "nettoyer" le segment problématique
-                                    cleaned_segment = ''.join(c if ord(c) < 128 or c in 'àâäçèéêëîïôöùûüÿÀÂÄÇÈÉÊËÎÏÔÖÙÛÜŸ' else ' ' for c in segment)
-                                    try:
-                                        pdf.multi_cell(0, 8, cleaned_segment)
-                                    except:
-                                        continue
-            except Exception as line_error:
-                print(f"Erreur lors du traitement des lignes: {line_error}")
-                pdf.ln(10)
-                pdf.set_text_color(255, 0, 0)
-                pdf.multi_cell(0, 8, "Erreur lors du traitement du texte. Certains contenus peuvent être manquants.")
-                pdf.set_text_color(0, 0, 0)
+                # Détecter les titres de section pour les mettre en gras
+                if '[' in line and ']' in line and line.strip().startswith('['):
+                    pdf.ln(4)
+                    pdf.set_font("Arial", "B", 13)
+                    # Nettoyer la ligne pour ne garder que les caractères simples
+                    clean_line = ''.join(c if ord(c) < 128 else ' ' for c in line[:50])
+                    pdf.cell(0, 8, clean_line, 0, 1)
+                    pdf.set_font("Arial", "", 12)
+                else:
+                    # Traiter le texte régulier
+                    # Diviser en petits segments pour éviter les débordements
+                    line_cleaned = ''.join(c if ord(c) < 128 else ' ' for c in line)
+                    for i in range(0, len(line_cleaned), 70):
+                        segment = line_cleaned[i:i+70]
+                        if segment.strip():
+                            pdf.multi_cell(0, 8, segment)
             
             # Ajouter les sources si disponibles
-            try:
-                if sources and len(sources) > 0:
-                    pdf.add_page()
-                    pdf.set_font('Arial', 'B', 16)
-                    pdf.cell(0, 10, "Sources", 0, 1, 'C')
-                    pdf.ln(5)
-                    
-                    pdf.set_font('Arial', '', 12)
-                    for i, source in enumerate(sources, 1):
-                        try:
-                            source_text = str(source)
-                            if len(source_text) > 80:
-                                source_text = source_text[:80] + "..."
-                            pdf.multi_cell(0, 8, f"[{i}] {source_text}")
-                        except Exception as source_error:
-                            print(f"Erreur lors de l'ajout de la source {i}: {source_error}")
-                            continue
-            except Exception as sources_error:
-                print(f"Erreur lors de l'ajout des sources: {sources_error}")
+            if sources and len(sources) > 0:
+                pdf.add_page()
+                pdf.set_font("Arial", "B", 16)
+                pdf.cell(0, 10, "Sources", 0, 1, "C")
+                pdf.ln(5)
+                
+                pdf.set_font("Arial", "", 12)
+                for i, source in enumerate(sources, 1):
+                    # Nettoyer la source pour éviter les problèmes de caractères
+                    source_clean = ''.join(c if ord(c) < 128 else ' ' for c in str(source))
+                    if len(source_clean) > 70:
+                        source_clean = source_clean[:70] + "..."
+                    pdf.multi_cell(0, 8, f"[{i}] {source_clean}")
             
             # Sauvegarder le PDF
-            try:
-                pdf.output(filename)
-                print(f"PDF généré avec succès: {filename}")
-            except Exception as pdf_error:
-                print(f"Erreur lors de la sauvegarde du PDF: {pdf_error}")
-                # En cas d'échec, retourner le fichier texte à la place
-                return txt_filename
-                
-            # Vérifier la création du PDF
+            pdf.output(filename)
+            
+            # Vérifier que le fichier a été créé et qu'il est valide
             if os.path.exists(filename) and os.path.getsize(filename) > 100:
-                print(f"PDF vérifié avec succès: {filename} ({os.path.getsize(filename)} octets)")
-                return filename
+                with open(filename, 'rb') as f:
+                    content = f.read(10)
+                    if content.startswith(b'%PDF'):
+                        print(f"PDF valide généré: {filename}")
+                        return filename
+                    else:
+                        print(f"Fichier créé mais ce n'est pas un PDF valide: {filename}")
             else:
-                print(f"PDF généré mais invalide ou trop petit: {filename}")
-                return txt_filename
-        except Exception as pdf_generation_error:
-            print(f"Erreur globale lors de la génération du PDF: {pdf_generation_error}")
-            # En cas d'échec complet de la génération PDF, retourner le fichier texte
+                print(f"Échec de création du PDF ou fichier trop petit: {filename}")
+            
+            # Si le PDF n'est pas créé ou pas valide, essayer une méthode alternative plus simple
+            print("Tentative de génération de PDF avec une approche alternative...")
+            
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", "B", 16)
+            pdf.cell(0, 10, "Script YouTube", 0, 1, "C")
+            pdf.set_font("Arial", "", 12)
+            pdf.ln(10)
+            
+            # Utiliser une approche très basique sans traitement spécial
+            pdf.multi_cell(0, 8, "SCRIPT (VERSION SIMPLIFIÉE)\n\n")
+            pdf.multi_cell(0, 8, "Le contenu complet est disponible dans le fichier texte. Cette version PDF simplifiée est fournie en raison de problèmes de compatibilité avec certains caractères.")
+            pdf.ln(10)
+            pdf.multi_cell(0, 8, f"Titre: {title}")
+            pdf.multi_cell(0, 8, f"Date: {datetime.now().strftime('%d/%m/%Y')}")
+            
+            # Extracteur de sections
+            sections = []
+            current_section = ""
+            for line in lines:
+                if '[' in line and ']' in line and line.strip().startswith('['):
+                    # Extraire le nom de la section
+                    section_name = line.strip()
+                    sections.append(section_name)
+            
+            # Ajouter un sommaire des sections
+            if sections:
+                pdf.ln(10)
+                pdf.multi_cell(0, 8, "STRUCTURE DU SCRIPT:")
+                for section in sections:
+                    # Nettoyer la section pour ne garder que les caractères simples
+                    clean_section = ''.join(c if ord(c) < 128 else ' ' for c in section)
+                    pdf.multi_cell(0, 8, f"- {clean_section}")
+            
+            # Sauvegarder cette version alternative
+            alternative_filename = os.path.join(temp_dir, f"{safe_title}_simplified_{timestamp}.pdf")
+            pdf.output(alternative_filename)
+            
+            # Vérifier si ce PDF alternatif est valide
+            if os.path.exists(alternative_filename) and os.path.getsize(alternative_filename) > 100:
+                print(f"PDF alternatif généré: {alternative_filename}")
+                return alternative_filename
+            
+            # Si tout échoue, retourner le fichier PDF original même s'il n'est pas parfait
+            print("Tentatives alternatives échouées, retour au PDF original")
+            return filename
+            
+        except Exception as pdf_error:
+            print(f"Erreur lors de la génération du PDF: {pdf_error}")
+            import traceback
+            traceback.print_exc()
+            
+            # Ne retourner le fichier texte qu'en dernier recours
+            print(f"Retour au fichier texte: {txt_filename}")
             return txt_filename
             
     except Exception as e:
@@ -1003,7 +1013,6 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
             return fallback_file
         except:
             print("Échec catastrophique - Impossible de créer même un fichier de secours")
-            # Dernier recours: retourner un nom de fichier qui n'existe probablement pas mais évite une erreur 500
             return "erreur_generation_pdf.txt"
 
 def save_as_text(script: dict, filename: str):
