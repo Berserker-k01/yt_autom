@@ -7,6 +7,7 @@ import './App.css';
 
 // Importation des composants personnalisés
 import SimpleProfileSetup from './components/SimpleProfileSetup';
+import SimpleProfileSetupFixed from './components/SimpleProfileSetupFixed';
 import ModernHeader from './components/common/ModernHeader';
 import ModernDashboard from './components/dashboard/ModernDashboard';
 import Login from './components/auth/Login';
@@ -974,7 +975,7 @@ function App() {
             <ModernHeader />
             <Routes>
               <Route path="/" element={<Navigate to="/dashboard" />} />
-              <Route path="/profile" element={<SimpleProfileSetup />} />
+              <Route path="/profile" element={<SimpleProfileSetupFixed />} />
               <Route path="/login" element={<Login />} />
               <Route path="/register" element={<Register />} />
               <Route 

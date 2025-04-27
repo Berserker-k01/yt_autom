@@ -1,70 +1,41 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import axios from 'axios';
 import { motion } from 'framer-motion';
+import { useTheme } from '../context/ThemeContext';
 
-// Détermine l'URL de l'API selon l'environnement
-const API_BASE = process.env.NODE_ENV === 'production' 
-  ? 'https://yt-autom-api.onrender.com' 
-  : 'http://localhost:5000';
-
-const SimpleProfileSetup = () => {
+// Version simplifiée et corrigée du composant de configuration de profil
+const SimpleProfileSetupFixed = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState(null);
+  const { darkMode } = useTheme();
   
   // Informations du profil
   const [youtuberName, setYoutuberName] = useState('');
   const [channelName, setChannelName] = useState('');
-  const [language, setLanguage] = useState('fr');
-  const [contentType, setContentType] = useState('tech');
-  const [audienceAge, setAudienceAge] = useState('18-24');
-  const [contentStyle, setContentStyle] = useState('informative');
+  const [language, setLanguage] = useState('');
+  const [contentType, setContentType] = useState('');
+  const [audienceAge, setAudienceAge] = useState('');
+  const [contentStyle, setContentStyle] = useState('');
   
-  // Nouvelles options personnalisées par l'utilisateur
+  // Préférences personnalisées
   const [customOptions, setCustomOptions] = useState({});
-  const [showCustomInput, setShowCustomInput] = useState({});
-  const [customContentType, setCustomContentType] = useState('');
-  const [customContentStyle, setCustomContentStyle] = useState('');
-  
-  // État pour vérifier si le profil a déjà été configuré
-  const [profileAlreadyConfigured, setProfileAlreadyConfigured] = useState(false);
+  const [customKey, setCustomKey] = useState('');
+  const [customValue, setCustomValue] = useState('');
+  const [feedback, setFeedback] = useState('');
   
   // Vérifier si un profil existe déjà dans le localStorage
   useEffect(() => {
     const savedProfile = localStorage.getItem('ytautom_profile');
-    const isConfigured = localStorage.getItem('ytautom_profile_configured');
-    
-    if (isConfigured === 'true') {
-      setProfileAlreadyConfigured(true);
-    }
     
     if (savedProfile) {
       try {
         const profile = JSON.parse(savedProfile);
         setYoutuberName(profile.youtuber_name || '');
         setChannelName(profile.channel_name || '');
-        setLanguage(profile.language || 'fr');
-        
-        // Gestion des types personnalisés
-        if (profile.content_type && profile.content_type.startsWith('custom_')) {
-          setContentType('other');
-          setCustomContentType(profile.content_type.replace('custom_', ''));
-          setShowCustomInput(prev => ({ ...prev, contentType: true }));
-        } else {
-          setContentType(profile.content_type || 'tech');
-        }
-        
-        setAudienceAge(profile.audience_age || '18-24');
-        
-        // Gestion des styles personnalisés
-        if (profile.content_style && profile.content_style.startsWith('custom_')) {
-          setContentStyle('other');
-          setCustomContentStyle(profile.content_style.replace('custom_', ''));
-          setShowCustomInput(prev => ({ ...prev, contentStyle: true }));
-        } else {
-          setContentStyle(profile.content_style || 'informative');
-        }
+        setLanguage(profile.language || '');
+        setContentType(profile.content_type || '');
+        setAudienceAge(profile.audience_age || '');
+        setContentStyle(profile.content_style || '');
         
         // Charger les options personnalisées si elles existent
         if (profile.custom_options) {
@@ -76,424 +47,429 @@ const SimpleProfileSetup = () => {
     }
   }, []);
   
-  const handleSubmit = async (e) => {
+  // Enregistrer le profil
+  const handleSubmit = (e) => {
     e.preventDefault();
-    setError(null);
     setLoading(true);
-    
-    // Gérer les valeurs personnalisées
-    let finalContentType = contentType;
-    if (contentType === 'other' && customContentType) {
-      finalContentType = `custom_${customContentType}`;
-    }
-    
-    let finalContentStyle = contentStyle;
-    if (contentStyle === 'other' && customContentStyle) {
-      finalContentStyle = `custom_${customContentStyle}`;
-    }
-    
-    // Créer l'objet profil
-    const profileData = {
+
+    // Enregistrer les préférences utilisateur
+    const userPreferences = {
       youtuber_name: youtuberName,
       channel_name: channelName,
       language,
-      content_type: finalContentType,
+      content_type: contentType,
       audience_age: audienceAge,
-      content_style: finalContentStyle,
+      content_style: contentStyle,
       custom_options: customOptions
     };
+
+    // Enregistrer dans le localStorage
+    localStorage.setItem('ytautom_profile', JSON.stringify(userPreferences));
+    localStorage.setItem('ytautom_profile_configured', 'true');
     
-    try {
-      // Envoyer au backend si disponible
-      try {
-        const response = await axios.post(
-          `${API_BASE}/api/save-profile`,
-          profileData,
-          { timeout: 3000 }
-        );
-        console.log('Profil enregistré sur le serveur:', response.data);
-      } catch (apiError) {
-        console.warn('Impossible de sauvegarder sur le serveur, utilisation du mode local:', apiError.message);
-      }
-      
-      // Toujours sauvegarder localement
-      localStorage.setItem('ytautom_profile', JSON.stringify(profileData));
-      localStorage.setItem('ytautom_auth', 'true');
-      localStorage.setItem('ytautom_profile_configured', 'true'); // Marquer le profil comme configuré
-      
-      // Rediriger vers le tableau de bord
-      navigate('/dashboard');
-    } catch (err) {
-      console.error('Erreur:', err);
-      setError('Erreur lors de la sauvegarde du profil. Veuillez réessayer.');
-    } finally {
+    // Notifier les autres composants
+    window.dispatchEvent(new Event('auth_changed'));
+    
+    // Redirection
+    setTimeout(() => {
       setLoading(false);
-    }
+      navigate('/dashboard');
+    }, 1000);
   };
   
-  // Gérer les changements dans les sélections pour afficher les champs personnalisés
-  const handleContentTypeChange = (e) => {
-    const value = e.target.value;
-    setContentType(value);
-    setShowCustomInput(prev => ({ ...prev, contentType: value === 'other' }));
-  };
-  
-  const handleContentStyleChange = (e) => {
-    const value = e.target.value;
-    setContentStyle(value);
-    setShowCustomInput(prev => ({ ...prev, contentStyle: value === 'other' }));
-  };
-  
-  // Ajouter une nouvelle préférence personnalisée
-  const [newCustomKey, setNewCustomKey] = useState('');
-  const [newCustomValue, setNewCustomValue] = useState('');
-  
-  const addCustomOption = () => {
-    if (newCustomKey && newCustomValue) {
-      setCustomOptions(prev => ({ 
-        ...prev, 
-        [newCustomKey]: newCustomValue 
-      }));
-      setNewCustomKey('');
-      setNewCustomValue('');
+  // Ajouter une préférence personnalisée
+  const handleAddCustomOption = () => {
+    if (customKey && customValue) {
+      // Créer une copie pour éviter les mutations directes
+      const newOptions = { ...customOptions };
+      newOptions[customKey] = customValue;
+      
+      // Mettre à jour l'état
+      setCustomOptions(newOptions);
+      setFeedback(`Préférence "${customKey}" ajoutée !`);
+      
+      // Réinitialiser les champs
+      setCustomKey('');
+      setCustomValue('');
+      
+      // Effacer le feedback après 3 secondes
+      setTimeout(() => setFeedback(''), 3000);
     }
   };
   
   // Supprimer une préférence personnalisée
-  const removeCustomOption = (key) => {
-    const updatedOptions = { ...customOptions };
-    delete updatedOptions[key];
-    setCustomOptions(updatedOptions);
+  const handleRemoveCustomOption = (key) => {
+    const newOptions = { ...customOptions };
+    delete newOptions[key];
+    setCustomOptions(newOptions);
   };
   
-  // Rediriger vers le tableau de bord si le profil est déjà configuré
-  useEffect(() => {
-    if (profileAlreadyConfigured) {
-      const timer = setTimeout(() => {
-        navigate('/dashboard');
-      }, 3000);
-      return () => clearTimeout(timer);
-    }
-  }, [profileAlreadyConfigured, navigate]);
-  
-  // Animation pour les groupes de formulaire
-  const formControls = {
-    hidden: { opacity: 0, y: 20 },
-    visible: i => ({
-      opacity: 1,
-      y: 0,
-      transition: {
-        delay: i * 0.1,
-        duration: 0.5,
-        ease: [0.6, -0.05, 0.01, 0.99]
-      }
-    })
-  };
-
-  if (profileAlreadyConfigured) {
-    return (
-      <div className="profile-setup-container">
-        <motion.div 
-          className="profile-card"
-          initial={{ opacity: 0, scale: 0.9 }}
-          animate={{ opacity: 1, scale: 1 }}
-          transition={{ duration: 0.5 }}
-        >
-          <div className="success-icon">✓</div>
-          <h2>Profil déjà configuré</h2>
-          <p>Votre profil a déjà été configuré. Vous allez être redirigé vers le tableau de bord...</p>
-          <div className="loading-dots">
-            <span></span>
-            <span></span>
-            <span></span>
-          </div>
-        </motion.div>
-      </div>
-    );
-  }
-
   return (
-    <div className="profile-setup-container">
-      <motion.div 
-        className="profile-card"
-        initial={{ opacity: 0, y: 30 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6, ease: [0.6, -0.05, 0.01, 0.99] }}
-      >
-        <motion.h2
-          initial={{ opacity: 0, y: -10 }}
-          animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.2, duration: 0.5 }}
-        >
-          Personnalisez votre expérience
-        </motion.h2>
-        <motion.p
-          initial={{ opacity: 0 }}
-          animate={{ opacity: 1 }}
-          transition={{ delay: 0.3, duration: 0.5 }}
-        >
-          Ces informations nous aideront à personnaliser vos scripts vidéo YouTube.
-        </motion.p>
-        
-        {error && (
-          <motion.div 
-            className="error-message"
-            initial={{ opacity: 0, scale: 0.8 }}
-            animate={{ opacity: 1, scale: 1 }}
-            transition={{ duration: 0.3 }}
-          >
-            {error}
-          </motion.div>
-        )}
+    <div style={{
+      backgroundColor: darkMode ? '#111827' : '#f9fafb',
+      minHeight: '100vh',
+      display: 'flex',
+      justifyContent: 'center',
+      alignItems: 'center',
+      padding: '20px',
+      color: darkMode ? '#f9fafb' : '#1f2937'
+    }}>
+      <div style={{
+        width: '100%',
+        maxWidth: '700px',
+        backgroundColor: darkMode ? '#1f2937' : '#ffffff',
+        padding: '32px',
+        borderRadius: '12px',
+        boxShadow: '0 10px 25px rgba(0, 0, 0, 0.1)',
+        border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.2)' : 'rgba(226, 232, 240, 0.8)'}`
+      }}>
+        <h2 style={{
+          fontSize: '1.75rem',
+          fontWeight: 700,
+          marginBottom: '24px',
+          textAlign: 'center',
+          color: darkMode ? '#f9fafb' : '#1f2937'
+        }}>
+          Configurez votre profil YouTubeur
+        </h2>
         
         <form onSubmit={handleSubmit}>
-          <motion.div 
-            className="form-group"
-            custom={0}
-            initial="hidden"
-            animate="visible"
-            variants={formControls}
-          >
-            <label htmlFor="youtuberName">Votre nom de YouTubeur *</label>
-            <div className="input-with-icon">
-              <input
-                type="text"
-                id="youtuberName"
-                value={youtuberName}
-                onChange={(e) => setYoutuberName(e.target.value)}
-                required
-                placeholder="Comment souhaitez-vous être appelé?"
-              />
-              <span className="input-icon">👤</span>
-            </div>
-          </motion.div>
+          {/* Champ Nom YouTubeur */}
+          <div style={{marginBottom: '16px'}}>
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
+              fontWeight: 500,
+              color: darkMode ? '#e5e7eb' : '#374151'
+            }}>
+              Votre nom de YouTubeur *
+            </label>
+            <input
+              type="text"
+              value={youtuberName}
+              onChange={(e) => setYoutuberName(e.target.value)}
+              required
+              placeholder="Comment souhaitez-vous être appelé?"
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`,
+                backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                color: darkMode ? '#f9fafb' : '#1f2937'
+              }}
+            />
+          </div>
           
-          <motion.div 
-            className="form-group"
-            custom={1}
-            initial="hidden"
-            animate="visible"
-            variants={formControls}
-          >
-            <label htmlFor="channelName">Nom de votre chaîne YouTube</label>
-            <div className="input-with-icon">
-              <input
-                type="text"
-                id="channelName"
-                value={channelName}
-                onChange={(e) => setChannelName(e.target.value)}
-                placeholder="Le nom de votre chaîne YouTube"
-              />
-              <span className="input-icon">📺</span>
-            </div>
-          </motion.div>
+          {/* Champ Nom de chaîne */}
+          <div style={{marginBottom: '16px'}}>
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
+              fontWeight: 500,
+              color: darkMode ? '#e5e7eb' : '#374151'
+            }}>
+              Nom de votre chaîne YouTube
+            </label>
+            <input
+              type="text"
+              value={channelName}
+              onChange={(e) => setChannelName(e.target.value)}
+              placeholder="Le nom de votre chaîne YouTube"
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`,
+                backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                color: darkMode ? '#f9fafb' : '#1f2937'
+              }}
+            />
+          </div>
           
-          <motion.div 
-            className="form-group"
-            custom={2}
-            initial="hidden"
-            animate="visible"
-            variants={formControls}
-          >
-            <label htmlFor="language">Langue principale</label>
-            <select
-              id="language"
+          {/* Champ Langue */}
+          <div style={{marginBottom: '16px'}}>
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
+              fontWeight: 500,
+              color: darkMode ? '#e5e7eb' : '#374151'
+            }}>
+              Langue principale
+            </label>
+            <input
+              type="text"
               value={language}
               onChange={(e) => setLanguage(e.target.value)}
-            >
-              <option value="fr">Français</option>
-              <option value="en">Anglais</option>
-              <option value="es">Espagnol</option>
-              <option value="de">Allemand</option>
-            </select>
-          </motion.div>
+              placeholder="Entrez votre langue principale (ex: Français, Anglais...)"
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`,
+                backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                color: darkMode ? '#f9fafb' : '#1f2937'
+              }}
+            />
+          </div>
           
-          <motion.div 
-            className="form-group"
-            custom={3}
-            initial="hidden"
-            animate="visible"
-            variants={formControls}
-          >
-            <label htmlFor="contentType">Type de contenu</label>
-            <select
-              id="contentType"
+          {/* Champ Type de contenu */}
+          <div style={{marginBottom: '16px'}}>
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
+              fontWeight: 500,
+              color: darkMode ? '#e5e7eb' : '#374151'
+            }}>
+              Type de contenu
+            </label>
+            <input
+              type="text"
               value={contentType}
-              onChange={handleContentTypeChange}
-            >
-              <option value="tech">Technologie</option>
-              <option value="gaming">Jeux vidéo</option>
-              <option value="lifestyle">Mode de vie</option>
-              <option value="education">Éducation</option>
-              <option value="entertainment">Divertissement</option>
-              <option value="business">Business</option>
-              <option value="other">Autre (personnalisé)</option>
-            </select>
-            
-            {showCustomInput.contentType && (
-              <motion.div 
-                className="custom-input"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <input
-                  type="text"
-                  value={customContentType}
-                  onChange={(e) => setCustomContentType(e.target.value)}
-                  placeholder="Précisez votre type de contenu"
-                  className="custom-field"
-                />
-              </motion.div>
-            )}
-          </motion.div>
+              onChange={(e) => setContentType(e.target.value)}
+              placeholder="Entrez votre type de contenu (ex: Technologie, Jeux vidéo...)"
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`,
+                backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                color: darkMode ? '#f9fafb' : '#1f2937'
+              }}
+            />
+          </div>
           
-          <motion.div 
-            className="form-group"
-            custom={4}
-            initial="hidden"
-            animate="visible"
-            variants={formControls}
-          >
-            <label htmlFor="audienceAge">Âge de votre audience cible</label>
-            <select
-              id="audienceAge"
+          {/* Champ Âge de l'audience */}
+          <div style={{marginBottom: '16px'}}>
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
+              fontWeight: 500,
+              color: darkMode ? '#e5e7eb' : '#374151'
+            }}>
+              Âge de votre audience cible
+            </label>
+            <input
+              type="text"
               value={audienceAge}
               onChange={(e) => setAudienceAge(e.target.value)}
-            >
-              <option value="13-17">13-17 ans</option>
-              <option value="18-24">18-24 ans</option>
-              <option value="25-34">25-34 ans</option>
-              <option value="35-44">35-44 ans</option>
-              <option value="45+">45 ans et plus</option>
-            </select>
-          </motion.div>
+              placeholder="Entrez l'âge de votre audience (ex: 18-24, 25-34, Tous âges...)"
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`,
+                backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                color: darkMode ? '#f9fafb' : '#1f2937'
+              }}
+            />
+          </div>
           
-          <motion.div 
-            className="form-group"
-            custom={5}
-            initial="hidden"
-            animate="visible"
-            variants={formControls}
-          >
-            <label htmlFor="contentStyle">Style de contenu</label>
-            <select
-              id="contentStyle"
+          {/* Champ Style de contenu */}
+          <div style={{marginBottom: '16px'}}>
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
+              fontWeight: 500,
+              color: darkMode ? '#e5e7eb' : '#374151'
+            }}>
+              Style de contenu
+            </label>
+            <input
+              type="text"
               value={contentStyle}
-              onChange={handleContentStyleChange}
-            >
-              <option value="informative">Informatif</option>
-              <option value="entertaining">Divertissant</option>
-              <option value="educational">Éducatif</option>
-              <option value="inspiring">Inspirant</option>
-              <option value="controversial">Provocateur</option>
-              <option value="other">Autre (personnalisé)</option>
-            </select>
-            
-            {showCustomInput.contentStyle && (
-              <motion.div 
-                className="custom-input"
-                initial={{ opacity: 0, height: 0 }}
-                animate={{ opacity: 1, height: 'auto' }}
-                exit={{ opacity: 0, height: 0 }}
-                transition={{ duration: 0.3 }}
-              >
-                <input
-                  type="text"
-                  value={customContentStyle}
-                  onChange={(e) => setCustomContentStyle(e.target.value)}
-                  placeholder="Précisez votre style de contenu"
-                  className="custom-field"
-                />
-              </motion.div>
-            )}
-          </motion.div>
+              onChange={(e) => setContentStyle(e.target.value)}
+              placeholder="Entrez votre style de contenu (ex: Informatif, Divertissant...)"
+              style={{
+                width: '100%',
+                padding: '12px 16px',
+                borderRadius: '8px',
+                border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`,
+                backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                color: darkMode ? '#f9fafb' : '#1f2937'
+              }}
+            />
+          </div>
           
-          <motion.div 
-            className="form-group custom-options-section"
-            custom={6}
-            initial="hidden"
-            animate="visible"
-            variants={formControls}
-          >
-            <label>Préférences personnalisées <span className="optional-label">(facultatif)</span></label>
-            <p className="custom-options-info">Ajoutez des préférences spécifiques qui seront prises en compte lors de la génération de contenu</p>
+          {/* Section Préférences personnalisées */}
+          <div style={{
+            marginBottom: '24px',
+            padding: '20px',
+            borderRadius: '10px',
+            backgroundColor: darkMode ? 'rgba(30, 41, 59, 0.5)' : 'rgba(241, 245, 249, 0.6)',
+            border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.2)' : 'rgba(226, 232, 240, 0.8)'}`
+          }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
+              color: darkMode ? '#f3f4f6' : '#111827',
+              fontWeight: 500
+            }}>
+              Préférences personnalisées <span style={{
+                color: darkMode ? '#9ca3af' : '#6b7280',
+                fontSize: '0.875rem'
+              }}>(facultatif)</span>
+            </label>
             
-            <div className="custom-options-list">
-              {Object.entries(customOptions).map(([key, value]) => (
-                <div className="custom-option-item" key={key}>
-                  <div className="custom-option-content">
-                    <strong>{key}:</strong> {value}
+            <p style={{
+              margin: '0 0 16px 0',
+              fontSize: '0.875rem',
+              color: darkMode ? '#d1d5db' : '#4b5563'
+            }}>
+              Ajoutez des préférences spécifiques qui seront prises en compte lors de la génération de contenu
+            </p>
+            
+            {/* Liste des préférences existantes */}
+            <div style={{marginBottom: '16px'}}>
+              {Object.keys(customOptions).length > 0 ? (
+                Object.entries(customOptions).map(([key, value]) => (
+                  <div key={key} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.5)' : '#fff',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    marginBottom: '8px',
+                    border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#e5e7eb'}`
+                  }}>
+                    <div style={{
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      color: darkMode ? '#e5e7eb' : '#1f2937'
+                    }}>
+                      <strong>{key}:</strong> {value}
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => handleRemoveCustomOption(key)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: darkMode ? '#ef4444' : '#dc2626',
+                        fontSize: '1.25rem',
+                        cursor: 'pointer',
+                        padding: '0 8px',
+                        borderRadius: '4px'
+                      }}
+                    >
+                      ×
+                    </button>
                   </div>
-                  <button 
-                    type="button" 
-                    className="remove-option-btn" 
-                    onClick={() => removeCustomOption(key)}
-                  >
-                    ×
-                  </button>
+                ))
+              ) : (
+                <div style={{
+                  padding: '10px 16px',
+                  backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.3)' : 'rgba(241, 245, 249, 0.6)',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                  color: darkMode ? '#9ca3af' : '#6b7280',
+                  marginBottom: '10px'
+                }}>
+                  Aucune préférence personnalisée ajoutée
                 </div>
-              ))}
+              )}
             </div>
             
-            <div className="add-custom-option">
-              <div className="custom-option-inputs">
-                <input
-                  type="text"
-                  value={newCustomKey}
-                  onChange={(e) => setNewCustomKey(e.target.value)}
-                  placeholder="Nom de la préférence"
-                  className="custom-key-input"
-                />
-                <input
-                  type="text"
-                  value={newCustomValue}
-                  onChange={(e) => setNewCustomValue(e.target.value)}
-                  placeholder="Valeur"
-                  className="custom-value-input"
-                />
-              </div>
-              <button 
-                type="button" 
-                className="add-option-btn btn-gradient btn-blue-purple" 
-                onClick={addCustomOption}
-                disabled={!newCustomKey || !newCustomValue}
+            {/* Formulaire d'ajout de préférences */}
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.3)' : 'rgba(241, 245, 249, 0.6)',
+              padding: '15px',
+              borderRadius: '8px'
+            }}>
+              <input
+                type="text"
+                value={customKey}
+                onChange={(e) => setCustomKey(e.target.value)}
+                placeholder="Nom de la préférence"
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`,
+                  backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                  color: darkMode ? '#f9fafb' : '#1f2937'
+                }}
+              />
+              
+              <input
+                type="text"
+                value={customValue}
+                onChange={(e) => setCustomValue(e.target.value)}
+                placeholder="Valeur"
+                style={{
+                  width: '100%',
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`,
+                  backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                  color: darkMode ? '#f9fafb' : '#1f2937'
+                }}
+              />
+              
+              <button
+                type="button"
+                onClick={handleAddCustomOption}
+                disabled={!customKey || !customValue}
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  backgroundColor: (!customKey || !customValue) ? '#60a5fa40' : '#2563eb',
+                  color: '#ffffff',
+                  border: 'none',
+                  fontWeight: 500,
+                  cursor: (!customKey || !customValue) ? 'not-allowed' : 'pointer',
+                  opacity: (!customKey || !customValue) ? 0.6 : 1
+                }}
               >
-                Ajouter
+                Ajouter cette préférence
               </button>
+              
+              {feedback && (
+                <div style={{
+                  padding: '10px 16px',
+                  borderRadius: '8px',
+                  backgroundColor: darkMode ? 'rgba(16, 185, 129, 0.2)' : '#d1fae5',
+                  color: darkMode ? '#34d399' : '#065f46',
+                  marginTop: '8px',
+                  textAlign: 'center'
+                }}>
+                  {feedback}
+                </div>
+              )}
             </div>
-          </motion.div>
+          </div>
           
-          <motion.button 
-            type="submit" 
-            className="btn btn-primary btn-gradient btn-blue-purple w-100 btn-with-icon"
+          {/* Bouton d'envoi */}
+          <button
+            type="submit"
             disabled={loading}
-            custom={7}
-            initial="hidden"
-            animate="visible"
-            variants={formControls}
-            whileHover={{ scale: 1.03 }}
-            whileTap={{ scale: 0.98 }}
+            style={{
+              width: '100%',
+              padding: '16px',
+              borderRadius: '10px',
+              backgroundColor: '#2563eb',
+              color: '#ffffff',
+              border: 'none',
+              fontWeight: 600,
+              cursor: loading ? 'not-allowed' : 'pointer',
+              opacity: loading ? 0.7 : 1,
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              gap: '8px',
+              transition: 'all 0.2s ease'
+            }}
           >
-            {loading ? (
-              <div className="button-loader">
-                <span className="loader-dot"></span>
-                <span className="loader-dot"></span>
-                <span className="loader-dot"></span>
-                <span>Chargement...</span>
-              </div>
-            ) : (
-              <>
-                Enregistrer et continuer
-                <span className="btn-icon">→</span>
-              </>
-            )}
-          </motion.button>
+            {loading ? 'Enregistrement en cours...' : 'Enregistrer et continuer →'}
+          </button>
         </form>
-      </motion.div>
+      </div>
     </div>
   );
 };
 
-export default SimpleProfileSetup;
+export default SimpleProfileSetupFixed;

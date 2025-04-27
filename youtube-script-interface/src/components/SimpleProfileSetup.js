@@ -130,52 +130,10 @@ const SimpleProfileSetup = () => {
     setContentStyle(e.target.value);
   };
   
-  // Ajouter une nouvelle préférence personnalisée
+  // Préférences personnalisées
   const [newCustomKey, setNewCustomKey] = useState('');
   const [newCustomValue, setNewCustomValue] = useState('');
-  
-  const addCustomOption = () => {
-    if (newCustomKey && newCustomValue) {
-      // Utiliser une fonction de mise à jour pour garantir l'état le plus récent
-      setCustomOptions(prevOptions => {
-        const updatedOptions = { 
-          ...prevOptions, 
-          [newCustomKey]: newCustomValue 
-        };
-        console.log('Options personnalisées mises à jour:', updatedOptions);
-        
-        // Ajouter un feedback visuel temporaire
-        const feedbackElement = document.createElement('div');
-        feedbackElement.textContent = `Préférence "${newCustomKey}" ajoutée !`;
-        feedbackElement.style.backgroundColor = darkMode ? 'rgba(16, 185, 129, 0.2)' : '#d1fae5';
-        feedbackElement.style.color = darkMode ? '#34d399' : '#065f46';
-        feedbackElement.style.padding = '8px 12px';
-        feedbackElement.style.borderRadius = '6px';
-        feedbackElement.style.marginTop = '10px';
-        feedbackElement.style.fontWeight = '500';
-        feedbackElement.style.textAlign = 'center';
-        
-        // Trouver le conteneur où afficher le feedback
-        const customOptionsSection = document.querySelector('.custom-options-section');
-        if (customOptionsSection) {
-          customOptionsSection.appendChild(feedbackElement);
-          
-          // Supprimer le message après un certain délai
-          setTimeout(() => {
-            if (customOptionsSection.contains(feedbackElement)) {
-              customOptionsSection.removeChild(feedbackElement);
-            }
-          }, 3000);
-        }
-        
-        return updatedOptions;
-      });
-      
-      // Réinitialiser les champs après l'ajout
-      setNewCustomKey('');
-      setNewCustomValue('');
-    }
-  };
+  const [feedbackMessage, setFeedbackMessage] = useState('');
   
   // Supprimer une préférence personnalisée
   const removeCustomOption = (key) => {
@@ -474,105 +432,147 @@ const SimpleProfileSetup = () => {
             </p>
             
             <div style={{ marginBottom: '16px' }}>
-              {Object.entries(customOptions).map(([key, value]) => (
-                <div key={key} style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.5)' : '#fff',
-                  padding: '10px 16px',
-                  borderRadius: '8px',
-                  marginBottom: '8px',
-                  border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#e5e7eb'}`
-                }}>
-                  <div style={{ 
-                    overflow: 'hidden',
-                    textOverflow: 'ellipsis',
-                    color: darkMode ? '#e5e7eb' : '#1f2937'
+              {Object.keys(customOptions).length > 0 ? (
+                Object.entries(customOptions).map(([key, value]) => (
+                  <div key={key} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.5)' : '#fff',
+                    padding: '10px 16px',
+                    borderRadius: '8px',
+                    marginBottom: '8px',
+                    border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#e5e7eb'}`
                   }}>
-                    <strong>{key}:</strong> {value}
+                    <div style={{ 
+                      overflow: 'hidden',
+                      textOverflow: 'ellipsis',
+                      color: darkMode ? '#e5e7eb' : '#1f2937'
+                    }}>
+                      <strong>{key}:</strong> {value}
+                    </div>
+                    <button 
+                      type="button"
+                      onClick={() => removeCustomOption(key)}
+                      style={{
+                        background: 'none',
+                        border: 'none',
+                        color: darkMode ? '#ef4444' : '#dc2626',
+                        fontSize: '1.25rem',
+                        cursor: 'pointer',
+                        padding: '0 8px',
+                        borderRadius: '4px'
+                      }}
+                    >
+                      ×
+                    </button>
                   </div>
-                  <button 
-                    type="button"
-                    onClick={() => removeCustomOption(key)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: darkMode ? '#ef4444' : '#dc2626',
-                      fontSize: '1.25rem',
-                      cursor: 'pointer',
-                      padding: '0 8px',
-                      borderRadius: '4px'
-                    }}
-                  >
-                    ×
-                  </button>
+                ))
+              ) : (
+                <div style={{
+                  padding: '10px 16px',
+                  backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.3)' : 'rgba(241, 245, 249, 0.6)',
+                  borderRadius: '8px',
+                  textAlign: 'center',
+                  color: darkMode ? '#9ca3af' : '#6b7280',
+                  marginBottom: '10px'
+                }}>
+                  Aucune préférence personnalisée ajoutée
                 </div>
-              ))}
+              )}
             </div>
             
-            <div style={{
+            <div className="custom-preferences-form" style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '12px'
+              gap: '12px',
+              backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.3)' : 'rgba(241, 245, 249, 0.6)',
+              padding: '15px',
+              borderRadius: '8px'
             }}>
-              <div style={{
-                display: 'flex',
-                gap: '10px',
-                flexWrap: 'wrap'
+              <label style={{
+                fontSize: '0.9rem',
+                fontWeight: '500',
+                color: darkMode ? '#d1d5db' : '#4b5563'
               }}>
-                <input
-                  type="text"
-                  value={newCustomKey}
-                  onChange={(e) => setNewCustomKey(e.target.value)}
-                  placeholder="Nom de la préférence"
-                  style={{
-                    flex: '1',
-                    padding: '12px 16px',
-                    borderRadius: '8px',
-                    border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`,
-                    backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
-                    color: darkMode ? '#f9fafb' : '#1f2937',
-                    minWidth: '120px'
-                  }}
-                />
-                <input
-                  type="text"
-                  value={newCustomValue}
-                  onChange={(e) => setNewCustomValue(e.target.value)}
-                  placeholder="Valeur"
-                  style={{
-                    flex: '1',
-                    padding: '12px 16px',
-                    borderRadius: '8px',
-                    border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`,
-                    backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
-                    color: darkMode ? '#f9fafb' : '#1f2937',
-                    minWidth: '120px'
-                  }}
-                />
-              </div>
+                Ajouter une nouvelle préférence
+              </label>
+              
+              <input
+                type="text"
+                value={newCustomKey}
+                onChange={(e) => setNewCustomKey(e.target.value)}
+                placeholder="Nom de la préférence"
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`,
+                  backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                  color: darkMode ? '#f9fafb' : '#1f2937'
+                }}
+              />
+              
+              <input
+                type="text"
+                value={newCustomValue}
+                onChange={(e) => setNewCustomValue(e.target.value)}
+                placeholder="Valeur"
+                style={{
+                  padding: '12px 16px',
+                  borderRadius: '8px',
+                  border: `1px solid ${darkMode ? 'rgba(75, 85, 99, 0.4)' : '#d1d5db'}`,
+                  backgroundColor: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                  color: darkMode ? '#f9fafb' : '#1f2937'
+                }}
+              />
+              
               <button 
                 type="button"
-                onClick={addCustomOption}
+                onClick={() => {
+                  if (newCustomKey && newCustomValue) {
+                    // Créer une copie de l'objet existant
+                    const updatedOptions = { ...customOptions };
+                    // Ajouter la nouvelle préférence
+                    updatedOptions[newCustomKey] = newCustomValue;
+                    // Mettre à jour l'état
+                    setCustomOptions(updatedOptions);
+                    // Afficher un message de confirmation
+                    setFeedbackMessage(`Préférence "${newCustomKey}" ajoutée !`);
+                    // Réinitialiser les champs
+                    setNewCustomKey('');
+                    setNewCustomValue('');
+                    // Effacer le message après un délai
+                    setTimeout(() => setFeedbackMessage(''), 3000);
+                  }
+                }}
                 disabled={!newCustomKey || !newCustomValue}
                 style={{
-                  marginTop: '10px',
                   padding: '12px 16px',
                   borderRadius: '8px',
                   backgroundColor: (!newCustomKey || !newCustomValue) ? '#60a5fa40' : '#2563eb',
                   color: '#ffffff',
                   border: 'none',
-                  fontWeight: 500,
+                  fontWeight: '500',
                   cursor: (!newCustomKey || !newCustomValue) ? 'not-allowed' : 'pointer',
-                  opacity: (!newCustomKey || !newCustomValue) ? 0.6 : 1,
-                  transition: 'all 0.2s ease',
-                  width: '100%'
+                  opacity: (!newCustomKey || !newCustomValue) ? 0.6 : 1
                 }}
               >
                 Ajouter cette préférence
               </button>
             </div>
+            
+            {feedbackMessage && (
+              <div style={{
+                padding: '12px 16px',
+                borderRadius: '8px',
+                backgroundColor: darkMode ? 'rgba(16, 185, 129, 0.2)' : '#d1fae5',
+                color: darkMode ? '#34d399' : '#065f46',
+                marginBottom: '20px',
+                marginTop: '10px'
+              }}>
+                {feedbackMessage}
+              </div>
+            )}
           </motion.div>
           
           <motion.button 
