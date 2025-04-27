@@ -25,7 +25,14 @@ TAVILY_API_KEY = "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"  # Clé API Tavily 
 
 # Configuration de Gemini
 genai.configure(api_key=GEMINI_API_KEY)
-model = genai.GenerativeModel('gemini-1.5-flash')
+try:
+    model = genai.GenerativeModel('gemini-1.5-flash')
+    # Test rapide pour vérifier si la clé API fonctionne
+    _ = model.generate_content("Test")
+    print("Configuration Gemini réussie")
+except Exception as e:
+    print(f"AVERTISSEMENT: Problème avec la clé API Gemini: {e}")
+    print("Les fonctions Gemini pourraient ne pas fonctionner correctement")
 
 # Configuration de Tavily si disponible
 tavily_client = None
@@ -63,29 +70,43 @@ if TAVILY_AVAILABLE:
 def gemini_generate(prompt: str) -> str:
     """Génère du texte avec Gemini."""
     try:
-        response = model.generate_content(prompt)
-        if not response or not response.text:
-            print("Erreur: Réponse Gemini vide")
-            return ""
+        # Vérification de la clé API
+        if not GEMINI_API_KEY:
+            print("Erreur: Clé API Gemini manquante ou invalide")
+            raise ValueError("Clé API Gemini manquante ou invalide")
+        
+        try:
+            response = model.generate_content(prompt)
+            if not response or not response.text:
+                print("Erreur: Réponse Gemini vide")
+                return ""
+                
+            # Essaie de trouver un JSON valide dans la réponse
+            text = response.text
+            start = text.find('{')
+            end = text.rfind('}') + 1
             
-        # Essaie de trouver un JSON valide dans la réponse
-        text = response.text
-        start = text.find('{')
-        end = text.rfind('}') + 1
-        
-        if start >= 0 and end > 0:
-            json_str = text[start:end]
-            # Vérifie si c'est un JSON valide
-            try:
-                json.loads(json_str)
-                return json_str
-            except:
-                print(f"Erreur: JSON invalide dans la réponse")
-                print(f"Début de la réponse reçue: {text[:200]}...")
-                return text
-        
-        return text
-        
+            if start >= 0 and end > 0:
+                json_str = text[start:end]
+                # Vérifie si c'est un JSON valide
+                try:
+                    json.loads(json_str)
+                    return json_str
+                except:
+                    print(f"Erreur: JSON invalide dans la réponse")
+                    print(f"Début de la réponse reçue: {text[:200]}...")
+                    return text
+            
+            return text
+        except requests.exceptions.ConnectionError as conn_err:
+            print(f"Erreur de connexion Gemini: {conn_err}")
+            raise ValueError(f"Failed to fetch - Problème de connexion: {conn_err}")
+        except requests.exceptions.Timeout as timeout_err:
+            print(f"Timeout lors de la connexion à Gemini: {timeout_err}")
+            raise ValueError(f"Failed to fetch - Timeout: {timeout_err}")
+        except requests.exceptions.RequestException as req_err:
+            print(f"Erreur de requête Gemini: {req_err}")
+            raise ValueError(f"Failed to fetch - Erreur de requête: {req_err}")
     except Exception as e:
         print(f"Erreur Gemini: {e}")
         return ""
@@ -349,47 +370,47 @@ def generate_topics(theme: str, num_topics: int = 5, user_context: dict = None) 
     user_context_str = ""
     if user_context and any(user_context.values()):
         user_context_str = f"""
-    Informations sur le créateur:
-    - Nom de la chaîne: {user_context.get('channel_name', 'Non spécifié')}
-    - Nom du YouTubeur: {user_context.get('youtuber_name', 'Non spécifié')}
-    - Style vidéo préféré: {user_context.get('video_style', 'Non spécifié')}
-    - Approche habituelle: {user_context.get('approach_style', 'Non spécifié')}
-    - Public cible: {user_context.get('target_audience', 'Non spécifié')}
-    - Durée vidéo préférée: {user_context.get('video_length', 'Non spécifié')}
-    """
+Informations sur le créateur:
+- Nom de la chaîne: {user_context.get('channel_name', 'Non spécifié')}
+- Nom du YouTubeur: {user_context.get('youtuber_name', 'Non spécifié')}
+- Style vidéo préféré: {user_context.get('video_style', 'Non spécifié')}
+- Approche habituelle: {user_context.get('approach_style', 'Non spécifié')}
+- Public cible: {user_context.get('target_audience', 'Non spécifié')}
+- Durée vidéo préférée: {user_context.get('video_length', 'Non spécifié')}
+"""
     
     print("\nGénération des sujets avec Gemini...")
     prompt = f"""Tu es un expert en création de contenu YouTube francophone, spécialiste de la viralité et de l'actualité.
-    Pour le thème "{theme}", propose-moi {num_topics} sujets de vidéos YouTube qui sont :
-    - Basés sur les tendances et actualités du moment (actualité très récente, sujets chauds, viraux)
-    - Optimisés pour générer un fort engagement sur YouTube (taux de clics, watchtime, partages)
-    - Rédigés sans aucune faute d'orthographe ou de grammaire
-    - Avec un titre digne des plus grands youtubeurs (accrocheur, original, viral)
-    - Avec un angle unique et une justification sur l'intérêt du sujet
-    {user_context_str}
+Pour le thème "{theme}", propose-moi {num_topics} sujets de vidéos YouTube qui sont :
+- Basés sur les tendances et actualités du moment (actualité très récente, sujets chauds, viraux)
+- Optimisés pour générer un fort engagement sur YouTube (taux de clics, watchtime, partages)
+- Rédigés sans aucune faute d'orthographe ou de grammaire
+- Avec un titre digne des plus grands youtubeurs (accrocheur, original, viral)
+- Avec un angle unique et une justification sur l'intérêt du sujet
+{user_context_str}
     
-    Voici les résultats de recherche à exploiter :
-    {search_results}
+Voici les résultats de recherche à exploiter :
+{search_results}
     
-    IMPORTANT: Ta réponse doit être UNIQUEMENT un objet JSON valide avec cette structure:
-    {{
-        "topics": [
-            {{
-                "title": "Titre accrocheur format podcast",
-                "angle": "Angle de discussion unique",
-                "why_interesting": "Pourquoi c'est pertinent maintenant",
-                "key_points": ["Points clés à aborder"],
-                "target_audience": "Public cible",
-                "estimated_duration": "Durée estimée en minutes",
-                "potential_guests": ["Experts ou invités potentiels"],
-                "factual_accuracy": "high",
-                "timeliness": "very_recent",
-                "sources": ["sources fiables à citer"]
-            }}
-        ]
-    }}
+IMPORTANT: Ta réponse doit être UNIQUEMENT un objet JSON valide avec cette structure:
+{{
+    "topics": [
+        {{
+            "title": "Titre accrocheur format podcast",
+            "angle": "Angle de discussion unique",
+            "why_interesting": "Pourquoi c'est pertinent maintenant",
+            "key_points": ["Points clés à aborder"],
+            "target_audience": "Public cible",
+            "estimated_duration": "Durée estimée en minutes",
+            "potential_guests": ["Experts ou invités potentiels"],
+            "factual_accuracy": "high",
+            "timeliness": "very_recent",
+            "sources": ["sources fiables à citer"]
+        }}
+    ]
+}}
     
-    Ne génère RIEN d'autre que ce JSON. Pas d'explications, pas de texte avant ou après."""
+Ne génère RIEN d'autre que ce JSON. Pas d'explications, pas de texte avant ou après."""
     
     response = gemini_generate(prompt)
     if not response:
@@ -499,6 +520,31 @@ def generate_script(topic: str, research: str, user_context: dict = None) -> str
     """Génère un script détaillé avec Tavily + Gemini et retourne le texte intégral."""
     # Gestion robuste des erreurs pour éviter les crashs
     try:
+        # Vérification de la disponibilité de Gemini
+        gemini_available = True
+        try:
+            # Test rapide pour vérifier si l'API est accessible
+            test_response = gemini_generate("Bonjour")
+            if not test_response:
+                print("AVERTISSEMENT: Gemini ne répond pas correctement au test initial")
+                gemini_available = False
+        except Exception as check_error:
+            print(f"ERREUR lors du test de Gemini: {check_error}")
+            gemini_available = False
+            
+        if not gemini_available:
+            print("ÉCHEC d'accès à Gemini - utilisation immédiate du script de secours")
+            # Extraire les informations de base nécessaires pour le script de secours
+            youtuber_name = "YouTubeur"
+            channel_name = "Chaîne YouTube"
+            try:
+                if user_context:
+                    youtuber_name = str(user_context.get('youtuber_name', 'YouTubeur'))
+                    channel_name = str(user_context.get('channel_name', 'Chaîne YouTube'))
+            except Exception:
+                pass
+            return generate_fallback_script(topic, youtuber_name, channel_name)
+        
         # Récupérer des informations supplémentaires avec Tavily ou SerpAPI
         print(f"Recherche d'informations supplémentaires pour: {topic}")
         additional_research = ""
@@ -519,26 +565,23 @@ def generate_script(topic: str, research: str, user_context: dict = None) -> str
         video_style = "Non spécifié"
         approach_style = "Non spécifié"
         target_audience = "Non spécifié"
-        video_length = "10-15 minutes"
         language = "français"
         content_type = "général"
+        custom_options = {}
         
-        # Extraire toutes les informations disponibles du profil
-        try:
-            if user_context:
-                youtuber_name = str(user_context.get('youtuber_name', 'Non spécifié'))
-                channel_name = str(user_context.get('channel_name', 'Non spécifié'))
-                video_style = str(user_context.get('video_style', 'Non spécifié'))
-                approach_style = str(user_context.get('approach_style', user_context.get('tone', 'professionnel')))
-                target_audience = str(user_context.get('target_audience', user_context.get('audience_age', 'adultes')))
-                video_length = str(user_context.get('video_length', '10-15 minutes'))
-                language = str(user_context.get('language', 'français'))
-                content_type = str(user_context.get('content_type', 'général'))
-                
-                # Vérifier les options personnalisées
-                custom_options = user_context.get('custom_options', {})
-                
-                user_context_str = f"""
+        # Construction du prompt avec le contexte utilisateur si disponible
+        user_context_str = ""
+        if user_context:
+            youtuber_name = str(user_context.get('youtuber_name', 'Non spécifié'))
+            channel_name = str(user_context.get('channel_name', 'Non spécifié'))
+            video_style = str(user_context.get('video_style', user_context.get('content_style', 'Non spécifié')))
+            approach_style = str(user_context.get('approach_style', user_context.get('tone', 'professionnel')))
+            target_audience = str(user_context.get('target_audience', user_context.get('audience_age', 'adultes')))
+            language = str(user_context.get('language', 'français'))
+            content_type = str(user_context.get('content_type', 'général'))
+            custom_options = user_context.get('custom_options', {})
+            
+            user_context_str = f"""
 Informations sur le créateur:
 - Nom de la chaîne: {channel_name}
 - Nom du YouTubeur: {youtuber_name}
@@ -547,23 +590,42 @@ Informations sur le créateur:
 - Style vidéo préféré: {video_style}
 - Approche habituelle: {approach_style}
 - Public cible: {target_audience}
-- Durée vidéo préférée: {video_length}
 """
-
-                # Ajouter les options personnalisées si présentes
-                if custom_options and len(custom_options) > 0:
-                    try:
-                        user_context_str += "\nPréférences personnalisées du créateur:\n"
-                        for key, value in custom_options.items():
-                            user_context_str += f"- {str(key)}: {str(value)}\n"
-                    except Exception as custom_error:
-                        print(f"Erreur lors du traitement des options personnalisées: {custom_error}")
-                        # Continuer sans les options personnalisées
-        except Exception as context_error:
-            print(f"Erreur lors du traitement du contexte utilisateur: {context_error}")
-            # Utiliser des valeurs par défaut si erreur dans le contexte
+            
+            # Ajouter les options personnalisées si présentes
+            if custom_options and len(custom_options) > 0:
+                user_context_str += "\nPréférences personnalisées du créateur:\n"
+                for key, value in custom_options.items():
+                    user_context_str += f"- {key}: {value}\n"
         
-        # Adapter le prompt en fonction de la disponibilité des recherches supplémentaires
+        # Personnalisation supplémentaire basée sur le profil
+        style_guidance = ""
+        if video_style and video_style.lower() != "non spécifié":
+            if "informatif" in video_style.lower():
+                style_guidance = "Adopte un ton informatif et éducatif, en expliquant clairement les concepts."
+            elif "divertissant" in video_style.lower():
+                style_guidance = "Utilise de l'humour et un ton dynamique pour capter l'attention."
+            elif "tutoriel" in video_style.lower():
+                style_guidance = "Explique étape par étape avec des instructions claires et précises."
+            elif "vlog" in video_style.lower():
+                style_guidance = "Adopte un ton conversationnel et partage des anecdotes personnelles."
+                
+        # Personnalisation pour l'audience
+        audience_guidance = ""
+        if target_audience and target_audience.lower() != "non spécifié":
+            if "enfant" in target_audience.lower() or "jeune" in target_audience.lower():
+                audience_guidance = "Utilise un langage simple et des explications accessibles pour un jeune public."
+            elif "professionnel" in target_audience.lower() or "business" in target_audience.lower():
+                audience_guidance = "Emploie un vocabulaire professionnel et des exemples pertinents pour un public d'affaires."
+            elif "expert" in target_audience.lower():
+                audience_guidance = "Aborde des concepts avancés sans simplifier excessivement."
+        
+        # Assurer les mentions de marque
+        branding_guidance = ""
+        if youtuber_name and youtuber_name.lower() != "non spécifié" and channel_name and channel_name.lower() != "non spécifié":
+            branding_guidance = f"Assure-toi que les références au créateur ('{youtuber_name}') et à la chaîne ('{channel_name}') sont correctement maintenues dans le script."
+        
+        # Adapter le prompt en fonction de la disponibilité des informations supplémentaires
         additional_research_section = ""
         if additional_research:
             # Tronquer les recherches supplémentaires si elles sont trop longues
@@ -601,15 +663,15 @@ Recherches complémentaires (à intégrer dans le script pour l'enrichir):
         # Adapter la longueur du script
         length_guidance = ""
         try:
-            if video_length and video_length.lower() != "non spécifié":
+            if user_context and 'video_length' in user_context and user_context['video_length'].lower() != "non spécifié":
                 # Extraire les minutes approximatives
                 minutes = 10
-                if "-" in video_length:
-                    parts = video_length.replace("minutes", "").replace("minute", "").strip().split("-")
+                if "-" in user_context['video_length']:
+                    parts = user_context['video_length'].replace("minutes", "").replace("minute", "").strip().split("-")
                     if len(parts) >= 2 and parts[1].strip().isdigit():
                         minutes = int(parts[1].strip())
-                elif video_length.replace("minutes", "").replace("minute", "").strip().isdigit():
-                    minutes = int(video_length.replace("minutes", "").replace("minute", "").strip())
+                elif user_context['video_length'].replace("minutes", "").replace("minute", "").strip().isdigit():
+                    minutes = int(user_context['video_length'].replace("minutes", "").replace("minute", "").strip())
                     
                 word_count = minutes * 150  # Environ 150 mots par minute
                 length_guidance = f"Crée un script d'environ {word_count} mots pour une vidéo de {minutes} minutes."
@@ -671,6 +733,8 @@ Contraintes :
 - Ce doit être le texte exact à prononcer dans la vidéo.
 - Texte fluide, captivant, sans fautes.
 - {length_guidance}
+- {style_guidance}
+- {audience_guidance}
 - Termine par un call-to-action adapté à la chaîne.
 
 Contexte: Le sujet de la vidéo est {topic}.
@@ -687,7 +751,20 @@ Commence directement par le [HOOK] puis enchaîne les sections.
         for attempt in range(1, max_attempts + 1):
             try:
                 print(f"Tentative {attempt}/{max_attempts} de génération de script avec Gemini...")
-                response = gemini_generate(script_prompt)
+                
+                # Ajouter une gestion explicite des erreurs réseau
+                try:
+                    response = gemini_generate(script_prompt)
+                except ValueError as ve:
+                    if "Failed to fetch" in str(ve):
+                        print(f"Erreur réseau détectée: {ve}")
+                        # Si c'est la dernière tentative, lever l'erreur pour passer au fallback
+                        if attempt == max_attempts:
+                            raise ve
+                        continue  # Sinon, essayer à nouveau
+                    else:
+                        # Pour les autres erreurs de valeur, les propager
+                        raise ve
                 
                 # Vérification basique de la qualité de la réponse
                 if response and len(response.strip()) >= 200:
@@ -703,6 +780,11 @@ Commence directement par le [HOOK] puis enchaîne les sections.
                     time.sleep(wait_time)
             except Exception as e:
                 print(f"Erreur Gemini à la tentative {attempt}/{max_attempts}: {e}")
+                if "Failed to fetch" in str(e) and attempt == max_attempts:
+                    # Si c'est une erreur "Failed to fetch" à la dernière tentative, on passe directement au fallback
+                    print("Détection d'une erreur 'Failed to fetch' persistante, passage au script de secours...")
+                    break
+                
                 if attempt < max_attempts:
                     wait_time = base_wait_time * (2 ** (attempt - 1))
                     print(f"Attente de {wait_time} secondes avant la prochaine tentative...")
@@ -858,6 +940,7 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
             
             # Traiter le texte par petits morceaux pour éviter les erreurs
             lines = cleaned_text.split('\n')
+            
             for line in lines:
                 if not line.strip():
                     pdf.ln(4)
