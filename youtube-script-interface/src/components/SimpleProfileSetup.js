@@ -143,6 +143,31 @@ const SimpleProfileSetup = () => {
           [newCustomKey]: newCustomValue 
         };
         console.log('Options personnalisées mises à jour:', updatedOptions);
+        
+        // Ajouter un feedback visuel temporaire
+        const feedbackElement = document.createElement('div');
+        feedbackElement.textContent = `Préférence "${newCustomKey}" ajoutée !`;
+        feedbackElement.style.backgroundColor = darkMode ? 'rgba(16, 185, 129, 0.2)' : '#d1fae5';
+        feedbackElement.style.color = darkMode ? '#34d399' : '#065f46';
+        feedbackElement.style.padding = '8px 12px';
+        feedbackElement.style.borderRadius = '6px';
+        feedbackElement.style.marginTop = '10px';
+        feedbackElement.style.fontWeight = '500';
+        feedbackElement.style.textAlign = 'center';
+        
+        // Trouver le conteneur où afficher le feedback
+        const customOptionsSection = document.querySelector('.custom-options-section');
+        if (customOptionsSection) {
+          customOptionsSection.appendChild(feedbackElement);
+          
+          // Supprimer le message après un certain délai
+          setTimeout(() => {
+            if (customOptionsSection.contains(feedbackElement)) {
+              customOptionsSection.removeChild(feedbackElement);
+            }
+          }, 3000);
+        }
+        
         return updatedOptions;
       });
       
@@ -184,7 +209,8 @@ const SimpleProfileSetup = () => {
         display: 'flex',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: '20px'
+        padding: '20px',
+        color: darkMode ? '#f9fafb' : '#1f2937',
       }}>
         <motion.div 
           className="profile-card"
@@ -220,7 +246,8 @@ const SimpleProfileSetup = () => {
       display: 'flex',
       justifyContent: 'center',
       alignItems: 'center',
-      padding: '20px'
+      padding: '20px',
+      color: darkMode ? '#f9fafb' : '#1f2937',
     }}>
       <motion.div 
         className="profile-card"
@@ -530,15 +557,17 @@ const SimpleProfileSetup = () => {
                 onClick={addCustomOption}
                 disabled={!newCustomKey || !newCustomValue}
                 style={{
+                  marginTop: '10px',
                   padding: '12px 16px',
                   borderRadius: '8px',
-                  backgroundColor: '#2563eb',
+                  backgroundColor: (!newCustomKey || !newCustomValue) ? '#60a5fa40' : '#2563eb',
                   color: '#ffffff',
                   border: 'none',
                   fontWeight: 500,
                   cursor: (!newCustomKey || !newCustomValue) ? 'not-allowed' : 'pointer',
                   opacity: (!newCustomKey || !newCustomValue) ? 0.6 : 1,
-                  transition: 'all 0.2s ease'
+                  transition: 'all 0.2s ease',
+                  width: '100%'
                 }}
               >
                 Ajouter cette préférence

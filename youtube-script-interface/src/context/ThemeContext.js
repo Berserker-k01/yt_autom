@@ -31,9 +31,16 @@ export const ThemeProvider = ({ children }) => {
     if (darkMode) {
       document.documentElement.classList.add('dark-mode');
       document.body.classList.add('dark-mode');
+      // Forcer l'application du thème sombre sur les éléments existants
+      document.querySelectorAll('input, select, textarea').forEach(el => {
+        el.classList.add('dark-mode-input');
+      });
     } else {
       document.documentElement.classList.remove('dark-mode');
       document.body.classList.remove('dark-mode');
+      document.querySelectorAll('input, select, textarea').forEach(el => {
+        el.classList.remove('dark-mode-input');
+      });
     }
   }, [darkMode]);
 
