@@ -160,41 +160,130 @@ def generate_script_route():
         if not topic:
             return jsonify({'error': 'Un sujet est requis'}), 400
         
-        # Extraire les informations du profil
-        youtuber_name = profile.get('youtuber_name', '')
-        channel_name = profile.get('channel_name', '')
-        content_style = profile.get('content_style', 'informative')
+        # Vérifier et nettoyer les données entrantes
+        try:
+            # S'assurer que le sujet est une chaîne valide
+            topic = str(topic).strip()
+            if not topic:
+                return jsonify({'error': 'Sujet invalide'}), 400
+                
+            # Vérifier la longueur du sujet
+            if len(topic) > 500:
+                topic = topic[:500] + "..."  # Tronquer pour éviter les erreurs
+                
+            # S'assurer que la recherche est une chaîne valide
+            if research and not isinstance(research, str):
+                research = str(research)
+            
+            # Vérifier que le profil est un dictionnaire valide
+            if not isinstance(profile, dict):
+                profile = {}
+                
+            # Vérifier que les sources sont une liste valide
+            if not isinstance(sources, list):
+                sources = []
+        except Exception as data_error:
+            print(f"Erreur lors de la validation des données: {data_error}")
+            # Continuer avec des valeurs par défaut
         
         # Générer le script avec les informations du profil
-        script_text = generate_script(topic, research, user_context={
-            'youtuber_name': youtuber_name,
-            'channel_name': channel_name,
-            'content_style': content_style,
-            'video_style': profile.get('content_style', 'informative'),
-            'approach_style': profile.get('tone', 'professionnel'),
-            'target_audience': profile.get('target_audience', 'adultes'),
-            'video_length': profile.get('video_length', '10-15 minutes')
-        })
+        print(f"Début de génération du script pour: {topic}")
+        try:
+            script_text = generate_script(topic, research, user_context={
+                'youtuber_name': profile.get('youtuber_name', ''),
+                'channel_name': profile.get('channel_name', ''),
+                'content_style': profile.get('content_style', 'informative'),
+                'video_style': profile.get('content_style', 'informative'),
+                'approach_style': profile.get('tone', 'professionnel'),
+                'target_audience': profile.get('target_audience', 'adultes'),
+                'video_length': profile.get('video_length', '10-15 minutes')
+            })
+        except Exception as script_error:
+            print(f"Erreur lors de la génération du script: {script_error}")
+            import traceback
+            traceback.print_exc()
+            
+            # Utiliser le script de secours en cas d'erreur
+            try:
+                print("Génération du script de secours...")
+                script_text = generate_fallback_script(
+                    topic, 
+                    profile.get('youtuber_name', 'YouTubeur'),
+                    profile.get('channel_name', 'Chaîne YouTube')
+                )
+            except Exception as fallback_error:
+                print(f"Erreur même avec le script de secours: {fallback_error}")
+                script_text = f"""[HOOK]
+Bienvenue sur cette vidéo à propos de {topic}.
+
+[CONTENU]
+Ce sujet est vraiment intéressant et nous allons l'explorer ensemble.
+
+[CONCLUSION]
+Merci d'avoir regardé. N'oubliez pas de vous abonner !
+"""
+        
+        # Vérifier le script généré
+        if not script_text or not isinstance(script_text, str) or len(script_text.strip()) < 50:
+            print("Script généré invalide ou trop court, utilisation d'un script minimal")
+            script_text = f"""[HOOK]
+Bienvenue sur cette vidéo à propos de {topic}.
+
+[CONTENU]
+Ce sujet est vraiment intéressant et nous allons l'explorer ensemble.
+
+[CONCLUSION]
+Merci d'avoir regardé. N'oubliez pas de vous abonner !
+"""
         
         # Générer le PDF si le script a été généré avec succès
-        if script_text:
-            pdf_path = save_to_pdf(script_text, sources)
-            
-            result = {
-                'script': script_text,
-                'pdf_url': f"/download/{os.path.basename(pdf_path)}",
-                'sources': sources
-            }
-            
-            return jsonify(result)
-        else:
-            return jsonify({'error': 'Échec de la génération du script'}), 500
+        pdf_path = ""
+        try:
+            pdf_path = save_to_pdf(
+                script_text, 
+                title=topic,
+                author=profile.get('youtuber_name', ''),
+                channel=profile.get('channel_name', ''),
+                sources=sources
+            )
+        except Exception as pdf_error:
+            print(f"Erreur lors de la génération du PDF: {pdf_error}")
+            # Continuer sans PDF
+        
+        # Construction de la réponse
+        result = {
+            'script': script_text,
+            'sources': sources
+        }
+        
+        # Ajouter le lien vers le PDF si disponible
+        if pdf_path and os.path.exists(pdf_path):
+            if pdf_path.endswith('.pdf'):
+                result['pdf_url'] = f"/download/{os.path.basename(pdf_path)}"
+            else:
+                # Si c'est un fichier texte, le mentionner
+                result['pdf_url'] = f"/download/{os.path.basename(pdf_path)}"
+                result['pdf_fallback'] = True
+                result['message'] = "Le PDF n'a pas pu être généré, mais un fichier texte est disponible."
+        
+        return jsonify(result)
             
     except Exception as e:
-        print(f"Erreur lors de la génération du script: {str(e)}")
+        print(f"Erreur globale lors de la génération du script: {str(e)}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': f'Erreur lors de la génération du script: {str(e)}'}), 500
+        
+        # Créer une réponse d'erreur plus utile
+        error_response = {
+            'error': f'Erreur lors de la génération du script: {str(e)}',
+            'fallback_script': f"""[ERREUR]
+Une erreur s'est produite lors de la génération du script pour "{data.get('topic', 'sujet non spécifié')}"
+
+[CONTENT]
+Merci de réessayer ultérieurement ou de choisir un autre sujet.
+"""
+        }
+        return jsonify(error_response), 500
 
 # Route pour exporter en PDF
 @app.route('/export-pdf', methods=['POST'])

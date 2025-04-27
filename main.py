@@ -638,60 +638,6 @@ Recherches complémentaires (à intégrer dans le script pour l'enrichir):
 {additional_research}
 """
         
-        # Construire un prompt plus personnalisé basé sur le profil
-        intro_style = ""
-        if video_style and video_style.lower() != "non spécifié":
-            if "informatif" in video_style.lower():
-                intro_style = "Adopte un ton informatif et éducatif, en expliquant clairement les concepts."
-            elif "divertissant" in video_style.lower():
-                intro_style = "Utilise de l'humour et un ton dynamique pour capter l'attention."
-            elif "tutoriel" in video_style.lower():
-                intro_style = "Explique étape par étape avec des instructions claires et précises."
-            elif "vlog" in video_style.lower():
-                intro_style = "Adopte un ton conversationnel et partage des anecdotes personnelles."
-        
-        # Adjust for audience
-        audience_adaptation = ""
-        if target_audience and target_audience.lower() != "non spécifié":
-            if "enfant" in target_audience.lower() or "jeune" in target_audience.lower():
-                audience_adaptation = "Utilise un langage simple et des exemples ludiques adaptés à un jeune public."
-            elif "professionnel" in target_audience.lower() or "business" in target_audience.lower():
-                audience_adaptation = "Emploie un vocabulaire technique approprié et des exemples professionnels pertinents."
-            elif "expert" in target_audience.lower():
-                audience_adaptation = "Aborde des concepts avancés sans simplifier excessivement."
-        
-        # Adapter la longueur du script
-        length_guidance = ""
-        try:
-            if user_context and 'video_length' in user_context and user_context['video_length'].lower() != "non spécifié":
-                # Extraire les minutes approximatives
-                minutes = 10
-                if "-" in user_context['video_length']:
-                    parts = user_context['video_length'].replace("minutes", "").replace("minute", "").strip().split("-")
-                    if len(parts) >= 2 and parts[1].strip().isdigit():
-                        minutes = int(parts[1].strip())
-                elif user_context['video_length'].replace("minutes", "").replace("minute", "").strip().isdigit():
-                    minutes = int(user_context['video_length'].replace("minutes", "").replace("minute", "").strip())
-                    
-                word_count = minutes * 150  # Environ 150 mots par minute
-                length_guidance = f"Crée un script d'environ {word_count} mots pour une vidéo de {minutes} minutes."
-        except Exception as length_error:
-            print(f"Erreur lors du calcul de la longueur du script: {length_error}")
-            # Utiliser une valeur par défaut
-            length_guidance = "Crée un script d'environ 1500 mots pour une vidéo de 10 minutes."
-        
-        # Salutation personnalisée si le nom est disponible
-        greeting = ""
-        if youtuber_name and youtuber_name.lower() != "non spécifié":
-            greeting = f"Inclus une salutation personnalisée: 'Salut tout le monde, c'est {youtuber_name} et bienvenue sur {channel_name}'."
-        
-        # Tronquer la recherche si elle est trop longue pour éviter des erreurs d'API
-        if research:
-            max_length = 6000
-            if len(research) > max_length:
-                print(f"Recherche tronquée de {len(research)} à {max_length} caractères")
-                research = research[:max_length] + "... [tronqué pour respecter les limites de l'API]"
-        
         # Prompt avec instructions pour la génération du script
         script_prompt = f"""Tu es un rédacteur professionnel YouTube francophone, expert en storytelling et pédagogie.
 Rédige un script vidéo complet sur : "{topic}"
@@ -706,10 +652,9 @@ Contraintes :
 - Utilise des exemples concrets, des chiffres, des anecdotes, des transitions naturelles.
 - Inclus des statistiques et données récentes issues des recherches.
 - Cite les sources pertinentes dans le contenu.
-- {greeting}
-- {intro_style}
-- {audience_adaptation}
-- {length_guidance}
+- {branding_guidance}
+- {style_guidance}
+- {audience_guidance}
 - Termine par un call-to-action adapté à la chaîne: invite à s'abonner, liker et partager.
 
 Contexte et recherches primaires :
@@ -732,7 +677,6 @@ Contraintes :
 - Structure le texte en sections ([HOOK], [INTRODUCTION], etc.)
 - Ce doit être le texte exact à prononcer dans la vidéo.
 - Texte fluide, captivant, sans fautes.
-- {length_guidance}
 - {style_guidance}
 - {audience_guidance}
 - Termine par un call-to-action adapté à la chaîne.
@@ -883,116 +827,175 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
             
         safe_title = "".join([c if c.isalnum() or c in " -_" else "_" for c in title])
         filename = os.path.join(temp_dir, f"{safe_title}_{timestamp}.pdf")
+        txt_filename = filename.replace('.pdf', '.txt')
         
         print(f"Création de PDF à l'emplacement: {filename}")
         
-        # Toujours créer un fichier texte de secours
-        with open(filename.replace('.pdf', '.txt'), 'w', encoding='utf-8') as f:
-            f.write("=" * 50 + "\n")
-            f.write(f"TITRE: {title or 'Script YouTube'}\n")
-            f.write(f"AUTEUR: {author or 'Non spécifié'}\n")
-            f.write(f"CHAÎNE: {channel or 'Non spécifiée'}\n")
-            f.write("=" * 50 + "\n\n")
-            f.write(script_text)
-            
-            if sources and len(sources) > 0:
-                f.write("\n\n" + "=" * 50 + "\n")
-                f.write("SOURCES:\n")
-                for i, source in enumerate(sources, 1):
-                    f.write(f"[{i}] {source}\n")
+        # S'assurer que le texte du script est une chaîne valide
+        if not script_text or not isinstance(script_text, str):
+            script_text = "Contenu du script non disponible. Veuillez réessayer la génération."
+            print("AVERTISSEMENT: Texte de script invalide ou vide")
         
-        print(f"Fichier texte de secours créé: {filename.replace('.pdf', '.txt')}")
-            
-        # Version simplifiée avec FPDF
+        # Toujours créer un fichier texte de secours
         try:
-            # Nettoyage du texte de tous les caractères non-ASCII
+            with open(txt_filename, 'w', encoding='utf-8') as f:
+                f.write("=" * 50 + "\n")
+                f.write(f"TITRE: {title or 'Script YouTube'}\n")
+                f.write(f"AUTEUR: {author or 'Non spécifié'}\n")
+                f.write(f"CHAÎNE: {channel or 'Non spécifiée'}\n")
+                f.write("=" * 50 + "\n\n")
+                f.write(script_text)
+                
+                if sources and len(sources) > 0:
+                    f.write("\n\n" + "=" * 50 + "\n")
+                    f.write("SOURCES:\n")
+                    for i, source in enumerate(sources, 1):
+                        f.write(f"[{i}] {source}\n")
+            
+            print(f"Fichier texte de secours créé: {txt_filename}")
+        except Exception as txt_error:
+            print(f"Erreur lors de la création du fichier texte: {txt_error}")
+            # Si même le fichier texte échoue, nous avons un problème sérieux
+            return txt_filename
+        
+        # En cas de problème avec la génération PDF, retourner au moins le fichier texte
+        try:
+            # Nettoyage du texte de tous les caractères potentiellement problématiques
             cleaned_text = ""
             for char in script_text:
+                # Conserver uniquement les caractères ASCII et quelques caractères accentués courants
                 if ord(char) < 128 or char in 'àâäçèéêëîïôöùûüÿÀÂÄÇÈÉÊËÎÏÔÖÙÛÜŸ':
                     cleaned_text += char
                 else:
                     cleaned_text += ' '
             
-            # Créer PDF basique
+            # Créer PDF basique avec gestion d'erreurs supplémentaire
             from fpdf import FPDF
             pdf = FPDF()
             pdf.add_page()
             
-            # Titre
+            # Titre (limité en longueur pour éviter les problèmes)
             pdf.set_font('Arial', 'B', 16)
-            pdf.cell(0, 10, (title or "Script YouTube")[:50], 0, 1, 'C')
+            safe_title = (title or "Script YouTube")[:40]  # Limiter à 40 caractères
+            pdf.cell(0, 10, safe_title, 0, 1, 'C')
             
             # Infos auteur
             if author or channel:
                 pdf.set_font('Arial', 'I', 12)
                 info = ""
                 if author: 
-                    info += f"Par: {author}"
+                    info += f"Par: {author[:20]}"  # Limiter à 20 caractères
                 if channel:
                     if info: 
                         info += " | "
-                    info += f"Chaîne: {channel}"
+                    info += f"Chaîne: {channel[:20]}"  # Limiter à 20 caractères
                 pdf.cell(0, 8, info, 0, 1, 'C')
             
             # Contenu principal
             pdf.set_font('Arial', '', 12)
             pdf.ln(5)
             
-            # Traiter le texte par petits morceaux pour éviter les erreurs
-            lines = cleaned_text.split('\n')
-            
-            for line in lines:
-                if not line.strip():
-                    pdf.ln(4)
-                    continue
+            # Traiter le texte ligne par ligne pour plus de robustesse
+            try:
+                lines = cleaned_text.split('\n')
                 
-                if '[' in line and ']' in line and line.strip().startswith('['):
-                    pdf.ln(4)
-                    pdf.set_font('Arial', 'B', 13)
-                    pdf.multi_cell(0, 8, line[:80])  # Limiter la longueur pour éviter les erreurs
+                for line in lines:
+                    # Sauter les lignes vides
+                    if not line.strip():
+                        pdf.ln(4)
+                        continue
+                    
+                    # Détecter les titres de section
+                    if '[' in line and ']' in line and line.strip().startswith('['):
+                        pdf.ln(4)
+                        pdf.set_font('Arial', 'B', 13)
+                        # Limiter la longueur pour éviter les débordements
+                        safe_line = line[:50] if len(line) > 50 else line
+                        pdf.multi_cell(0, 8, safe_line)
+                        pdf.set_font('Arial', '', 12)
+                    else:
+                        # Diviser les longues lignes en segments courts pour éviter les erreurs
+                        # Réduire la taille des segments à 60 caractères pour plus de sécurité
+                        for i in range(0, len(line), 60):
+                            segment = line[i:i+60]
+                            if segment.strip():
+                                try:
+                                    pdf.multi_cell(0, 8, segment)
+                                except Exception as cell_error:
+                                    print(f"Erreur lors de l'écriture d'un segment: {cell_error}")
+                                    # Continuer avec la ligne suivante en cas d'erreur
+                                    continue
+            except Exception as line_error:
+                print(f"Erreur lors du traitement des lignes: {line_error}")
+                # Ajouter une note d'erreur dans le PDF
+                pdf.ln(10)
+                pdf.set_text_color(255, 0, 0)
+                pdf.multi_cell(0, 8, "Erreur lors du traitement du texte. Certains contenus peuvent être manquants.")
+                pdf.set_text_color(0, 0, 0)
+            
+            # Ajouter les sources si disponibles
+            try:
+                if sources and len(sources) > 0:
+                    pdf.add_page()
+                    pdf.set_font('Arial', 'B', 16)
+                    pdf.cell(0, 10, "Sources", 0, 1, 'C')
+                    pdf.ln(5)
+                    
                     pdf.set_font('Arial', '', 12)
-                else:
-                    # Diviser les longues lignes en segments de 80 caractères
-                    for i in range(0, len(line), 80):
-                        segment = line[i:i+80]
-                        if segment.strip():
-                            pdf.multi_cell(0, 8, segment)
+                    for i, source in enumerate(sources, 1):
+                        try:
+                            # Convertir explicitement en string et limiter la longueur
+                            source_text = str(source)
+                            if len(source_text) > 60:
+                                source_text = source_text[:60] + "..."
+                            pdf.multi_cell(0, 8, f"[{i}] {source_text}")
+                        except Exception as source_error:
+                            print(f"Erreur lors de l'ajout de la source {i}: {source_error}")
+                            continue
+            except Exception as sources_error:
+                print(f"Erreur lors de l'ajout des sources: {sources_error}")
             
-            # Sources
-            if sources and len(sources) > 0:
-                pdf.add_page()
-                pdf.set_font('Arial', 'B', 16)
-                pdf.cell(0, 10, "Sources", 0, 1, 'C')
-                pdf.ln(5)
-                
-                pdf.set_font('Arial', '', 12)
-                for i, source in enumerate(sources, 1):
-                    source_text = str(source)
-                    if len(source_text) > 80:
-                        source_text = source_text[:80] + "..."
-                    pdf.multi_cell(0, 8, f"[{i}] {source_text}")
-            
-            # Sauvegarder le PDF
-            pdf.output(filename)
+            # Sauvegarder le PDF avec gestion d'erreurs
+            try:
+                pdf.output(filename)
+                print(f"PDF généré avec succès: {filename}")
+            except Exception as pdf_error:
+                print(f"Erreur lors de la sauvegarde du PDF: {pdf_error}")
+                # En cas d'échec, retourner le fichier texte à la place
+                return txt_filename
             
             # Vérifier la création du PDF
             if os.path.exists(filename) and os.path.getsize(filename) > 100:
-                print(f"PDF généré avec succès: {filename}")
+                print(f"PDF vérifié avec succès: {filename} ({os.path.getsize(filename)} octets)")
                 return filename
             else:
-                print("PDF non généré ou trop petit, utilisation du fichier texte")
-                return filename.replace('.pdf', '.txt')
+                print(f"PDF généré mais invalide ou trop petit: {filename}")
+                return txt_filename
                 
-        except Exception as e:
-            print(f"Erreur FPDF: {str(e)}")
-            print(f"Utilisation du fichier texte à la place: {filename.replace('.pdf', '.txt')}")
-            return filename.replace('.pdf', '.txt')
+        except Exception as pdf_generation_error:
+            print(f"Erreur globale lors de la génération du PDF: {pdf_generation_error}")
+            # En cas d'échec complet de la génération PDF, retourner le fichier texte
+            return txt_filename
             
     except Exception as e:
-        print(f"Erreur critique: {str(e)}")
+        print(f"Erreur critique dans save_to_pdf: {e}")
         import traceback
         traceback.print_exc()
-        return ""
+        
+        # Créer un fichier texte minimal en cas d'erreur catastrophique
+        fallback_file = os.path.join(tempfile.gettempdir(), f"script_fallback_{datetime.now().strftime('%Y%m%d_%H%M')}.txt")
+        try:
+            with open(fallback_file, 'w', encoding='utf-8') as f:
+                f.write("ERREUR LORS DE LA GÉNÉRATION DU PDF\n\n")
+                if isinstance(script_text, str):
+                    f.write(script_text[:1000])  # Limiter pour éviter d'autres erreurs
+                else:
+                    f.write("Contenu du script non disponible")
+            return fallback_file
+        except:
+            print("Échec catastrophique - Impossible de créer même un fichier de secours")
+            # Dernier recours: retourner un nom de fichier qui n'existe probablement pas mais évite une erreur 500
+            return "erreur_generation_pdf.txt"
 
 def save_as_text(script: dict, filename: str):
     """Sauvegarde le script en format texte si le PDF échoue."""
