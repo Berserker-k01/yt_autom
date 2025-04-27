@@ -860,44 +860,52 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
         
         # En cas de problème avec la génération PDF, retourner au moins le fichier texte
         try:
-            # Nettoyage du texte de tous les caractères potentiellement problématiques
-            cleaned_text = ""
-            for char in script_text:
-                # Conserver uniquement les caractères ASCII et quelques caractères accentués courants
-                if ord(char) < 128 or char in 'àâäçèéêëîïôöùûüÿÀÂÄÇÈÉÊËÎÏÔÖÙÛÜŸ':
-                    cleaned_text += char
-                else:
-                    cleaned_text += ' '
-            
-            # Créer PDF basique avec gestion d'erreurs supplémentaire
+            # Utiliser une approche plus robuste pour les caractères spéciaux
             from fpdf import FPDF
-            pdf = FPDF()
+            
+            # Création d'une classe PDF personnalisée avec support des accents
+            class PDF(FPDF):
+                def header(self):
+                    pass  # Pas d'en-tête
+                
+                def footer(self):
+                    # Position à 1.5 cm du bas
+                    self.set_y(-15)
+                    self.set_font('Arial', 'I', 8)
+                    self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+            
+            # Initialiser le PDF
+            pdf = PDF()
             pdf.add_page()
             
-            # Titre (limité en longueur pour éviter les problèmes)
+            # Encodage pour les caractères accentués
+            pdf.add_font('Arial', '', '', uni=True)
+            pdf.add_font('Arial', 'B', '', uni=True)
+            
+            # Titre avec limite de caractères
             pdf.set_font('Arial', 'B', 16)
-            safe_title = (title or "Script YouTube")[:40]  # Limiter à 40 caractères
+            safe_title = (title or "Script YouTube")[:60]
             pdf.cell(0, 10, safe_title, 0, 1, 'C')
             
             # Infos auteur
             if author or channel:
                 pdf.set_font('Arial', 'I', 12)
                 info = ""
-                if author: 
-                    info += f"Par: {author[:20]}"  # Limiter à 20 caractères
+                if author:
+                    info += f"Par: {author[:30]}"
                 if channel:
-                    if info: 
+                    if info:
                         info += " | "
-                    info += f"Chaîne: {channel[:20]}"  # Limiter à 20 caractères
+                    info += f"Chaîne: {channel[:30]}"
                 pdf.cell(0, 8, info, 0, 1, 'C')
             
             # Contenu principal
             pdf.set_font('Arial', '', 12)
             pdf.ln(5)
             
-            # Traiter le texte ligne par ligne pour plus de robustesse
+            # Traiter le texte ligne par ligne avec gestion des caractères spéciaux
             try:
-                lines = cleaned_text.split('\n')
+                lines = script_text.split('\n')
                 
                 for line in lines:
                     # Sauter les lignes vides
@@ -905,29 +913,32 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                         pdf.ln(4)
                         continue
                     
-                    # Détecter les titres de section
+                    # Préparation des titres de section
                     if '[' in line and ']' in line and line.strip().startswith('['):
                         pdf.ln(4)
                         pdf.set_font('Arial', 'B', 13)
-                        # Limiter la longueur pour éviter les débordements
-                        safe_line = line[:50] if len(line) > 50 else line
+                        # Utiliser l'encodage utf-8 pour les caractères spéciaux
+                        safe_line = line[:70]
                         pdf.multi_cell(0, 8, safe_line)
                         pdf.set_font('Arial', '', 12)
                     else:
-                        # Diviser les longues lignes en segments courts pour éviter les erreurs
-                        # Réduire la taille des segments à 60 caractères pour plus de sécurité
-                        for i in range(0, len(line), 60):
-                            segment = line[i:i+60]
+                        # Diviser en segments raisonnables
+                        max_segment = 80  # Taille raisonnable pour éviter les problèmes
+                        for i in range(0, len(line), max_segment):
+                            segment = line[i:i+max_segment]
                             if segment.strip():
                                 try:
                                     pdf.multi_cell(0, 8, segment)
                                 except Exception as cell_error:
                                     print(f"Erreur lors de l'écriture d'un segment: {cell_error}")
-                                    # Continuer avec la ligne suivante en cas d'erreur
-                                    continue
+                                    # Essayer de "nettoyer" le segment problématique
+                                    cleaned_segment = ''.join(c if ord(c) < 128 or c in 'àâäçèéêëîïôöùûüÿÀÂÄÇÈÉÊËÎÏÔÖÙÛÜŸ' else ' ' for c in segment)
+                                    try:
+                                        pdf.multi_cell(0, 8, cleaned_segment)
+                                    except:
+                                        continue
             except Exception as line_error:
                 print(f"Erreur lors du traitement des lignes: {line_error}")
-                # Ajouter une note d'erreur dans le PDF
                 pdf.ln(10)
                 pdf.set_text_color(255, 0, 0)
                 pdf.multi_cell(0, 8, "Erreur lors du traitement du texte. Certains contenus peuvent être manquants.")
@@ -944,10 +955,9 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                     pdf.set_font('Arial', '', 12)
                     for i, source in enumerate(sources, 1):
                         try:
-                            # Convertir explicitement en string et limiter la longueur
                             source_text = str(source)
-                            if len(source_text) > 60:
-                                source_text = source_text[:60] + "..."
+                            if len(source_text) > 80:
+                                source_text = source_text[:80] + "..."
                             pdf.multi_cell(0, 8, f"[{i}] {source_text}")
                         except Exception as source_error:
                             print(f"Erreur lors de l'ajout de la source {i}: {source_error}")
@@ -955,7 +965,7 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
             except Exception as sources_error:
                 print(f"Erreur lors de l'ajout des sources: {sources_error}")
             
-            # Sauvegarder le PDF avec gestion d'erreurs
+            # Sauvegarder le PDF
             try:
                 pdf.output(filename)
                 print(f"PDF généré avec succès: {filename}")
@@ -963,7 +973,7 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                 print(f"Erreur lors de la sauvegarde du PDF: {pdf_error}")
                 # En cas d'échec, retourner le fichier texte à la place
                 return txt_filename
-            
+                
             # Vérifier la création du PDF
             if os.path.exists(filename) and os.path.getsize(filename) > 100:
                 print(f"PDF vérifié avec succès: {filename} ({os.path.getsize(filename)} octets)")
@@ -971,7 +981,6 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
             else:
                 print(f"PDF généré mais invalide ou trop petit: {filename}")
                 return txt_filename
-                
         except Exception as pdf_generation_error:
             print(f"Erreur globale lors de la génération du PDF: {pdf_generation_error}")
             # En cas d'échec complet de la génération PDF, retourner le fichier texte
