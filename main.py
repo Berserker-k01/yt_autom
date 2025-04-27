@@ -497,45 +497,48 @@ IMPORTANT: Réponds UNIQUEMENT avec un JSON valide de cette forme:
 
 def generate_script(topic: str, research: str, user_context: dict = None) -> str:
     """Génère un script détaillé avec Tavily + Gemini et retourne le texte intégral."""
-    # Récupérer des informations supplémentaires avec Tavily ou SerpAPI
-    print(f"Recherche d'informations supplémentaires pour: {topic}")
-    additional_research = ""
+    # Gestion robuste des erreurs pour éviter les crashs
     try:
-        if TAVILY_AVAILABLE and tavily_client is not None:
-            additional_research = tavily_search(f"{topic} faits statistiques études expert tendances", num_results=3)
-        else:
-            # Utiliser simplement les recherches existantes si Tavily n'est pas disponible
-            print("Tavily non disponible, utilisation des recherches existantes uniquement")
-    except Exception as e:
-        print(f"Erreur lors de la recherche d'informations supplémentaires: {e}")
-        print("Poursuite de la génération sans recherches supplémentaires...")
-    
-    # Construction du prompt avec le contexte utilisateur si disponible
-    user_context_str = ""
-    youtuber_name = "Non spécifié"
-    channel_name = "Non spécifié"
-    video_style = "Non spécifié"
-    approach_style = "Non spécifié"
-    target_audience = "Non spécifié"
-    video_length = "10-15 minutes"
-    language = "français"
-    content_type = "général"
-    
-    # Extraire toutes les informations disponibles du profil
-    if user_context:
-        youtuber_name = user_context.get('youtuber_name', 'Non spécifié')
-        channel_name = user_context.get('channel_name', 'Non spécifié')
-        video_style = user_context.get('video_style', 'Non spécifié')
-        approach_style = user_context.get('approach_style', user_context.get('tone', 'professionnel'))
-        target_audience = user_context.get('target_audience', user_context.get('audience_age', 'adultes'))
-        video_length = user_context.get('video_length', '10-15 minutes')
-        language = user_context.get('language', 'français')
-        content_type = user_context.get('content_type', 'général')
+        # Récupérer des informations supplémentaires avec Tavily ou SerpAPI
+        print(f"Recherche d'informations supplémentaires pour: {topic}")
+        additional_research = ""
+        try:
+            if TAVILY_AVAILABLE and tavily_client is not None:
+                additional_research = tavily_search(f"{topic} faits statistiques études expert tendances", num_results=3)
+            else:
+                # Utiliser simplement les recherches existantes si Tavily n'est pas disponible
+                print("Tavily non disponible, utilisation des recherches existantes uniquement")
+        except Exception as e:
+            print(f"Erreur lors de la recherche d'informations supplémentaires: {e}")
+            print("Poursuite de la génération sans recherches supplémentaires...")
         
-        # Vérifier les options personnalisées
-        custom_options = user_context.get('custom_options', {})
+        # Construction du prompt avec le contexte utilisateur si disponible
+        user_context_str = ""
+        youtuber_name = "Non spécifié"
+        channel_name = "Non spécifié"
+        video_style = "Non spécifié"
+        approach_style = "Non spécifié"
+        target_audience = "Non spécifié"
+        video_length = "10-15 minutes"
+        language = "français"
+        content_type = "général"
         
-        user_context_str = f"""
+        # Extraire toutes les informations disponibles du profil
+        try:
+            if user_context:
+                youtuber_name = str(user_context.get('youtuber_name', 'Non spécifié'))
+                channel_name = str(user_context.get('channel_name', 'Non spécifié'))
+                video_style = str(user_context.get('video_style', 'Non spécifié'))
+                approach_style = str(user_context.get('approach_style', user_context.get('tone', 'professionnel')))
+                target_audience = str(user_context.get('target_audience', user_context.get('audience_age', 'adultes')))
+                video_length = str(user_context.get('video_length', '10-15 minutes'))
+                language = str(user_context.get('language', 'français'))
+                content_type = str(user_context.get('content_type', 'général'))
+                
+                # Vérifier les options personnalisées
+                custom_options = user_context.get('custom_options', {})
+                
+                user_context_str = f"""
 Informations sur le créateur:
 - Nom de la chaîne: {channel_name}
 - Nom du YouTubeur: {youtuber_name}
@@ -547,64 +550,88 @@ Informations sur le créateur:
 - Durée vidéo préférée: {video_length}
 """
 
-        # Ajouter les options personnalisées si présentes
-        if custom_options and len(custom_options) > 0:
-            user_context_str += "\nPréférences personnalisées du créateur:\n"
-            for key, value in custom_options.items():
-                user_context_str += f"- {key}: {value}\n"
-    
-    # Adapter le prompt en fonction de la disponibilité des recherches supplémentaires
-    additional_research_section = ""
-    if additional_research:
-        additional_research_section = f"""
+                # Ajouter les options personnalisées si présentes
+                if custom_options and len(custom_options) > 0:
+                    try:
+                        user_context_str += "\nPréférences personnalisées du créateur:\n"
+                        for key, value in custom_options.items():
+                            user_context_str += f"- {str(key)}: {str(value)}\n"
+                    except Exception as custom_error:
+                        print(f"Erreur lors du traitement des options personnalisées: {custom_error}")
+                        # Continuer sans les options personnalisées
+        except Exception as context_error:
+            print(f"Erreur lors du traitement du contexte utilisateur: {context_error}")
+            # Utiliser des valeurs par défaut si erreur dans le contexte
+        
+        # Adapter le prompt en fonction de la disponibilité des recherches supplémentaires
+        additional_research_section = ""
+        if additional_research:
+            # Tronquer les recherches supplémentaires si elles sont trop longues
+            max_research_length = 4000
+            if len(additional_research) > max_research_length:
+                additional_research = additional_research[:max_research_length] + "... [tronqué pour longueur]"
+                
+            additional_research_section = f"""
 Recherches complémentaires (à intégrer dans le script pour l'enrichir):
 {additional_research}
 """
-    
-    # Construire un prompt plus personnalisé basé sur le profil
-    intro_style = ""
-    if video_style and video_style.lower() != "non spécifié":
-        if "informatif" in video_style.lower():
-            intro_style = "Adopte un ton informatif et éducatif, en expliquant clairement les concepts."
-        elif "divertissant" in video_style.lower():
-            intro_style = "Utilise de l'humour et un ton dynamique pour capter l'attention."
-        elif "tutoriel" in video_style.lower():
-            intro_style = "Explique étape par étape avec des instructions claires et précises."
-        elif "vlog" in video_style.lower():
-            intro_style = "Adopte un ton conversationnel et partage des anecdotes personnelles."
-    
-    # Adjust for audience
-    audience_adaptation = ""
-    if target_audience and target_audience.lower() != "non spécifié":
-        if "enfant" in target_audience.lower() or "jeune" in target_audience.lower():
-            audience_adaptation = "Utilise un langage simple et des exemples ludiques adaptés à un jeune public."
-        elif "professionnel" in target_audience.lower() or "business" in target_audience.lower():
-            audience_adaptation = "Emploie un vocabulaire technique approprié et des exemples professionnels pertinents."
-        elif "expert" in target_audience.lower():
-            audience_adaptation = "Aborde des concepts avancés sans simplifier excessivement."
-    
-    # Adapter la longueur du script
-    length_guidance = ""
-    if video_length and video_length.lower() != "non spécifié":
-        # Extraire les minutes approximatives
-        minutes = 10
-        if "-" in video_length:
-            parts = video_length.replace("minutes", "").replace("minute", "").strip().split("-")
-            if len(parts) >= 2 and parts[1].strip().isdigit():
-                minutes = int(parts[1].strip())
-        elif video_length.replace("minutes", "").replace("minute", "").strip().isdigit():
-            minutes = int(video_length.replace("minutes", "").replace("minute", "").strip())
-            
-        word_count = minutes * 150  # Environ 150 mots par minute
-        length_guidance = f"Crée un script d'environ {word_count} mots pour une vidéo de {minutes} minutes."
-    
-    # Salutation personnalisée si le nom est disponible
-    greeting = ""
-    if youtuber_name and youtuber_name.lower() != "non spécifié":
-        greeting = f"Inclus une salutation personnalisée: 'Salut tout le monde, c'est {youtuber_name} et bienvenue sur {channel_name}'."
-    
-    # Prompt avec instructions pour la génération du script
-    script_prompt = f"""Tu es un rédacteur professionnel YouTube francophone, expert en storytelling et pédagogie.
+        
+        # Construire un prompt plus personnalisé basé sur le profil
+        intro_style = ""
+        if video_style and video_style.lower() != "non spécifié":
+            if "informatif" in video_style.lower():
+                intro_style = "Adopte un ton informatif et éducatif, en expliquant clairement les concepts."
+            elif "divertissant" in video_style.lower():
+                intro_style = "Utilise de l'humour et un ton dynamique pour capter l'attention."
+            elif "tutoriel" in video_style.lower():
+                intro_style = "Explique étape par étape avec des instructions claires et précises."
+            elif "vlog" in video_style.lower():
+                intro_style = "Adopte un ton conversationnel et partage des anecdotes personnelles."
+        
+        # Adjust for audience
+        audience_adaptation = ""
+        if target_audience and target_audience.lower() != "non spécifié":
+            if "enfant" in target_audience.lower() or "jeune" in target_audience.lower():
+                audience_adaptation = "Utilise un langage simple et des exemples ludiques adaptés à un jeune public."
+            elif "professionnel" in target_audience.lower() or "business" in target_audience.lower():
+                audience_adaptation = "Emploie un vocabulaire technique approprié et des exemples professionnels pertinents."
+            elif "expert" in target_audience.lower():
+                audience_adaptation = "Aborde des concepts avancés sans simplifier excessivement."
+        
+        # Adapter la longueur du script
+        length_guidance = ""
+        try:
+            if video_length and video_length.lower() != "non spécifié":
+                # Extraire les minutes approximatives
+                minutes = 10
+                if "-" in video_length:
+                    parts = video_length.replace("minutes", "").replace("minute", "").strip().split("-")
+                    if len(parts) >= 2 and parts[1].strip().isdigit():
+                        minutes = int(parts[1].strip())
+                elif video_length.replace("minutes", "").replace("minute", "").strip().isdigit():
+                    minutes = int(video_length.replace("minutes", "").replace("minute", "").strip())
+                    
+                word_count = minutes * 150  # Environ 150 mots par minute
+                length_guidance = f"Crée un script d'environ {word_count} mots pour une vidéo de {minutes} minutes."
+        except Exception as length_error:
+            print(f"Erreur lors du calcul de la longueur du script: {length_error}")
+            # Utiliser une valeur par défaut
+            length_guidance = "Crée un script d'environ 1500 mots pour une vidéo de 10 minutes."
+        
+        # Salutation personnalisée si le nom est disponible
+        greeting = ""
+        if youtuber_name and youtuber_name.lower() != "non spécifié":
+            greeting = f"Inclus une salutation personnalisée: 'Salut tout le monde, c'est {youtuber_name} et bienvenue sur {channel_name}'."
+        
+        # Tronquer la recherche si elle est trop longue pour éviter des erreurs d'API
+        if research:
+            max_length = 6000
+            if len(research) > max_length:
+                print(f"Recherche tronquée de {len(research)} à {max_length} caractères")
+                research = research[:max_length] + "... [tronqué pour respecter les limites de l'API]"
+        
+        # Prompt avec instructions pour la génération du script
+        script_prompt = f"""Tu es un rédacteur professionnel YouTube francophone, expert en storytelling et pédagogie.
 Rédige un script vidéo complet sur : "{topic}"
 
 Contexte créateur:
@@ -629,83 +656,131 @@ Contexte et recherches primaires :
 
 Commence directement par le [HOOK] puis enchaîne les sections.
 """
+        # Mesure et limitation de la taille du prompt final
+        if len(script_prompt) > 12000:
+            print(f"Le prompt est trop long ({len(script_prompt)} caractères), réduction pour respecter les limites...")
+            # Simplifier le prompt en réduisant les parties moins essentielles
+            additional_research_section = ""
+            script_prompt = f"""Tu es un rédacteur professionnel YouTube francophone.
+Rédige un script vidéo complet sur : "{topic}"
 
-    # Tentative de génération avec Gemini, avec gestion d'erreur
-    try:
-        print("Envoi de la demande de génération de script à Gemini...")
-        response = gemini_generate(script_prompt)
-        print(f"DEBUG: Réponse Gemini (100 premiers caractères): {response[:100] if response else 'Vide'}")
-        
-        if not response or len(response.strip()) < 100:
-            print("La réponse de Gemini est vide ou trop courte, tentative de repli...")
-            # Si la réponse est vide ou trop courte, générer un script de secours
-            fallback_prompt = f"""Génère un script de vidéo YouTube sur le sujet "{topic}".
-Le script doit contenir:
-1. Un hook accrocheur
-2. Une introduction
-3. Au moins 3 sections principales
-4. Une conclusion avec call-to-action
+Contexte créateur: {youtuber_name} sur {channel_name}, style {video_style}, pour {target_audience}.
 
-IMPORTANT: Écris le texte EXACT à dire dans la vidéo, comme si tu étais {youtuber_name}."""
+Contraintes :
+- Structure le texte en sections ([HOOK], [INTRODUCTION], etc.)
+- Ce doit être le texte exact à prononcer dans la vidéo.
+- Texte fluide, captivant, sans fautes.
+- {length_guidance}
+- Termine par un call-to-action adapté à la chaîne.
 
-            print("Tentative avec prompt de secours...")
-            response = gemini_generate(fallback_prompt)
-            
-            if not response or len(response.strip()) < 100:
-                print("Échec de la récupération d'une réponse valide de Gemini, génération d'un script basique...")
-                # Dernier recours: un script générique très simple
-                fallback_script = f"""[HOOK]
-Bienvenue à cette vidéo sur {topic}! Aujourd'hui nous allons explorer ce sujet fascinant.
+Contexte: Le sujet de la vidéo est {topic}.
+{research[:1000] if research else ""}
 
-[INTRODUCTION]
-Je suis {youtuber_name}, et dans cette vidéo, nous allons découvrir ensemble les aspects les plus intéressants de {topic}.
-
-[PARTIE 1]
-Commençons par comprendre les bases. Ce sujet touche plusieurs aspects de notre quotidien...
-
-[PARTIE 2]
-Maintenant que nous avons les bases, explorons plus en détail les différentes facettes de ce sujet...
-
-[PARTIE 3]
-Voyons maintenant comment ces connaissances peuvent être appliquées dans la vie quotidienne.
-
-[CONCLUSION]
-En résumé, nous avons vu que {topic} est un sujet riche et complexe qui mérite notre attention.
-
-Si vous avez apprécié cette vidéo, n'oubliez pas de liker, commenter et vous abonner pour ne manquer aucun contenu. Merci d'avoir regardé, et à bientôt pour une nouvelle vidéo !
+Commence directement par le [HOOK] puis enchaîne les sections.
 """
-                
-            return fallback_script
+            print(f"Prompt réduit à {len(script_prompt)} caractères")
+
+        # Implémentation de retry avec backoff exponentiel et limitation du nombre de tentatives
+        max_attempts = 3
+        base_wait_time = 2  # secondes
         
-        return response.strip()
+        for attempt in range(1, max_attempts + 1):
+            try:
+                print(f"Tentative {attempt}/{max_attempts} de génération de script avec Gemini...")
+                response = gemini_generate(script_prompt)
+                
+                # Vérification basique de la qualité de la réponse
+                if response and len(response.strip()) >= 200:
+                    print(f"Script généré avec succès ({len(response)} caractères)")
+                    return response.strip()
+                
+                print(f"Réponse trop courte ou vide ({len(response) if response else 0} caractères)")
+                
+                if attempt < max_attempts:
+                    wait_time = base_wait_time * (2 ** (attempt - 1))  # Backoff exponentiel
+                    print(f"Attente de {wait_time} secondes avant la prochaine tentative...")
+                    import time
+                    time.sleep(wait_time)
+            except Exception as e:
+                print(f"Erreur Gemini à la tentative {attempt}/{max_attempts}: {e}")
+                if attempt < max_attempts:
+                    wait_time = base_wait_time * (2 ** (attempt - 1))
+                    print(f"Attente de {wait_time} secondes avant la prochaine tentative...")
+                    import time
+                    time.sleep(wait_time)
+        
+        # Toutes les tentatives ont échoué, utilisation du plan de secours
+        print("Toutes les tentatives de génération ont échoué, utilisation du script de secours...")
+        return generate_fallback_script(topic, youtuber_name, channel_name)
         
     except Exception as e:
-        print(f"Erreur lors de la génération du script: {e}")
+        print(f"Erreur globale lors de la génération du script: {e}")
         import traceback
         traceback.print_exc()
         
         # Script de secours en cas d'échec total
-        fallback_script = f"""[HOOK]
+        return generate_fallback_script(topic, "YouTubeur", "Chaîne YouTube")
+
+
+def generate_fallback_script(topic: str, youtuber_name: str = "YouTubeur", channel_name: str = "Chaîne") -> str:
+    """Génère un script basique de secours en cas d'échec des autres méthodes."""
+    try:
+        # S'assurer que les paramètres sont des chaînes valides
+        topic = str(topic) if topic else "le sujet du jour"
+        youtuber_name = str(youtuber_name) if youtuber_name and youtuber_name != "Non spécifié" else "YouTubeur"
+        channel_name = str(channel_name) if channel_name and channel_name != "Non spécifié" else "notre chaîne"
+        
+        # Générer un script minimal mais fonctionnel
+        return f"""[HOOK]
 Salut YouTube ! Aujourd'hui on parle de {topic} !
 
 [INTRODUCTION]
 Bienvenue à tous sur cette nouvelle vidéo. Je suis {youtuber_name} et aujourd'hui, nous allons explorer ensemble le sujet de {topic}.
 
 [SECTION 1: PRÉSENTATION DU SUJET]
-{topic} est un sujet qui suscite beaucoup d'intérêt dernièrement. Explorons ensemble pourquoi.
+{topic} est un sujet qui suscite beaucoup d'intérêt dernièrement. Que vous soyez débutant ou expert, il y a toujours de nouvelles perspectives à découvrir dans ce domaine.
+
+Au cours des dernières années, de nombreux développements ont eu lieu, ce qui rend ce sujet plus pertinent que jamais. Des experts du monde entier partagent régulièrement de nouvelles découvertes et techniques.
 
 [SECTION 2: POINTS CLÉS]
-Voici les aspects essentiels à comprendre sur ce sujet.
+Voici les aspects essentiels à comprendre sur ce sujet :
+
+Premièrement, il est important de considérer le contexte historique. Comment en sommes-nous arrivés là ? Quels événements ou découvertes ont façonné notre compréhension actuelle ?
+
+Deuxièmement, examinons les applications pratiques. Comment pouvons-nous utiliser ces connaissances dans notre vie quotidienne ou professionnelle ?
+
+Troisièmement, n'oublions pas les perspectives futures. Où va ce domaine ? Quelles innovations pouvons-nous attendre dans les années à venir ?
 
 [SECTION 3: ANALYSE]
-Quand on regarde de plus près, on peut voir que ce sujet a de nombreuses implications.
+Quand on regarde de plus près, on peut voir que ce sujet a de nombreuses implications dans différents domaines. Que ce soit en technologie, en sciences, en art ou en société, l'impact est considérable.
+
+Les experts s'accordent généralement sur l'importance fondamentale de {topic} dans notre monde en constante évolution. Certains soutiennent que c'est l'un des domaines les plus prometteurs pour l'innovation future.
 
 [CONCLUSION]
-J'espère que cette vidéo vous a donné un bon aperçu de {topic}. N'hésitez pas à me dire ce que vous en pensez en commentaire !
+Pour résumer ce que nous avons vu aujourd'hui, {topic} est un domaine riche en possibilités et en défis. J'espère que cette vidéo vous a donné un bon aperçu du sujet et vous a inspiré à en apprendre davantage.
 
-Si cette vidéo vous a plu, n'oubliez pas de liker et de vous abonner pour plus de contenu. Merci d'avoir regardé et à bientôt pour une nouvelle vidéo !
+N'hésitez pas à me dire ce que vous en pensez en commentaire ! Vos perspectives et questions sont toujours les bienvenues.
+
+Si cette vidéo vous a plu, n'oubliez pas de liker et de vous abonner à {channel_name} pour plus de contenu similaire. Activez aussi la cloche de notification pour être alerté des nouvelles vidéos.
+
+Merci d'avoir regardé et à bientôt pour une nouvelle vidéo !
 """
-        return fallback_script
+    except Exception as e:
+        print(f"Erreur lors de la génération du script de secours: {e}")
+        # Dans le pire des cas, retourner un script ultra-basique
+        return f"""[HOOK]
+Bienvenue à cette vidéo sur YouTube !
+
+[INTRODUCTION]
+Aujourd'hui nous parlons de {str(topic) if topic else 'notre sujet du jour'}.
+
+[CONTENU]
+Ce sujet est vraiment intéressant et mérite notre attention.
+Il y a beaucoup à dire à ce propos et j'espère que vous apprendrez quelque chose de nouveau.
+
+[CONCLUSION]
+Merci d'avoir regardé cette vidéo. N'oubliez pas de vous abonner et liker !
+"""
 
 def save_to_pdf(script_text: str, title: str = None, author: str = None, channel: str = None, sources: list = None) -> str:
     """Version simplifiée et robuste de sauvegarde en PDF."""
@@ -788,7 +863,7 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                     pdf.ln(4)
                     continue
                 
-                if '[' in line and ']' in line and line.find('[') < line.find(']'):
+                if '[' in line and ']' in line and line.strip().startswith('['):
                     pdf.ln(4)
                     pdf.set_font('Arial', 'B', 13)
                     pdf.multi_cell(0, 8, line[:80])  # Limiter la longueur pour éviter les erreurs
