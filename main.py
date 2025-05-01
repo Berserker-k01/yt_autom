@@ -478,6 +478,7 @@ Ne génère RIEN d'autre que ce JSON. Pas d'explications, pas de texte avant ou 
 def extract_sources(research_text: str) -> list:
     """Extrait les sources depuis un texte de recherche."""
     sources = []
+    source_data = []  # Liste pour stocker à la fois l'URL et le titre
     
     # Vérifier si le texte est vide ou None
     if not research_text:
@@ -486,16 +487,27 @@ def extract_sources(research_text: str) -> list:
         
     print(f"Extraction des sources depuis un texte de {len(research_text)} caractères")
     
-    # Séparation par lignes
-    lines = research_text.split('\n')
+    # Séparation par blocs (séparés par ---)
+    blocks = research_text.split("---")
     
-    for line in lines:
-        if line.strip().startswith("Source: "):
-            source_url = line.replace("Source: ", "").strip()
-            if source_url and not source_url in sources:  # Éviter les doublons
-                sources.append(source_url)
-                print(f"Source extraite: {source_url}")
+    # Pour chaque bloc, extraire Source, Titre et Résumé
+    for block in blocks:
+        source_url = None
+        title = None
+        
+        lines = block.strip().split('\n')
+        for i, line in enumerate(lines):
+            if line.strip().startswith("Source:"):
+                source_url = line.replace("Source:", "").strip()
+            elif line.strip().startswith("Titre:"):
+                title = line.replace("Titre:", "").strip()
                 
+        # Si nous avons trouvé une source et un titre, les ajouter
+        if source_url and title and source_url not in sources:
+            sources.append(source_url)
+            source_data.append({"url": source_url, "title": title})
+            print(f"Source extraite: {source_url} - {title}")
+    
     print(f"{len(sources)} sources uniques extraites")
     
     # Générer des sources factices si aucune n'est trouvée
@@ -505,9 +517,13 @@ def extract_sources(research_text: str) -> list:
             "https://example.com/source2",
             "https://example.com/source3"
         ]
-        print("Génération de sources factices pour les tests")
-        
-    return sources
+        source_data = [
+            {"url": "https://example.com/source1", "title": "Source d'exemple 1"},
+            {"url": "https://example.com/source2", "title": "Source d'exemple 2"},
+            {"url": "https://example.com/source3", "title": "Source d'exemple 3"}
+        ]
+    
+    return source_data  # Retourner les données complètes des sources
 
 def analyze_topic_potential(topic: str) -> dict:
     """Analyse le potentiel d'un sujet en utilisant Tavily + Gemini."""
@@ -884,7 +900,7 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                     f.write("\n\n" + "=" * 50 + "\n")
                     f.write("SOURCES:\n")
                     for i, source in enumerate(sources, 1):
-                        f.write(f"[{i}] {source}\n")
+                        f.write(f"[{i}] {source['url']} - {source['title']}\n")
             
             print(f"Fichier texte de référence créé: {txt_filename}")
         except Exception as txt_error:
@@ -991,8 +1007,8 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                 
                 for i, source in enumerate(sources):
                     # Nettoyer la source et ajouter un index
-                    clean_source = ''.join(c if ord(c) < 128 else '_' for c in source)
-                    pdf.multi_cell(0, 6, f"[{i+1}] {clean_source}")
+                    clean_source = ''.join(c if ord(c) < 128 else '_' for c in source['url'])
+                    pdf.multi_cell(0, 6, f"[{i+1}] {clean_source} - {source['title']}")
                 
                 # Ajouter un encadré sur l'importance de vérifier les sources
                 pdf.ln(5)
@@ -1171,7 +1187,7 @@ def run_workflow(theme: str = None) -> list:
         if 'sources' in topic_data and topic_data['sources']:
             print(f"   Sources ({len(topic_data['sources'])}):") 
             for j, source in enumerate(topic_data['sources'], 1):
-                print(f"      [{j}] {source}")
+                print(f"      [{j}] {source['url']} - {source['title']}")
         print()  # Ligne vide pour la lisibilité
         
         # Analyse le potentiel du sujet

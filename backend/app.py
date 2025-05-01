@@ -1100,7 +1100,11 @@ def generate_direct_script_route():
             research = f"Idée de vidéo YouTube: {idea}"
         
         # Extraire les vraies sources depuis la recherche
+        from main import extract_sources
         real_sources = extract_sources(research)
+        
+        # Utiliser ces sources pour la génération du script
+        sources = real_sources  # Elles sont maintenant au format { url, title }
         
         # Générer le script avec les informations du profil
         script_text = generate_script(idea, research, user_context={
@@ -1116,20 +1120,38 @@ def generate_direct_script_route():
             'custom_options': profile.get('custom_options', {})
         })
         
-        # Extraire des sources de la recherche au lieu d'utiliser des sources fictives
-        sources = real_sources if real_sources else [
-            f"https://example.com/ressource-sur-{idea.replace(' ', '-').lower()}",
-            f"https://info-youtube.com/idee-{idea.replace(' ', '-').lower()}"
-        ]
-        
         # Générer le PDF si le script a été généré avec succès
         if script_text:
             pdf_path = save_to_pdf(script_text, title=idea, author=youtuber_name, channel=channel_name, sources=sources)
             
+            # Assurer que seul le nom du fichier est utilisé, pas le chemin complet
+            pdf_filename = os.path.basename(pdf_path)
+            
+            # Vérifier que le fichier existe
+            if os.name == 'nt':  # Windows
+                temp_dir = tempfile.gettempdir()
+            else:  # Linux/Render
+                temp_dir = '/tmp'
+                
+            full_path = os.path.join(temp_dir, pdf_filename)
+            if not os.path.exists(full_path) and os.path.exists(pdf_path):
+                # Si le fichier existe à l'emplacement original mais pas dans temp_dir
+                try:
+                    import shutil
+                    shutil.copy2(pdf_path, full_path)
+                    print(f"Fichier copié de {pdf_path} vers {full_path}")
+                except Exception as copy_error:
+                    print(f"Erreur lors de la copie du fichier: {copy_error}")
+            
+            # Vérifier que le fichier est maintenant accessible
+            accessible_path = full_path if os.path.exists(full_path) else pdf_path
+            print(f"Chemin accessible pour téléchargement: {accessible_path}")
+            print(f"URL de téléchargement générée: /download/{pdf_filename}")
+            
             result = {
                 'script': script_text,
-                'pdf_url': f"/download/{os.path.basename(pdf_path)}",
-                'sources': sources
+                'pdf_url': f"/download/{pdf_filename}",
+                'sources': real_sources
             }
             
             return jsonify(result)
