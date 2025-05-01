@@ -125,11 +125,7 @@ def tavily_search(query: str, num_results: int = 5) -> str:
         # Effectuer la recherche avec Tavily
         if query is None or not isinstance(query, str) or len(query.strip()) == 0:
             print("Requête de recherche vide ou invalide")
-            # Fournir des résultats de secours en cas de requête invalide
-            return """Source: https://example.com/article1
-Titre: Article général
-Résumé: Cet article couvre des informations générales sur le sujet.
-"""
+            return ""
         
         try:
             search_response = tavily_client.search(
@@ -151,11 +147,7 @@ Résumé: Cet article couvre des informations générales sur le sujet.
         answer = search_response.get("answer", "")
         
         if not results and not answer:
-            print("Aucun résultat trouvé dans la réponse Tavily, essai avec des sources fictives")
-            # Générer des sources fictives pour les tests si Tavily ne retourne rien
-            if len(query) > 0:
-                dummy_source = f"Source: https://example.com/article1\nTitre: Article sur {query}\nRésumé: Cet article présente des informations sur {query} et analyse les tendances récentes...\n"
-                return dummy_source
+            print("Aucun résultat trouvé dans la réponse Tavily")
             return ""
         
         # Combine les résultats
@@ -193,13 +185,8 @@ Résumé: Cet article couvre des informations générales sur le sujet.
         except Exception as reinit_error:
             print(f"Échec de la réinitialisation après erreur: {reinit_error}")
         
-        # Générer des sources fictives pour les tests
-        if query and len(query) > 0:
-            return f"Source: https://example.com/fallback\nTitre: Fallback pour {query}\nRésumé: Ceci est une source de secours générée suite à une erreur de recherche. Le système continuera à fonctionner malgré cette erreur...\n"
-        return """Source: https://example.com/general
-Titre: Article général
-Résumé: Cet article couvre des informations générales pertinentes.
-"""
+        # En cas d'erreur, rediriger vers SerpAPI
+        return serpapi_search(query, num_results)
 
 def serpapi_search(query: str, num_results: int = 5) -> str:
     """Effectue une recherche via SerpAPI (Google)."""
@@ -208,15 +195,8 @@ def serpapi_search(query: str, num_results: int = 5) -> str:
         
         # Vérifier si la clé API est disponible
         if not SERPAPI_KEY:
-            print("AVERTISSEMENT: Clé SerpAPI non définie, génération de résultats fictifs")
-            return f"""Source: https://example.com/mock-search-{query.replace(' ', '-').lower()}
-Titre: Résultats simulés pour {query}
-Résumé: Ces résultats sont générés automatiquement car la clé SerpAPI n'est pas configurée.
-
-Source: https://example.com/topic-information
-Titre: Informations sur {query}
-Résumé: Informations générales sur ce sujet qui seraient normalement obtenues via une recherche web.
-"""
+            print("ERREUR: Clé SerpAPI non définie, impossible de continuer")
+            return ""
         
         params = {
             "q": query,
@@ -231,11 +211,7 @@ Résumé: Informations générales sur ce sujet qui seraient normalement obtenue
             response.raise_for_status()
         except requests.exceptions.RequestException as req_err:
             print(f"Erreur de requête SerpAPI: {req_err}")
-            # Générer des sources fictives en cas d'erreur de requête
-            return f"""Source: https://example.com/error-fallback
-Titre: Informations sur {query} (mode dégradé)
-Résumé: Ces informations sont générées en mode dégradé suite à une erreur de connexion à l'API de recherche.
-"""
+            return ""
         
         # Débug: Afficher les clés disponibles dans la réponse
         response_json = response.json()
@@ -249,16 +225,6 @@ Résumé: Ces informations sont générées en mode dégradé suite à une erreu
             results = response_json.get("results", [])
             if not results:
                 print("Aucun résultat trouvé dans la réponse SerpAPI")
-                # Générer des sources fictives pour les tests si SERPAPI ne fonctionne pas
-                if len(query) > 0:
-                    return f"""Source: https://example.com/article1
-Titre: Article sur {query}
-Résumé: Résumé de l'article sur {query} avec informations pertinentes.
-
-Source: https://example.com/article2
-Titre: Autre perspective sur {query}
-Résumé: Une analyse différente du sujet avec des points de vue complémentaires.
-"""
                 return ""
             
         # Combine les snippets et titres
@@ -268,8 +234,9 @@ Résumé: Une analyse différente du sujet avec des points de vue complémentair
             snippet = r.get("snippet", "")
             link = r.get("link", "")
             if not link and "link" not in r:  # Vérifier format alternatif
-                link = r.get("url", r.get("displayUrl", "https://example.com"))
-            search_data.append(f"Source: {link}\nTitre: {title}\nRésumé: {snippet}\n")
+                link = r.get("url", r.get("displayUrl", ""))
+            if link:  # Ne prendre que les sources avec un lien valide
+                search_data.append(f"Source: {link}\nTitre: {title}\nRésumé: {snippet}\n")
             
         result = "\n---\n".join(search_data)
         print(f"Résultats de recherche extraits, {len(search_data)} sources trouvées.")
@@ -279,16 +246,6 @@ Résumé: Une analyse différente du sujet avec des points de vue complémentair
         print(f"Erreur SerpAPI: {e}")
         import traceback
         traceback.print_exc()
-        # Générer des sources fictives plus détaillées pour les tests
-        if len(query) > 0:
-            return f"""Source: https://example.com/fallback
-Titre: Fallback pour {query}
-Résumé: Ceci est une source de secours générée suite à une erreur de recherche. Le système continuera à fonctionner avec ces informations de base.
-
-Source: https://example.com/alternative
-Titre: Informations alternatives sur {query}
-Résumé: Cette source fournit des informations générales sur le sujet pour permettre la génération de contenu malgré l'erreur.
-"""
         return ""
 
 def fetch_research(query: str) -> str:
@@ -296,38 +253,40 @@ def fetch_research(query: str) -> str:
     try:
         print(f"Début de recherche pour: {query}")
         
-        # Fallback content in case everything fails
-        fallback_content = f"""Source: https://example.com/recherche-{query.replace(' ', '-')}
-Titre: Informations générales sur {query}
-Résumé: Ce sujet concerne {query} et présente différents aspects et perspectives.
-
-Source: https://wikipedia.org/recherche
-Titre: Encyclopédie sur {query}
-Résumé: Différentes informations et contextes historiques sur ce sujet.
-
-Source: https://youtu.be/example
-Titre: Vidéo explicative sur {query}
-Résumé: Cette vidéo présente une explication détaillée du sujet avec des exemples concrets."""
-
+        # Obtenir les résultats de recherche
+        search_results = ""
+        
+        # Utiliser Tavily si disponible, sinon SerpAPI
+        if TAVILY_AVAILABLE and tavily_client is not None:
+            print("Utilisation de Tavily pour la recherche")
+            search_results = tavily_search(query)
+        else:
+            print("Utilisation de SerpAPI pour la recherche")
+            search_results = serpapi_search(query)
+            
+        if not search_results:
+            print("Aucun résultat de recherche valide obtenu")
+            return ""
+        
         # Configuration des requêtes avec gestion d'erreur
         try:
             # Recherche générale
             general_search = serpapi_search(f"{query} actualités derniers mois", num_results=3)
         except Exception as e:
             print(f"Erreur lors de la recherche générale: {e}")
-            general_search = f"Source: https://example.com/actualites\nTitre: Actualités sur {query}\nRésumé: Information non disponible pour le moment.\n"
+            general_search = ""
         
         try:
             # Recherche technique
             technical_search = serpapi_search(f"{query} analyse technique avis expert", num_results=3)
         except Exception as e:
             print(f"Erreur lors de la recherche technique: {e}")
-            technical_search = f"Source: https://example.com/technique\nTitre: Analyse technique de {query}\nRésumé: Information non disponible pour le moment.\n"
+            technical_search = ""
         
         # Si aucune recherche n'a fonctionné, utiliser le contenu de secours
         if not general_search and not technical_search:
-            print("Aucune recherche n'a fonctionné, utilisation du contenu de secours")
-            return fallback_content
+            print("Aucune recherche n'a fonctionné")
+            return ""
             
         # Si l'une des recherches a échoué mais pas l'autre, utiliser celle qui a fonctionné
         research_prompt = f"""En tant qu'expert en création de contenu, analyse ces recherches sur : {query}
@@ -380,14 +339,7 @@ Fournis une analyse structurée avec:
         traceback.print_exc()
         
         # En cas d'échec complet, retourner un contenu minimal mais fonctionnel
-        return f"""Source: https://example.com/fallback
-Titre: Informations générales sur {query}
-Résumé: Ce sujet concerne différents aspects qui seront développés dans la vidéo.
-
-Source: https://example.com/context
-Titre: Contexte sur {query}
-Résumé: Information de base permettant de comprendre le sujet.
-"""
+        return ""
 
 def generate_topics(theme: str, num_topics: int = 5, user_context: dict = None) -> list:
     """Génère des sujets d'actualité en utilisant Tavily + Gemini."""
@@ -504,24 +456,13 @@ def extract_sources(research_text: str) -> list:
                 
         # Si nous avons trouvé une source et un titre, les ajouter
         if source_url and title and source_url not in sources:
-            sources.append(source_url)
-            source_data.append({"url": source_url, "title": title})
-            print(f"Source extraite: {source_url} - {title}")
+            # Ne pas ajouter les sources fictives
+            if not source_url.startswith("https://example.com/"):
+                sources.append(source_url)
+                source_data.append({"url": source_url, "title": title})
+                print(f"Source extraite: {source_url} - {title}")
     
     print(f"{len(sources)} sources uniques extraites")
-    
-    # Générer des sources factices si aucune n'est trouvée
-    if len(sources) == 0:
-        sources = [
-            "https://example.com/source1",
-            "https://example.com/source2",
-            "https://example.com/source3"
-        ]
-        source_data = [
-            {"url": "https://example.com/source1", "title": "Source d'exemple 1"},
-            {"url": "https://example.com/source2", "title": "Source d'exemple 2"},
-            {"url": "https://example.com/source3", "title": "Source d'exemple 3"}
-        ]
     
     return source_data  # Retourner les données complètes des sources
 
@@ -1245,7 +1186,7 @@ Maintenant que nous avons les bases, explorons plus en détail les différentes 
 Voyons maintenant comment ces connaissances peuvent être appliquées dans la vie quotidienne.
 
 [CONCLUSION]
-En résumé, nous avons vu que {selected_topic['title']} est un sujet riche et complexe qui mérite notre attention.
+En résumé, nous avons vu que {selected_topic['title']} est un domaine riche et complexe qui mérite notre attention.
 
 Si vous avez apprécié cette vidéo, n'oubliez pas de liker, commenter et vous abonner pour ne manquer aucun contenu. Merci d'avoir regardé, et à bientôt pour une nouvelle vidéo !
 """
