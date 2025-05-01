@@ -254,7 +254,7 @@ def serpapi_search(query: str, num_results: int = 5) -> str:
         return ""
 
 def fetch_research(query: str) -> str:
-    """Effectue une recherche approfondie en utilisant Tavily + Gemini."""
+    """Effectue une recherche approfondie en utilisant SerpAPI + Gemini."""
     try:
         print(f"Début de recherche pour: {query}")
         
@@ -274,14 +274,14 @@ Résumé: Cette vidéo présente une explication détaillée du sujet avec des e
         # Configuration des requêtes avec gestion d'erreur
         try:
             # Recherche générale
-            general_search = tavily_search(f"{query} actualités derniers mois", num_results=3)
+            general_search = serpapi_search(f"{query} actualités derniers mois", num_results=3)
         except Exception as e:
             print(f"Erreur lors de la recherche générale: {e}")
             general_search = f"Source: https://example.com/actualites\nTitre: Actualités sur {query}\nRésumé: Information non disponible pour le moment.\n"
         
         try:
             # Recherche technique
-            technical_search = tavily_search(f"{query} analyse technique avis expert", num_results=3)
+            technical_search = serpapi_search(f"{query} analyse technique avis expert", num_results=3)
         except Exception as e:
             print(f"Erreur lors de la recherche technique: {e}")
             technical_search = f"Source: https://example.com/technique\nTitre: Analyse technique de {query}\nRésumé: Information non disponible pour le moment.\n"
