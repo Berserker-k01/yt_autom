@@ -517,7 +517,7 @@ IMPORTANT: Réponds UNIQUEMENT avec un JSON valide de cette forme:
         return {}
 
 def generate_script(topic: str, research: str, user_context: dict = None) -> str:
-    """Génère un script détaillé avec Tavily + Gemini et retourne le texte intégral."""
+    """Génère un script détaillé avec SerpAPI + Gemini et retourne le texte intégral."""
     # Gestion robuste des erreurs pour éviter les crashs
     try:
         # Vérification de la disponibilité de Gemini
@@ -545,15 +545,14 @@ def generate_script(topic: str, research: str, user_context: dict = None) -> str
                 pass
             return generate_fallback_script(topic, youtuber_name, channel_name)
         
-        # Récupérer des informations supplémentaires avec Tavily ou SerpAPI
+        # Récupérer des informations supplémentaires avec SerpAPI
         print(f"Recherche d'informations supplémentaires pour: {topic}")
         additional_research = ""
         try:
-            if TAVILY_AVAILABLE and tavily_client is not None:
-                additional_research = tavily_search(f"{topic} faits statistiques études expert tendances", num_results=3)
-            else:
-                # Utiliser simplement les recherches existantes si Tavily n'est pas disponible
-                print("Tavily non disponible, utilisation des recherches existantes uniquement")
+            # Utiliser toujours SerpAPI pour la recherche d'informations supplémentaires
+            additional_research = serpapi_search(f"{topic} faits statistiques études expert tendances", num_results=3)
+            if not additional_research:
+                print("Recherche SerpAPI vide, utilisation des recherches existantes uniquement")
         except Exception as e:
             print(f"Erreur lors de la recherche d'informations supplémentaires: {e}")
             print("Poursuite de la génération sans recherches supplémentaires...")
