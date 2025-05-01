@@ -982,19 +982,25 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                         if segment.strip():
                             pdf.multi_cell(0, 8, segment)
             
-            # Ajouter les sources
+            # Ajouter les sources si disponibles
             if sources and len(sources) > 0:
-                pdf.add_page()
-                pdf.set_font("Arial", "B", 16)
-                pdf.cell(0, 10, "Sources", 0, 1, "C")
-                pdf.ln(5)
+                pdf.ln(10)
+                pdf.set_font("Arial", "B", 12)
+                pdf.cell(0, 8, "Sources:", 0, 1)
+                pdf.set_font("Arial", "", 10)
                 
-                pdf.set_font("Arial", "", 12)
-                for i, source in enumerate(sources, 1):
-                    source_text = clean_text_for_pdf(str(source))
-                    if len(source_text) > 70:
-                        source_text = source_text[:70] + "..."
-                    pdf.multi_cell(0, 8, f"[{i}] {source_text}")
+                for i, source in enumerate(sources):
+                    # Nettoyer la source et ajouter un index
+                    clean_source = ''.join(c if ord(c) < 128 else '_' for c in source)
+                    pdf.multi_cell(0, 6, f"[{i+1}] {clean_source}")
+                
+                # Ajouter un encadré sur l'importance de vérifier les sources
+                pdf.ln(5)
+                pdf.set_draw_color(200, 0, 0)
+                pdf.set_fill_color(255, 240, 240)
+                pdf.set_text_color(200, 0, 0)
+                pdf.cell(0, 6, "Rappel: Vérifiez toujours les sources avant d'utiliser l'information.", 1, 1, 'C', 1)
+                pdf.set_text_color(0, 0, 0)
             
             # Sauvegarder le PDF
             pdf.output(filename)

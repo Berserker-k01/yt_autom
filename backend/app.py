@@ -10,7 +10,7 @@ import tempfile
 
 # Permet d'importer main.py depuis le dossier parent
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from main import generate_topics, generate_script, save_to_pdf, modify_script_with_ai, estimate_reading_time, fetch_research
+from main import generate_topics, generate_script, save_to_pdf, modify_script_with_ai, estimate_reading_time, fetch_research, extract_sources
 
 # Import des modèles de base de données
 from models import db, User, UserProfile
@@ -375,26 +375,48 @@ def download_file(filename):
             temp_dir = tempfile.gettempdir()
         else:  # Linux/Render
             temp_dir = '/tmp'
+        
+        # Vérifier si c'est le chemin complet ou juste le nom du fichier
+        if os.path.dirname(filename):
+            # C'est un chemin complet
+            file_path = filename
+            basename = os.path.basename(filename)
+        else:
+            # C'est juste un nom de fichier
+            file_path = os.path.join(temp_dir, filename)
+            basename = filename
             
-        file_path = os.path.join(temp_dir, filename)
         print(f" Recherche de: {file_path}")
         
-        # Vérifier si le fichier existe
+        # Liste tous les fichiers du répertoire temporaire pour le débogage
+        print(f" Contenu du répertoire temporaire: {os.listdir(temp_dir)}")
+        
+        # Essayer de trouver un fichier correspondant par nom partiel si le fichier exact n'existe pas
         if not os.path.exists(file_path):
-            print(f" Fichier non trouvé: {file_path}")
+            print(f" Fichier exact non trouvé: {file_path}")
             
-            # Si c'est un fichier simplifié qui est demandé, vérifier si le fichier original existe
-            if "_simplified_" in filename:
-                original_filename = filename.replace("_simplified_", "_")
-                original_path = os.path.join(temp_dir, original_filename)
-                if os.path.exists(original_path):
-                    print(f" Fichier simplifié non trouvé, mais original trouvé: {original_path}")
-                    file_path = original_path
-                    # Continuer avec ce fichier
+            # Chercher un fichier correspondant par nom partiel
+            basename_parts = basename.split('_')
+            if len(basename_parts) > 1:
+                title_part = basename_parts[0]
+                matching_files = [f for f in os.listdir(temp_dir) if title_part in f and (f.endswith('.pdf') or f.endswith('.txt'))]
+                
+                if matching_files:
+                    newest_file = max(matching_files, key=lambda f: os.path.getmtime(os.path.join(temp_dir, f)))
+                    file_path = os.path.join(temp_dir, newest_file)
+                    print(f" Fichier alternatif trouvé par correspondance partielle: {file_path}")
                 else:
-                    return jsonify({'error': 'Fichier PDF introuvable'}), 404
-            else:
-                return jsonify({'error': 'Fichier PDF introuvable'}), 404
+                    # Si toujours pas trouvé, chercher le fichier PDF le plus récent
+                    pdf_files = [f for f in os.listdir(temp_dir) if f.endswith('.pdf')]
+                    if pdf_files:
+                        newest_pdf = max(pdf_files, key=lambda f: os.path.getmtime(os.path.join(temp_dir, f)))
+                        file_path = os.path.join(temp_dir, newest_pdf)
+                        print(f" Dernier fichier PDF trouvé comme alternative: {file_path}")
+        
+        # Vérifier si le fichier existe après toutes nos tentatives
+        if not os.path.exists(file_path):
+            print(f" Fichier introuvable après toutes les tentatives: {file_path}")
+            return jsonify({'error': 'Fichier PDF introuvable'}), 404
         
         # Vérifier si le fichier est lisible et valide
         if os.path.getsize(file_path) == 0:
@@ -402,11 +424,12 @@ def download_file(filename):
             return jsonify({'error': 'Le fichier PDF est vide'}), 500
         
         # Déterminer si le fichier est un PDF ou un TXT
-        is_pdf = filename.lower().endswith('.pdf')
-        is_txt = filename.lower().endswith('.txt')
+        is_pdf = file_path.lower().endswith('.pdf')
+        is_txt = file_path.lower().endswith('.txt')
         
         # Déterminer le nom de fichier à utiliser pour le téléchargement
-        download_name = f"Script_YouTube_{datetime.now().strftime('%Y%m%d')}"
+        filename_base = os.path.splitext(os.path.basename(file_path))[0]
+        download_name = f"{filename_base}_YT_Script"
         download_name += ".pdf" if is_pdf else ".txt"
         
         try:
@@ -1076,6 +1099,9 @@ def generate_direct_script_route():
             print("Aucune recherche trouvée, utilisation d'un contexte minimal.")
             research = f"Idée de vidéo YouTube: {idea}"
         
+        # Extraire les vraies sources depuis la recherche
+        real_sources = extract_sources(research)
+        
         # Générer le script avec les informations du profil
         script_text = generate_script(idea, research, user_context={
             'youtuber_name': youtuber_name,
@@ -1090,8 +1116,8 @@ def generate_direct_script_route():
             'custom_options': profile.get('custom_options', {})
         })
         
-        # Extraire des sources fictives pour le moment (pourra être amélioré)
-        sources = [
+        # Extraire des sources de la recherche au lieu d'utiliser des sources fictives
+        sources = real_sources if real_sources else [
             f"https://example.com/ressource-sur-{idea.replace(' ', '-').lower()}",
             f"https://info-youtube.com/idee-{idea.replace(' ', '-').lower()}"
         ]
