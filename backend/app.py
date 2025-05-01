@@ -10,7 +10,7 @@ import tempfile
 
 # Permet d'importer main.py depuis le dossier parent
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from main import generate_topics, generate_script, save_to_pdf, modify_script_with_ai, estimate_reading_time
+from main import generate_topics, generate_script, save_to_pdf, modify_script_with_ai, estimate_reading_time, fetch_research
 
 # Import des modèles de base de données
 from models import db, User, UserProfile
