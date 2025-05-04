@@ -1,39 +1,15 @@
 import React, { useState } from 'react';
-import {
-  Box,
-  Button,
-  Textarea,
-  VStack,
-  FormControl,
-  FormLabel,
-  Input,
-  Flex,
-  Heading,
-  Text,
-  useToast,
-  Divider,
-  HStack,
-  IconButton,
-  Tooltip
-} from '@chakra-ui/react';
 
 const ScriptEditor = ({ script, onSave, onCancel, onAiModify }) => {
   const [editedScript, setEditedScript] = useState(script || '');
   const [aiPrompt, setAiPrompt] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isAiModifying, setIsAiModifying] = useState(false);
-  const toast = useToast();
   
   // Fonction pour gérer les modifications manuelles
   const handleManualSave = () => {
     if (!editedScript.trim()) {
-      toast({
-        title: "Erreur",
-        description: "Le script ne peut pas être vide",
-        status: "error",
-        duration: 3000,
-        isClosable: true,
-      });
+      alert("Le script ne peut pas être vide");
       return;
     }
     
@@ -43,13 +19,7 @@ const ScriptEditor = ({ script, onSave, onCancel, onAiModify }) => {
   // Fonction pour demander une modification par l'IA
   const handleAiModify = async () => {
     if (!aiPrompt.trim()) {
-      toast({
-        title: "Instruction manquante",
-        description: "Veuillez indiquer ce que l'IA doit modifier",
-        status: "warning",
-        duration: 3000,
-        isClosable: true,
-      });
+      alert("Veuillez indiquer ce que l'IA doit modifier");
       return;
     }
     
@@ -59,106 +29,137 @@ const ScriptEditor = ({ script, onSave, onCancel, onAiModify }) => {
       await onAiModify(aiPrompt, editedScript);
       setAiPrompt(''); // Réinitialiser le champ après une demande réussie
     } catch (error) {
-      toast({
-        title: "Erreur",
-        description: "Impossible de traiter votre demande. Veuillez réessayer.",
-        status: "error",
-        duration: 5000,
-        isClosable: true,
-      });
+      console.error("Erreur lors de la modification par IA:", error);
+      alert("Impossible de traiter votre demande. Veuillez réessayer.");
     } finally {
       setIsAiModifying(false);
     }
   };
   
   return (
-    <Box p={5} borderWidth="1px" borderRadius="lg" boxShadow="md" bg="white" width="100%">
-      <VStack spacing={6} align="stretch">
-        <Heading size="lg" textAlign="center" color="blue.700">
-          Édition du Script
-        </Heading>
+    <div style={{ width: '100%' }}>
+      <div style={{ textAlign: 'center', marginBottom: '20px' }}>
+        <h2 style={{ fontSize: 24, color: '#1e40af', fontWeight: 700 }}>Édition du Script</h2>
+        <hr style={{ margin: '20px 0' }} />
+      </div>
+      
+      {/* Section de modification manuelle */}
+      <div>
+        <h3 style={{ fontSize: 20, marginBottom: '15px', color: '#1e40af' }}>
+          Édition manuelle
+        </h3>
+        <div>
+          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>Contenu du script</label>
+          <textarea
+            value={editedScript}
+            onChange={(e) => setEditedScript(e.target.value)}
+            placeholder="Modifiez le script ici..."
+            style={{ 
+              width: '100%', 
+              minHeight: '300px', 
+              padding: '10px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              fontSize: '14px',
+              fontFamily: 'monospace',
+              resize: 'vertical'
+            }}
+          />
+        </div>
         
-        <Divider />
+        <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '15px' }}>
+          <button 
+            style={{ 
+              padding: '10px 20px',
+              marginRight: '10px',
+              borderRadius: '8px',
+              border: 'none',
+              backgroundColor: '#94a3b8',
+              color: 'white',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+            onClick={onCancel}
+          >
+            Annuler
+          </button>
+          <button 
+            style={{ 
+              padding: '10px 20px',
+              borderRadius: '8px',
+              border: 'none',
+              background: 'linear-gradient(135deg, #2563eb, #1e40af)',
+              color: 'white',
+              fontWeight: '600',
+              cursor: 'pointer'
+            }}
+            onClick={handleManualSave}
+            disabled={isSubmitting}
+          >
+            Sauvegarder
+          </button>
+        </div>
+      </div>
+      
+      <hr style={{ margin: '30px 0' }} />
+      
+      {/* Section de modification par IA */}
+      <div>
+        <h3 style={{ fontSize: 20, marginBottom: '15px', color: '#7e22ce' }}>
+          Modifier avec l'IA
+        </h3>
+        <p style={{ marginBottom: '15px', fontSize: '14px', color: '#64748b' }}>
+          Décrivez les modifications souhaitées et l'IA mettra à jour le script en fonction de vos instructions.
+        </p>
         
-        {/* Section de modification manuelle */}
-        <Box>
-          <Heading size="md" mb={4} color="blue.600">
-            Édition manuelle
-          </Heading>
-          <FormControl>
-            <FormLabel fontWeight="bold">Contenu du script</FormLabel>
-            <Textarea
-              value={editedScript}
-              onChange={(e) => setEditedScript(e.target.value)}
-              placeholder="Modifiez le script ici..."
-              minHeight="300px"
-              size="md"
-              fontSize="sm"
-              fontFamily="mono"
-            />
-          </FormControl>
-          
-          <Flex justify="flex-end" mt={4}>
-            <Button 
-              colorScheme="gray" 
-              mr={3} 
-              onClick={onCancel}
-            >
-              Annuler
-            </Button>
-            <Button 
-              colorScheme="blue" 
-              onClick={handleManualSave}
-              isLoading={isSubmitting}
-            >
-              Sauvegarder
-            </Button>
-          </Flex>
-        </Box>
+        <div>
+          <label style={{ fontWeight: 'bold', display: 'block', marginBottom: '10px' }}>Instructions pour l'IA</label>
+          <input
+            type="text"
+            value={aiPrompt}
+            onChange={(e) => setAiPrompt(e.target.value)}
+            placeholder="Ex: Ajoute plus de statistiques sur le sujet, Simplifie l'introduction, Rends le plus engageant..."
+            style={{ 
+              width: '100%', 
+              padding: '10px',
+              borderRadius: '8px',
+              border: '1px solid #cbd5e1',
+              fontSize: '14px'
+            }}
+          />
+        </div>
         
-        <Divider my={4} />
+        <div style={{ marginTop: '15px' }}>
+          <button
+            style={{ 
+              padding: '10px 20px',
+              width: '100%',
+              borderRadius: '8px',
+              border: 'none',
+              background: 'linear-gradient(135deg, #7e22ce, #6b21a8)',
+              color: 'white',
+              fontWeight: '600',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              cursor: 'pointer'
+            }}
+            onClick={handleAiModify}
+            disabled={isAiModifying}
+          >
+            <span style={{ marginRight: '8px' }}>🤖</span>
+            {isAiModifying ? "Modification en cours..." : "Modifier avec l'IA"}
+          </button>
+        </div>
         
-        {/* Section de modification par IA */}
-        <Box>
-          <Heading size="md" mb={4} color="purple.600">
-            Modifier avec l'IA
-          </Heading>
-          <Text mb={4} fontSize="sm" color="gray.600">
-            Décrivez les modifications souhaitées et l'IA mettra à jour le script en fonction de vos instructions.
-          </Text>
-          
-          <FormControl>
-            <FormLabel fontWeight="bold">Instructions pour l'IA</FormLabel>
-            <Input
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder="Ex: Ajoute plus de statistiques sur le sujet, Simplifie l'introduction, Rends le plus engageant..."
-              size="md"
-            />
-          </FormControl>
-          
-          <HStack spacing={2} mt={4}>
-            <Button
-              colorScheme="purple"
-              onClick={handleAiModify}
-              isLoading={isAiModifying}
-              loadingText="En cours de traitement..."
-              width="full"
-              leftIcon={<span>🤖</span>}
-            >
-              Modifier avec l'IA
-            </Button>
-          </HStack>
-          
-          <Box mt={4} p={3} bg="gray.50" borderRadius="md">
-            <Text fontSize="xs" color="gray.500">
-              <strong>Suggestions:</strong> "Ajoute des exemples concrets", "Améliore la conclusion", 
-              "Rends le ton plus conversationnel", "Ajoute des questions rhétoriques", "Inclus plus de statistiques récentes"
-            </Text>
-          </Box>
-        </Box>
-      </VStack>
-    </Box>
+        <div style={{ marginTop: '15px', padding: '10px', backgroundColor: '#f8fafc', borderRadius: '8px' }}>
+          <p style={{ fontSize: '12px', color: '#64748b' }}>
+            <strong>Suggestions:</strong> "Ajoute des exemples concrets", "Améliore la conclusion", 
+            "Rends le ton plus conversationnel", "Ajoute des questions rhétoriques", "Inclus plus de statistiques récentes"
+          </p>
+        </div>
+      </div>
+    </div>
   );
 };
 
