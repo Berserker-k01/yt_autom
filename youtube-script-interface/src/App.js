@@ -12,6 +12,7 @@ import ModernHeader from './components/common/ModernHeader';
 import ModernDashboard from './components/dashboard/ModernDashboard';
 import Login from './components/auth/Login';
 import Register from './components/auth/Register';
+import ScriptEditor from './components/ScriptEditor'; // Importation du composant ScriptEditor
 
 function StepBar({ step }) {
   const steps = [
@@ -74,6 +75,8 @@ function Dashboard() {
   const [activeTab, setActiveTab] = useState('search'); // 'search' ou 'history'
   const [history, setHistory] = useState({topics: []});
   const [loadingHistory, setLoadingHistory] = useState(false);
+  const [editMode, setEditMode] = useState(false); // Nouvel état pour gérer le mode d'édition
+  const [isModifyingWithAi, setIsModifyingWithAi] = useState(false); // Pour les modifications avec l'IA
 
   // SOLUTION DE CONTOURNEMENT : URL codée en dur pour le déploiement
   const BACKEND_URL_PRODUCTION = 'https://yt-autom.onrender.com';
@@ -227,9 +230,16 @@ function Dashboard() {
         method: 'POST',
         headers: { 
           'Content-Type': 'application/json',
-          'Accept': 'application/pdf'
+          'Accept': 'application/json' // Changer pour accepter JSON au lieu de PDF directement
         },
-        body: JSON.stringify({ script }),
+        body: JSON.stringify({ 
+          script, 
+          topic: selectedTopic ? selectedTopic.title : 'Script YouTube',
+          profile: { 
+            youtuber_name: localStorage.getItem('youtuber_name') || 'YouTuber', 
+            channel_name: localStorage.getItem('channel_name') || 'Ma Chaîne' 
+          }
+        }),
         credentials: 'omit' // Ne pas envoyer de cookies pour éviter les restrictions CORS
       });
       
@@ -239,18 +249,39 @@ function Dashboard() {
         throw new Error(`Erreur PDF: ${res.status} ${res.statusText}`);
       }
       
-      const blob = await res.blob();
-      // Vérifier le type de contenu reçu
-      console.log('Type de contenu reçu:', blob.type);
-      // Même si le type n'est pas application/pdf, on continue car
-      // parfois le type est vide mais le contenu est quand même un PDF
+      // Récupérer les données au format JSON
+      const data = await res.json();
       
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Utiliser le base64 pour créer un blob
+      const base64Data = data.file_data;
+      const fileType = data.file_type || 'application/pdf';
+      const fileName = data.file_name || `script_${new Date().toISOString().slice(0, 10)}.pdf`;
+      
+      // Convertir base64 en blob
+      const byteCharacters = atob(base64Data);
+      const byteArrays = [];
+      
+      for (let offset = 0; offset < byteCharacters.length; offset += 512) {
+        const slice = byteCharacters.slice(offset, offset + 512);
+        
+        const byteNumbers = new Array(slice.length);
+        for (let i = 0; i < slice.length; i++) {
+          byteNumbers[i] = slice.charCodeAt(i);
+        }
+        
+        const byteArray = new Uint8Array(byteNumbers);
+        byteArrays.push(byteArray);
+      }
+      
+      const blob = new Blob(byteArrays, { type: fileType });
       const url = window.URL.createObjectURL(blob);
       setPdfUrl(url);
       
-      // Téléchargement automatique avec nom de fichier dynamique
-      const fileName = `script_${selectedTopic ? selectedTopic.title.slice(0, 20).replace(/[^a-zA-Z0-9]/g, '_') : 'video'}_${new Date().toISOString().slice(0, 10)}.pdf`;
-      
+      // Téléchargement automatique
       try {
         // Créer un élément <a> invisible et cliquer dessus pour déclencher le téléchargement
         const a = document.createElement('a');
@@ -298,7 +329,67 @@ function Dashboard() {
     step = 0; // On montre juste l'historique
   }
 
-    return (
+  // Fonction pour entrer en mode édition
+  const handleEditScript = () => {
+    setEditMode(true);
+  };
+
+  // Fonction pour sauvegarder les modifications manuelles
+  const handleSaveEditedScript = (editedContent) => {
+    setScript(editedContent);
+    setEditMode(false);
+  };
+
+  // Fonction pour annuler l'édition
+  const handleCancelEdit = () => {
+    setEditMode(false);
+  };
+
+  // Fonction pour demander une modification par l'IA
+  const handleAiModifyScript = async (modificationRequest, currentScriptContent) => {
+    setError(null);
+    setIsModifyingWithAi(true);
+    
+    try {
+      const res = await fetch(`${API_BASE}/modify-script`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          script: currentScriptContent || script,
+          request: modificationRequest,
+          profile: {
+            youtuber_name: localStorage.getItem('youtuber_name') || 'YouTuber',
+            channel_name: localStorage.getItem('channel_name') || 'Ma Chaîne',
+            content_style: localStorage.getItem('content_style') || 'informative',
+            tone: localStorage.getItem('tone') || 'professionnel',
+            target_audience: localStorage.getItem('target_audience') || 'adultes'
+          }
+        })
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Erreur serveur: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Mettre à jour le script avec la version modifiée
+      setScript(data.modified_script);
+      
+      return data.modified_script;
+    } catch (e) {
+      setError(`Erreur lors de la modification du script: ${e.message}`);
+      throw e;
+    } finally {
+      setIsModifyingWithAi(false);
+    }
+  };
+
+  return (
     <div className="dashboard-content">
       <div className="theme-tabs">
         <button 
@@ -901,6 +992,20 @@ function Dashboard() {
               <span style={{ marginRight: 6, fontSize: 16 }}>🔄</span> 
               Recommencer
             </button>
+            <button 
+              onClick={handleEditScript} 
+              className="btn btn-secondary"
+              style={{ 
+                marginLeft: 18, 
+                padding: '10px 20px', 
+                fontSize: 15,
+                display: 'flex',
+                alignItems: 'center' 
+              }}
+            >
+              <span style={{ marginRight: 6, fontSize: 16 }}>📝</span> 
+              Éditer le script
+            </button>
           </div>
           
           {/* Style pour l'animation de brillance */}
@@ -949,6 +1054,16 @@ function Dashboard() {
           >
             <span style={{ marginRight: 8 }}>💾</span> Télécharger le PDF
           </a>
+        </div>
+      )}
+      {script && editMode && (
+        <div style={{ background: 'white', borderRadius: 16, padding: 20, boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)' }}>
+          <ScriptEditor 
+            script={script}
+            onSave={handleSaveEditedScript}
+            onCancel={handleCancelEdit}
+            onAiModify={handleAiModifyScript}
+          />
         </div>
       )}
     </div>
