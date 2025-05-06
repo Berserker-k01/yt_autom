@@ -29,6 +29,7 @@ const ModernDashboard = () => {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [userProfile, setUserProfile] = useState(null);
   const [showDirectScriptGenerator, setShowDirectScriptGenerator] = useState(false);
+  const [loadingPDF, setLoadingPDF] = useState(false);
 
   // SOLUTION DE CONTOURNEMENT : URL codée en dur pour le déploiement
   const BACKEND_URL_PRODUCTION = 'https://yt-autom.onrender.com';
@@ -284,42 +285,70 @@ const ModernDashboard = () => {
     }
   };
 
-  // Exporter le script en PDF
+  // Fonction pour exporter le script en PDF
   const handleExportPDF = async () => {
+    if (!script || !selectedTopic) {
+      setError("Aucun script à exporter");
+      return;
+    }
+    
+    setLoadingPDF(true);
+    console.log("Demande d'exportation PDF...");
+    
     try {
-      setPdfUrl(null);
-      setPdfData(null);
       const response = await fetch(`${API_BASE}/export-pdf`, {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          script: script,
-          profile: userProfile,
-          topic: selectedTopic ? selectedTopic.title : 'Script YouTube',
+          script_text: script,
+          title: selectedTopic.title,
+          author: userProfile?.youtuber_name || 'Auteur',
+          channel: userProfile?.channel_name || 'Chaîne YouTube',
           sources: sources
         })
       });
       
-      const data = await response.json();
-      
-      if (response.ok) {
-        if (data.file_data) {
-          // Stocker les données du fichier encodées en base64
-          setPdfData(data.file_data);
-          setPdfFileName(data.file_name || "Script_YouTube.pdf");
-          setPdfFileType(data.file_type || "application/pdf");
-        } else if (data.pdf_url) {
-          // Fallback pour l'ancienne méthode d'URL
-          setPdfUrl(data.pdf_url);
-        }
-      } else {
-        setError('Erreur lors de l\'export PDF: ' + (data.error || 'Erreur inconnue'));
+      if (!response.ok) {
+        throw new Error(`Erreur serveur: ${response.status}`);
       }
+      
+      // Traitement de la réponse
+      const result = await response.json();
+      
+      if (result.error) {
+        throw new Error(result.error);
+      }
+      
+      console.log("Résultat de l'exportation PDF:", result);
+      
+      // Si le serveur a retourné des données binaires
+      if (result.pdf_data) {
+        console.log("Données PDF reçues, préparation du téléchargement...");
+        setPdfData(result.pdf_data);
+        setPdfFileName(result.filename || "script_youtube.pdf");
+        setPdfFileType(result.filetype || "application/pdf");
+      } 
+      // Si le serveur a retourné une URL vers le fichier
+      else if (result.pdf_url) {
+        console.log("URL du PDF reçue:", result.pdf_url);
+        setPdfUrl(result.pdf_url);
+        setPdfFileName(result.filename || "script_youtube.pdf");
+        
+        // Déclencher automatiquement le téléchargement
+        const downloadUrl = `${API_BASE}${result.pdf_url}`;
+        const link = document.createElement('a');
+        link.href = downloadUrl;
+        link.download = result.filename || "script_youtube.pdf";
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+      }
+      
+      setLoadingPDF(false);
     } catch (error) {
-      console.error('Erreur:', error);
-      setError('Erreur lors de l\'export PDF: ' + error.message);
+      console.error("Erreur lors de l'exportation PDF:", error);
+      setError(`Erreur lors de l'exportation PDF: ${error.message}`);
+      setLoadingPDF(false);
     }
   };
 
