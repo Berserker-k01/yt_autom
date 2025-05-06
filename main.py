@@ -142,6 +142,58 @@ Les sources doivent être variées et refléter différentes perspectives sur le
         print(f"Erreur DeepSeek: {e}")
         return ""
 
+def deepseek_generate(prompt: str) -> str:
+    """Génère du texte avec DeepSeek."""
+    try:
+        # Vérification de la clé API
+        if not DEEPSEEK_API_KEY:
+            print("Erreur: Clé API DeepSeek manquante ou invalide")
+            raise ValueError("Clé API DeepSeek manquante ou invalide")
+        
+        try:
+            response = requests.post(
+                "https://api.deepseek.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "deepseek-chat",
+                    "messages": [{"role": "user", "content": prompt}],
+                    "max_tokens": 4096,
+                    "temperature": 0.5
+                },
+                timeout=30  # Timeout de 30 secondes
+            )
+            response.raise_for_status()
+            result = response.json()
+            
+            if "choices" not in result or not result["choices"]:
+                print("Erreur: Réponse DeepSeek vide")
+                return ""
+                
+            text = result["choices"][0]["message"]["content"]
+            
+            if not text or len(text.strip()) < 100:
+                print(f"Réponse DeepSeek trop courte ({len(text) if text else 0} caractères)")
+                return ""
+            
+            print(f"Génération DeepSeek terminée avec succès ({len(text)} caractères)")
+            return text
+            
+        except requests.exceptions.ConnectionError as conn_err:
+            print(f"Erreur de connexion DeepSeek: {conn_err}")
+            raise ValueError(f"Failed to fetch - Problème de connexion: {conn_err}")
+        except requests.exceptions.Timeout as timeout_err:
+            print(f"Timeout lors de la connexion à DeepSeek: {timeout_err}")
+            raise ValueError(f"Failed to fetch - Timeout: {timeout_err}")
+        except requests.exceptions.RequestException as req_err:
+            print(f"Erreur de requête DeepSeek: {req_err}")
+            raise ValueError(f"Failed to fetch - Erreur de requête: {req_err}")
+    except Exception as e:
+        print(f"Erreur DeepSeek: {e}")
+        return ""
+
 def fetch_research(query: str) -> str:
     """Effectue une recherche approfondie en utilisant DeepSeek."""
     try:
@@ -254,8 +306,10 @@ Informations sur le créateur:
 - Durée vidéo préférée: {user_context.get('video_length', 'Non spécifié')}
 """
     
-    print("\nGénération des sujets avec Gemini...")
-    prompt = f"""Tu es un expert en création de contenu YouTube francophone, spécialiste de la viralité et de l'actualité.
+    print("\nGénération des sujets avec DeepSeek...")
+    try:
+        # Essayer d'abord DeepSeek
+        prompt = f"""Tu es un expert en création de contenu YouTube francophone, spécialiste de la viralité et de l'actualité.
 Pour le thème "{theme}", propose-moi {num_topics} sujets de vidéos YouTube qui sont :
 - Basés sur les tendances et actualités du moment (actualité très récente, sujets chauds, viraux)
 - Optimisés pour générer un fort engagement sur YouTube (taux de clics, watchtime, partages)
@@ -286,8 +340,15 @@ IMPORTANT: Ta réponse doit être UNIQUEMENT un objet JSON valide avec cette str
 }}
     
 Ne génère RIEN d'autre que ce JSON. Pas d'explications, pas de texte avant ou après."""
-    
-    response = gemini_generate(prompt)
+        response = deepseek_generate(prompt)
+        if not response or "topics" not in response:
+            # Si DeepSeek échoue, essayer Gemini comme fallback
+            print("Échec avec DeepSeek, essai avec Gemini...")
+            response = gemini_generate(prompt)
+    except Exception as e:
+        print(f"Erreur lors de la génération avec DeepSeek: {e}")
+        # Utiliser Gemini comme fallback
+        response = gemini_generate(prompt)
     if not response:
         print("Erreur: Aucune réponse de Gemini")
         return []
@@ -1326,7 +1387,7 @@ Instructions:
 """
 
     print(f"Modification du script avec la demande : {modification_request[:100]}...")
-    response = gemini_generate(modification_prompt)
+    response = deepseek_generate(modification_prompt)
     print(f"Script modifié généré ({len(response)} caractères)")
     
     return response
