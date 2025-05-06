@@ -12,7 +12,7 @@ load_dotenv()
 
 # Configuration des APIs
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-DEEPSEEK_API_KEY = "sk-c53f5831d24a444584d5afff2f8d0d2d"  # Clé API DeepSeek corrigée
+DEEPSEEK_API_KEY = "sk-c53f5831d24a444584d5afff2f8d0d0d"  # Clé API DeepSeek corrigée
 
 # Configuration de Gemini
 genai.configure(api_key=GEMINI_API_KEY)
@@ -1020,85 +1020,22 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                 pdf.cell(0, 10, "SOURCES & RÉFÉRENCES", 0, 1, 'C')
                 pdf.ln(5)
                 
-                # Tester pour voir si on peut créer un tableau
-                try:
-                    # Entêtes du tableau
-                    pdf.set_font('Arial', 'B', 10)
-                    pdf.set_fill_color(230, 230, 230)  # Gris clair
-                    pdf.cell(10, 8, "#", 1, 0, 'C', 1)
-                    pdf.cell(80, 8, "Source", 1, 0, 'C', 1)
-                    pdf.cell(100, 8, "URL", 1, 1, 'C', 1)
-                    
-                    pdf.set_font('Arial', '', 9)
-                    for i, source in enumerate(sources, 1):
-                        if isinstance(source, str):
-                            # Cas d'une source string
-                            url = source
-                            title = f"Source {i}"
-                        elif isinstance(source, dict):
-                            # Cas d'une source dictionnaire
-                            url = source.get('url', 'N/A')
-                            title = source.get('title', f"Source {i}")
-                        else:
-                            # Cas autre (peu probable)
-                            url = "Format inconnu"
-                            title = f"Source {i}"
-                            
-                        # Numéro
-                        pdf.cell(10, 8, str(i), 1, 0, 'C')
-                        # Titre
-                        title_display = title[:40] + ('...' if len(title) > 40 else '')
-                        pdf.cell(80, 8, title_display, 1, 0, 'L')
-                        # URL en bleu
-                        pdf.set_text_color(0, 0, 255)  # Bleu pour les liens
-                        url_display = url[:45] + ('...' if len(url) > 45 else '')
-                        pdf.cell(100, 8, url_display, 1, 1, 'L')
-                        pdf.set_text_color(0, 0, 0)  # Revenir au noir
+                pdf.set_font('Arial', '', 10)
+                
+                for i, source in enumerate(sources, 1):
+                    if isinstance(source, str):
+                        pdf.set_text_color(0, 0, 255)
+                        pdf.multi_cell(0, 6, f"{i}. {source}")
+                        pdf.set_text_color(0, 0, 0)
+                    elif isinstance(source, dict):
+                        url = source.get('url', 'N/A')
+                        title = source.get('title', f"Source {i}")
                         
-                    # Page supplémentaire avec les URLs complètes
-                    pdf.add_page()
-                    pdf.set_font('Arial', 'B', 12)
-                    pdf.cell(0, 10, "LIENS COMPLETS", 0, 1, 'C')
-                    pdf.ln(5)
-                    
-                    pdf.set_font('Arial', '', 9)
-                    for i, source in enumerate(sources, 1):
-                        # Extraire l'URL
-                        if isinstance(source, str):
-                            url = source
-                        elif isinstance(source, dict):
-                            url = source.get('url', 'N/A')
-                        else:
-                            url = "Format inconnu"
-                        
-                        # Afficher l'URL complète
-                        pdf.set_text_color(0, 0, 255)  # Bleu pour les liens
-                        pdf.cell(10, 6, f"{i}.", 0, 0)
-                        pdf.multi_cell(180, 6, url)
-                        pdf.set_text_color(0, 0, 0)  # Revenir au noir
-                        pdf.ln(2)
-                    
-                except Exception as e:
-                    # En cas d'échec, utiliser une approche plus simple
-                    print(f"Erreur lors de la création du tableau des sources: {e}")
-                    pdf.ln(5)
-                    pdf.set_font('Arial', '', 10)
-                    
-                    for i, source in enumerate(sources, 1):
-                        if isinstance(source, str):
-                            pdf.cell(10, 6, f"{i}.", 0, 0)
-                            pdf.set_text_color(0, 0, 255)
-                            pdf.multi_cell(180, 6, source)
-                            pdf.set_text_color(0, 0, 0)
-                        elif isinstance(source, dict):
-                            url = source.get('url', 'N/A')
-                            title = source.get('title', f"Source {i}")
-                            
-                            pdf.multi_cell(0, 6, f"{i}. {title}")
-                            pdf.set_text_color(0, 0, 255)
-                            pdf.multi_cell(0, 6, url)
-                            pdf.set_text_color(0, 0, 0)
-                        pdf.ln(2)
+                        pdf.multi_cell(0, 6, f"{i}. {title}")
+                        pdf.set_text_color(0, 0, 255)
+                        pdf.multi_cell(0, 6, url)
+                        pdf.set_text_color(0, 0, 0)
+                    pdf.ln(2)
             
             # Sauvegarder le PDF
             pdf.output(filename)
@@ -1340,3 +1277,247 @@ def modify_script_with_ai(script_text: str, instructions: str, profile: dict = N
         traceback.print_exc()
         # Retourner le script original en cas d'erreur
         return script_text
+
+def generate_images_for_script(script_text: str, title: str = "", num_images: int = 3) -> list:
+    """
+    Génère des images basées sur le contenu du script en utilisant Grok.
+    
+    Args:
+        script_text (str): Le contenu du script
+        title (str): Le titre du script/vidéo
+        num_images (int): Nombre d'images à générer (par défaut: 3)
+        
+    Returns:
+        list: Liste des chemins vers les images générées
+    """
+    try:
+        print(f"Génération de {num_images} images pour le script: {title[:50]}...")
+        
+        if not script_text:
+            print("Aucun script fourni pour la génération d'images")
+            return []
+        
+        # Créer un dossier pour stocker les images si nécessaire
+        import os
+        import tempfile
+        from datetime import datetime
+        
+        # Créer un sous-dossier dans le répertoire temporaire
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        safe_title = "".join(c if c.isalnum() or c in [' ', '_', '-'] else '_' for c in title[:30])
+        safe_title = safe_title.replace(' ', '_')
+        
+        # Utiliser le même dossier temp que pour les PDF
+        if os.name == 'nt':  # Windows
+            temp_dir = tempfile.gettempdir()
+        else:  # Linux/Render
+            temp_dir = '/tmp'
+            
+        images_dir = os.path.join(temp_dir, f"script_images_{safe_title}_{timestamp}")
+        os.makedirs(images_dir, exist_ok=True)
+        
+        print(f"Dossier d'images créé: {images_dir}")
+        
+        # Extraire les sections principales du script
+        import re
+        
+        # Trouver toutes les sections entre crochets [SECTION]
+        sections = re.findall(r'\[(.*?)\]', script_text)
+        
+        # Si pas assez de sections, utiliser le texte complet
+        if len(sections) < num_images:
+            print(f"Pas assez de sections trouvées ({len(sections)}), génération basée sur le script complet")
+            # Utiliser des extraits du texte
+            chunks = []
+            words = script_text.split()
+            chunk_size = len(words) // num_images
+            
+            for i in range(num_images):
+                start = i * chunk_size
+                end = min((i + 1) * chunk_size, len(words))
+                chunk = " ".join(words[start:end])
+                chunks.append(chunk)
+        else:
+            # Sélectionner les sections les plus importantes
+            if len(sections) > num_images:
+                # Prioriser l'introduction, le milieu et la conclusion
+                if num_images >= 3:
+                    selected_indices = [0]  # Introduction
+                    middle_index = len(sections) // 2
+                    selected_indices.append(middle_index)  # Milieu
+                    selected_indices.append(len(sections) - 1)  # Conclusion
+                    
+                    # Ajouter d'autres sections si nécessaire
+                    remaining = num_images - 3
+                    step = (len(sections) - 3) // (remaining + 1) if remaining > 0 else 0
+                    
+                    additional_indices = []
+                    for i in range(1, remaining + 1):
+                        idx = i * step
+                        if idx not in selected_indices:
+                            additional_indices.append(idx)
+                    
+                    selected_indices.extend(additional_indices)
+                    selected_indices.sort()
+                    
+                    chunks = [sections[i] for i in selected_indices[:num_images]]
+                else:
+                    # Si moins de 3 images, prendre les premières sections
+                    chunks = sections[:num_images]
+            else:
+                chunks = sections
+                
+        # Générer des prompts pour Grok
+        prompts = []
+        for i, chunk in enumerate(chunks):
+            # Enrichir le prompt avec des détails pour de meilleures images
+            if i == 0:  # Introduction/thumbnail
+                prompt = f"Crée une image haute qualité pour une vidéo YouTube sur '{title}'. {chunk}. Style professionnel, visuel captivant, parfait pour une miniature YouTube."
+            else:
+                prompt = f"Crée une image illustrative pour la section '{chunk}' d'une vidéo YouTube sur '{title}'. Style cohérent, informatif, adapté au contenu."
+            
+            prompts.append(prompt)
+        
+        # Liste pour stocker les chemins des images
+        image_paths = []
+        
+        # Configuration API Grok
+        GROK_API_KEY = os.getenv("GROK_API_KEY", "xai-EK8htIQn4D1jHQLCkDQqcErMOPVUYmicnGIOMRVBCIprcFXWOiW9dlyC61b8bqGt6aDQu6QnHP4O1yJb")
+        
+        # Enregistrer la clé API dans les variables d'environnement
+        os.environ["GROK_API_KEY"] = GROK_API_KEY
+        
+        # Fonction pour la génération d'images avec Grok
+        def grok_generate_image(prompt):
+            """Génère une image avec l'API Grok."""
+            print(f"Prompt pour Grok: {prompt[:100]}...")
+            
+            try:
+                # Intégration avec l'API de Grok
+                import requests
+                import base64
+                from PIL import Image
+                from io import BytesIO
+                
+                headers = {
+                    "Authorization": f"Bearer {GROK_API_KEY}",
+                    "Content-Type": "application/json"
+                }
+                
+                data = {
+                    "prompt": prompt,
+                    "n": 1,
+                    "size": "1024x1024"
+                }
+                
+                # Endpoint Grok pour la génération d'images
+                response = requests.post(
+                    "https://api.grok-ai.com/v1/images/generations",
+                    headers=headers,
+                    json=data,
+                    timeout=60  # Timeout plus long pour la génération d'images
+                )
+                
+                if response.status_code == 200:
+                    result = response.json()
+                    # Vérifier si 'data' existe dans la réponse
+                    if 'data' in result and isinstance(result['data'], list) and len(result['data']) > 0:
+                        # Vérifier si 'b64_json' existe dans le premier élément de 'data'
+                        if 'b64_json' in result['data'][0]:
+                            image_data = result['data'][0]['b64_json']
+                            
+                            # Convertir base64 en image
+                            image_bytes = base64.b64decode(image_data)
+                            image = Image.open(BytesIO(image_bytes))
+                            
+                            # Générer un nom de fichier pour l'image
+                            image_filename = f"image_{timestamp}_{len(image_paths)}.png"
+                            image_path = os.path.join(images_dir, image_filename)
+                            
+                            # Sauvegarder l'image
+                            image.save(image_path)
+                            print(f"Image générée et sauvegardée à: {image_path}")
+                            
+                            return image_path
+                        elif 'url' in result['data'][0]:
+                            # Certaines API renvoient une URL au lieu de base64
+                            image_url = result['data'][0]['url']
+                            # Télécharger l'image depuis l'URL
+                            img_response = requests.get(image_url, stream=True)
+                            if img_response.status_code == 200:
+                                # Générer un nom de fichier pour l'image
+                                image_filename = f"image_{timestamp}_{len(image_paths)}.png"
+                                image_path = os.path.join(images_dir, image_filename)
+                                
+                                # Sauvegarder l'image
+                                with open(image_path, 'wb') as f:
+                                    for chunk in img_response.iter_content(1024):
+                                        f.write(chunk)
+                                        
+                                print(f"Image téléchargée depuis l'URL et sauvegardée à: {image_path}")
+                                return image_path
+                    
+                    print(f"Format de réponse Grok inattendu: {result}")
+                else:
+                    print(f"Erreur lors de la génération d'image Grok: {response.status_code}")
+                    print(f"Détails: {response.text[:500]}")
+                
+                return None
+                    
+            except Exception as e:
+                print(f"Erreur lors de la génération d'image avec Grok: {e}")
+                import traceback
+                traceback.print_exc()
+                return None
+                
+        # Générer les images pour chaque prompt
+        for i, prompt in enumerate(prompts):
+            try:
+                # Appeler la fonction de génération d'image
+                image_path = grok_generate_image(prompt)
+                
+                if image_path:
+                    image_paths.append(image_path)
+                else:
+                    # Si la génération échoue, créer une image de placeholder
+                    from PIL import Image, ImageDraw, ImageFont
+                    
+                    # Créer une image de base
+                    img = Image.new('RGB', (800, 450), color=(240, 240, 240))
+                    d = ImageDraw.Draw(img)
+                    
+                    # Ajouter du texte
+                    try:
+                        # Essayer de charger une police
+                        font = ImageFont.truetype("arial.ttf", 20)
+                    except:
+                        # Utiliser la police par défaut si arial n'est pas disponible
+                        font = ImageFont.load_default()
+                    
+                    section_text = chunks[i][:80] + "..." if len(chunks[i]) > 80 else chunks[i]
+                    title_text = f"Image {i+1}: {section_text}"
+                    
+                    # Dessiner du texte sur l'image
+                    d.text((40, 200), title_text, fill=(0, 0, 0), font=font)
+                    
+                    # Ajouter un cadre
+                    d.rectangle((20, 20, 780, 430), outline=(200, 200, 200), width=2)
+                    
+                    # Sauvegarder l'image
+                    placeholder_path = os.path.join(images_dir, f"placeholder_{i+1}.png")
+                    img.save(placeholder_path)
+                    
+                    image_paths.append(placeholder_path)
+                    print(f"Image placeholder créée: {placeholder_path}")
+                
+            except Exception as e:
+                print(f"Erreur lors de la génération de l'image {i+1}: {e}")
+                # Continuer avec les autres images
+        
+        print(f"Génération d'images terminée. {len(image_paths)} images générées.")
+        return image_paths
+    except Exception as e:
+        print(f"Erreur générale lors de la génération d'images: {e}")
+        import traceback
+        traceback.print_exc()
+        return []

@@ -10,7 +10,7 @@ import tempfile
 
 # Permet d'importer main.py depuis le dossier parent
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from main import generate_topics, generate_script, save_to_pdf, modify_script_with_ai, estimate_reading_time, fetch_research, extract_sources
+from main import generate_topics, generate_script, save_to_pdf, modify_script_with_ai, estimate_reading_time, fetch_research, extract_sources, generate_images_for_script
 
 # Import des modèles de base de données
 from models import db, User, UserProfile
@@ -1288,6 +1288,58 @@ def generate_direct_script_route():
         import traceback
         traceback.print_exc()
         return jsonify({'error': f'Erreur lors de la génération directe du script: {str(e)}'}), 500
+
+# Route pour générer des images à partir d'un script
+@app.route('/api/generate-images', methods=['POST'])
+def generate_images_route():
+    try:
+        data = request.json
+        script_text = data.get('script', '')
+        title = data.get('title', '')
+        num_images = data.get('num_images', 3)
+        
+        if not script_text:
+            return jsonify({
+                'success': False,
+                'message': 'Le texte du script est requis',
+                'images': []
+            }), 400
+            
+        # Limiter le nombre d'images pour éviter les abus
+        if num_images > 5:
+            num_images = 5
+            
+        # Générer les images
+        image_paths = generate_images_for_script(script_text, title, num_images)
+        
+        # Préparation des URLs pour les images générées
+        base_url = request.url_root.rstrip('/')
+        image_urls = []
+        
+        for i, path in enumerate(image_paths):
+            # Utiliser l'API de téléchargement existante
+            filename = os.path.basename(path)
+            url = f"{base_url}/download/{filename}"
+            image_urls.append({
+                'url': url,
+                'path': path,
+                'index': i+1
+            })
+            
+        return jsonify({
+            'success': True,
+            'message': f'{len(image_paths)} images générées avec succès',
+            'images': image_urls
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Erreur lors de la génération des images: {str(e)}',
+            'images': []
+        }), 500
 
 # Initialiser la base de données et démarrer l'application
 with app.app_context():
