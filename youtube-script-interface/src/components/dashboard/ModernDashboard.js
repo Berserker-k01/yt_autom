@@ -300,10 +300,12 @@ const ModernDashboard = () => {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          script_text: script,
-          title: selectedTopic.title,
-          author: userProfile?.youtuber_name || 'Auteur',
-          channel: userProfile?.channel_name || 'Chaîne YouTube',
+          script: script,
+          profile: {
+            youtuber_name: userProfile?.youtuber_name || 'Auteur',
+            channel_name: userProfile?.channel_name || 'Chaîne YouTube'
+          },
+          topic: selectedTopic.title,
           sources: sources
         })
       });
@@ -322,11 +324,28 @@ const ModernDashboard = () => {
       console.log("Résultat de l'exportation PDF:", result);
       
       // Si le serveur a retourné des données binaires
-      if (result.pdf_data) {
+      if (result.file_data) {
         console.log("Données PDF reçues, préparation du téléchargement...");
-        setPdfData(result.pdf_data);
-        setPdfFileName(result.filename || "script_youtube.pdf");
-        setPdfFileType(result.filetype || "application/pdf");
+        setPdfData(result.file_data);
+        setPdfFileName(result.file_name || "script_youtube.pdf");
+        setPdfFileType(result.file_type || "application/pdf");
+        
+        // Déclencher automatiquement le téléchargement
+        const binary = atob(result.file_data);
+        const array = new Uint8Array(binary.length);
+        for (let i = 0; i < binary.length; i++) {
+          array[i] = binary.charCodeAt(i);
+        }
+        
+        const blob = new Blob([array], { type: result.file_type || 'application/pdf' });
+        const url = URL.createObjectURL(blob);
+        const link = document.createElement('a');
+        link.href = url;
+        link.download = result.file_name || "script_youtube.pdf";
+        document.body.appendChild(link);
+        link.click();
+        URL.revokeObjectURL(url);
+        document.body.removeChild(link);
       } 
       // Si le serveur a retourné une URL vers le fichier
       else if (result.pdf_url) {
