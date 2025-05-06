@@ -11,7 +11,7 @@ load_dotenv()
 
 # Configuration des APIs
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-DEEPSEEK_API_KEY = "sk-c53f5831d24a444584d5afff2f8d0d0d"  # Clé API DeepSeek
+DEEPSEEK_API_KEY = "sk-c53f5831d24a444584d5afff2f8d0d2d"  # Clé API DeepSeek corrigée
 
 # Configuration de Gemini
 genai.configure(api_key=GEMINI_API_KEY)
@@ -698,7 +698,7 @@ Commence directement par le [HOOK] puis enchaîne les sections.
             print(f"Le prompt est trop long ({len(script_prompt)} caractères), réduction pour respecter les limites...")
             # Simplifier le prompt en réduisant les parties moins essentielles
             additional_research_section = ""
-            script_prompt = f"""Tu es un rédacteur professionnel YouTube francophone.
+            script_prompt = f"""Tu es un rédacteur professionnel YouTube.
 Rédige un script vidéo complet sur : "{topic}"
 
 Contexte créateur: {youtuber_name} sur {channel_name}, style {video_style}, pour {target_audience}.
