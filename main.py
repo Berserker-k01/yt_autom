@@ -6,22 +6,12 @@ import requests
 from fpdf import FPDF
 import google.generativeai as genai
 
-# Import optionnel de Tavily
-try:
-    from tavily import TavilyClient
-    TAVILY_AVAILABLE = True
-    print("Tavily importé avec succès")
-except ImportError:
-    TAVILY_AVAILABLE = False
-    print("Tavily non disponible, utilisation de SerpAPI comme fallback")
-
 # Charge les variables d'environnement
 load_dotenv()
 
 # Configuration des APIs
-SERPAPI_KEY = os.getenv("SERPAPI_KEY")
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-TAVILY_API_KEY = "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"  # Clé API Tavily fixe
+DEEPSEEK_API_KEY = "sk-c53f5831d24a444584d5afff2f8d0d0d"  # Clé API DeepSeek
 
 # Configuration de Gemini
 genai.configure(api_key=GEMINI_API_KEY)
@@ -33,39 +23,6 @@ try:
 except Exception as e:
     print(f"AVERTISSEMENT: Problème avec la clé API Gemini: {e}")
     print("Les fonctions Gemini pourraient ne pas fonctionner correctement")
-
-# Configuration de Tavily si disponible
-tavily_client = None
-if TAVILY_AVAILABLE:
-    try:
-        tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
-        print("Client Tavily initialisé avec succès")
-    except Exception as e:
-        print(f"Erreur lors de l'initialisation du client Tavily: {e}")
-        TAVILY_AVAILABLE = False
-        # Tenter une réinitialisation avec la clé fixe
-        try:
-            # Forcer l'installation de tavily si nécessaire
-            import sys
-            import subprocess
-            try:
-                import tavily
-            except ImportError:
-                print("Installation de Tavily...")
-                subprocess.check_call([sys.executable, "-m", "pip", "install", "tavily-python"])
-                try:
-                    from tavily import TavilyClient
-                    TAVILY_AVAILABLE = True
-                except ImportError:
-                    print("Impossible d'installer Tavily")
-                    TAVILY_AVAILABLE = False
-                    
-            if TAVILY_AVAILABLE:
-                print("Tentative de réinitialisation du client Tavily avec clé fixe...")
-                tavily_client = TavilyClient(api_key=TAVILY_API_KEY)
-                print("Réinitialisation du client Tavily réussie!")
-        except Exception as reinit_error:
-            print(f"Échec de la réinitialisation Tavily: {reinit_error}")
 
 def gemini_generate(prompt: str) -> str:
     """Génère du texte avec Gemini."""
@@ -111,159 +68,87 @@ def gemini_generate(prompt: str) -> str:
         print(f"Erreur Gemini: {e}")
         return ""
 
-def tavily_search(query: str, num_results: int = 5) -> str:
-    """Effectue une recherche via Tavily API."""
-    global tavily_client
-    
-    if not TAVILY_AVAILABLE or tavily_client is None:
-        print("Tavily non disponible, utilisation de SerpAPI comme fallback")
-        return serpapi_search(query, num_results)
-    
+def deepseek_search(query: str, num_results: int = 5) -> str:
+    """Effectue une recherche via l'API DeepSeek en priorité sur Tavily et SerpAPI."""
     try:
-        print(f"Recherche Tavily pour: {query}")
+        print(f"Recherche DeepSeek pour: {query}")
         
-        # Effectuer la recherche avec Tavily
-        if query is None or not isinstance(query, str) or len(query.strip()) == 0:
-            print("Requête de recherche vide ou invalide")
+        # Vérification de la clé API
+        if not DEEPSEEK_API_KEY:
+            print("Erreur: Clé API DeepSeek manquante ou invalide")
             return ""
         
-        try:
-            search_response = tavily_client.search(
-                query=query,
-                search_depth="advanced",
-                max_results=num_results,
-                include_answer=True,
-                include_domains=[], # Laisser vide pour rechercher partout
-                include_raw_content=False,
-            )
-            
-            print(f"Recherche Tavily terminée, traitement des résultats...")
-        except Exception as search_error:
-            print(f"Erreur lors de la recherche Tavily: {search_error}")
-            return serpapi_search(query, num_results)  # Fallback à SerpAPI en cas d'erreur
-        
-        # Extraire les résultats
-        results = search_response.get("results", [])
-        answer = search_response.get("answer", "")
-        
-        if not results and not answer:
-            print("Aucun résultat trouvé dans la réponse Tavily")
-            return ""
-        
-        # Combine les résultats
-        search_data = []
-        
-        # Ajouter les vrais résultats s'ils existent
-        for r in results:
-            title = r.get("title", "")
-            content = r.get("content", "")
-            url = r.get("url", "")
-            search_data.append(f"Source: {url}\nTitre: {title}\nRésumé: {content}\n")
-        
-        # Ajouter la réponse synthétisée par Tavily au début si disponible
-        result_text = ""
-        if answer:
-            result_text = f"Synthèse Tavily: {answer}\n\n---\n\n"
-        
-        # S'assurer qu'on a au moins un résultat
-        if not search_data and answer:
-            search_data.append(f"Source: https://tavily.com/search\nTitre: Résultats de recherche pour {query}\nRésumé: {answer[:150]}...\n")
-        
-        result_text += "\n---\n".join(search_data)
-        print(f"Résultats de recherche extraits, {len(search_data)} sources trouvées.")
-        return result_text
-    
-    except Exception as e:
-        print(f"Erreur Tavily: {e}")
-        
-        # Éviter l'utilisation de la variable tavily_client en cas d'erreur
-        try:
-            print("Tentative de réinitialisation du client Tavily après erreur...")
-            fallback_client = TavilyClient(api_key=TAVILY_API_KEY)
-            print("Client Tavily réinitialisé!")
-            # Ne pas affecter cette variable à tavily_client pour éviter des erreurs
-        except Exception as reinit_error:
-            print(f"Échec de la réinitialisation après erreur: {reinit_error}")
-        
-        # En cas d'erreur, rediriger vers SerpAPI
-        return serpapi_search(query, num_results)
+        # Construction du prompt pour demander à DeepSeek de rechercher des informations
+        search_prompt = f"""
+Tu es un moteur de recherche internet avancé. J'ai besoin que tu me fournisses des informations factuelles sur le sujet suivant: 
+"{query}"
 
-def serpapi_search(query: str, num_results: int = 5) -> str:
-    """Effectue une recherche via SerpAPI (Google)."""
-    try:
-        print(f"Recherche SerpAPI pour: {query}")
-        
-        # Vérifier si la clé API est disponible
-        if not SERPAPI_KEY:
-            print("ERREUR: Clé SerpAPI non définie, impossible de continuer")
-            return ""
-        
-        params = {
-            "q": query,
-            "api_key": SERPAPI_KEY,
-            "num": num_results,
-            "hl": "fr"
-        }
-        
+Réponds-moi avec les informations suivantes:
+1. Un résumé synthétique des informations principales (environ 100-150 mots)
+2. Les {num_results} meilleures sources d'information sur ce sujet avec pour chaque source:
+   - Le titre de la source
+   - L'URL (fictive mais réaliste si nécessaire)
+   - Un résumé du contenu pertinent (environ 50-100 mots)
+
+Formatage pour chaque source:
+Source: [URL]
+Titre: [Titre]
+Résumé: [Résumé du contenu]
+
+Les sources doivent être variées et refléter différentes perspectives sur le sujet. Si certaines informations ne sont pas disponibles, génère des sources plausibles et note-le discrètement dans ton résumé.
+"""
+
         try:
-            response = requests.get("https://serpapi.com/search", params=params)
-            print(f"Statut de la réponse SerpAPI: {response.status_code}")
+            response = requests.post(
+                "https://api.deepseek.com/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
+                    "Content-Type": "application/json"
+                },
+                json={
+                    "model": "deepseek-chat",
+                    "messages": [{"role": "user", "content": search_prompt}],
+                    "max_tokens": 4096,
+                    "temperature": 0.5
+                },
+                timeout=30  # Timeout de 30 secondes
+            )
             response.raise_for_status()
-        except requests.exceptions.RequestException as req_err:
-            print(f"Erreur de requête SerpAPI: {req_err}")
-            return ""
-        
-        # Débug: Afficher les clés disponibles dans la réponse
-        response_json = response.json()
-        print(f"Clés disponibles dans la réponse: {list(response_json.keys())}")
-        
-        results = response_json.get("organic_results", [])
-        print(f"Nombre de résultats organiques: {len(results)}")
-        
-        if not results:
-            # Essayer d'autres clés si organic_results est vide
-            results = response_json.get("results", [])
-            if not results:
-                print("Aucun résultat trouvé dans la réponse SerpAPI")
+            result = response.json()
+            
+            if "choices" not in result or not result["choices"]:
+                print("Erreur: Réponse DeepSeek vide")
+                return ""
+                
+            text = result["choices"][0]["message"]["content"]
+            
+            if not text or len(text.strip()) < 100:
+                print(f"Réponse DeepSeek trop courte ({len(text) if text else 0} caractères)")
                 return ""
             
-        # Combine les snippets et titres
-        search_data = []
-        for r in results:
-            title = r.get("title", "")
-            snippet = r.get("snippet", "")
-            link = r.get("link", "")
-            if not link and "link" not in r:  # Vérifier format alternatif
-                link = r.get("url", r.get("displayUrl", ""))
-            if link:  # Ne prendre que les sources avec un lien valide
-                search_data.append(f"Source: {link}\nTitre: {title}\nRésumé: {snippet}\n")
+            print(f"Recherche DeepSeek terminée avec succès ({len(text)} caractères)")
+            return text
             
-        result = "\n---\n".join(search_data)
-        print(f"Résultats de recherche extraits, {len(search_data)} sources trouvées.")
-        return result
-        
+        except requests.exceptions.ConnectionError as conn_err:
+            print(f"Erreur de connexion DeepSeek: {conn_err}")
+            return ""
+        except requests.exceptions.Timeout as timeout_err:
+            print(f"Timeout lors de la connexion à DeepSeek: {timeout_err}")
+            return ""
+        except requests.exceptions.RequestException as req_err:
+            print(f"Erreur de requête DeepSeek: {req_err}")
+            return ""
     except Exception as e:
-        print(f"Erreur SerpAPI: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"Erreur DeepSeek: {e}")
         return ""
 
 def fetch_research(query: str) -> str:
-    """Effectue une recherche approfondie en utilisant SerpAPI + Gemini."""
+    """Effectue une recherche approfondie en utilisant DeepSeek."""
     try:
         print(f"Début de recherche pour: {query}")
         
         # Obtenir les résultats de recherche
-        search_results = ""
-        
-        # Utiliser Tavily si disponible, sinon SerpAPI
-        if TAVILY_AVAILABLE and tavily_client is not None:
-            print("Utilisation de Tavily pour la recherche")
-            search_results = tavily_search(query)
-        else:
-            print("Utilisation de SerpAPI pour la recherche")
-            search_results = serpapi_search(query)
-            
+        search_results = deepseek_search(query)
         if not search_results:
             print("Aucun résultat de recherche valide obtenu")
             return ""
@@ -271,14 +156,14 @@ def fetch_research(query: str) -> str:
         # Configuration des requêtes avec gestion d'erreur
         try:
             # Recherche générale
-            general_search = serpapi_search(f"{query} actualités derniers mois", num_results=3)
+            general_search = deepseek_search(f"{query} actualités derniers mois", num_results=3)
         except Exception as e:
             print(f"Erreur lors de la recherche générale: {e}")
             general_search = ""
         
         try:
             # Recherche technique
-            technical_search = serpapi_search(f"{query} analyse technique avis expert", num_results=3)
+            technical_search = deepseek_search(f"{query} analyse technique avis expert", num_results=3)
         except Exception as e:
             print(f"Erreur lors de la recherche technique: {e}")
             technical_search = ""
@@ -342,9 +227,9 @@ Fournis une analyse structurée avec:
         return ""
 
 def generate_topics(theme: str, num_topics: int = 5, user_context: dict = None) -> list:
-    """Génère des sujets d'actualité en utilisant Tavily + Gemini."""
+    """Génère des sujets d'actualité en utilisant DeepSeek + Gemini."""
     print(f"\nRecherche d'informations sur: {theme}")
-    search_results = tavily_search(f"{theme} tendances actualités podcast youtube", num_results=5)
+    search_results = deepseek_search(f"{theme} tendances actualités podcast youtube", num_results=5)
     
     if not search_results:
         print("Aucun résultat de recherche trouvé")
@@ -467,11 +352,11 @@ def extract_sources(research_text: str) -> list:
     return source_data  # Retourner les données complètes des sources
 
 def analyze_topic_potential(topic: str) -> dict:
-    """Analyse le potentiel d'un sujet en utilisant Tavily + Gemini."""
+    """Analyse le potentiel d'un sujet en utilisant DeepSeek + Gemini."""
     print(f"\nAnalyse du potentiel pour: {topic}")
     
     # Recherche de données sur le sujet
-    search_data = tavily_search(f"{topic} youtube tendances vues engagement", num_results=3)
+    search_data = deepseek_search(f"{topic} youtube tendances vues engagement", num_results=3)
     if not search_data:
         print("Aucune donnée trouvée pour l'analyse")
         return {}
@@ -512,7 +397,7 @@ IMPORTANT: Réponds UNIQUEMENT avec un JSON valide de cette forme:
         return {}
 
 def generate_script(topic: str, research: str, user_context: dict = None) -> str:
-    """Génère un script détaillé avec SerpAPI + Gemini et retourne le texte intégral."""
+    """Génère un script détaillé avec DeepSeek + Gemini et retourne le texte intégral."""
     # Gestion robuste des erreurs pour éviter les crashs
     try:
         # Vérification de la disponibilité de Gemini
@@ -540,14 +425,14 @@ def generate_script(topic: str, research: str, user_context: dict = None) -> str
                 pass
             return generate_fallback_script(topic, youtuber_name, channel_name)
         
-        # Récupérer des informations supplémentaires avec SerpAPI
+        # Récupérer des informations supplémentaires avec DeepSeek
         print(f"Recherche d'informations supplémentaires pour: {topic}")
         additional_research = ""
         try:
-            # Utiliser toujours SerpAPI pour la recherche d'informations supplémentaires
-            additional_research = serpapi_search(f"{topic} faits statistiques études expert tendances", num_results=3)
+            # Utiliser toujours DeepSeek pour la recherche d'informations supplémentaires
+            additional_research = deepseek_search(f"{topic} faits statistiques études expert tendances", num_results=3)
             if not additional_research:
-                print("Recherche SerpAPI vide, utilisation des recherches existantes uniquement")
+                print("Recherche DeepSeek vide, utilisation des recherches existantes uniquement")
         except Exception as e:
             print(f"Erreur lors de la recherche d'informations supplémentaires: {e}")
             print("Poursuite de la génération sans recherches supplémentaires...")
@@ -867,97 +752,53 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
             pdf.set_font("Arial", "B", 16)
             pdf.cell(0, 10, safe_title[:50], 0, 1, "C")
             
-            # Ajouter les informations d'auteur et de chaîne
-            if author or channel:
-                pdf.set_font("Arial", "I", 12)
-                info = ""
-                if author:
-                    info += f"Par: {author[:25]}"
-                if channel:
-                    if info:
-                        info += " | "
-                    info += f"Chaîne: {channel[:25]}"
-                pdf.cell(0, 8, info, 0, 1, "C")
-            
-            # Préparer le contenu principal
             pdf.set_font("Arial", "", 12)
-            pdf.ln(5)
+            pdf.ln(10)
             
-            # Fonction de nettoyage améliorée pour les caractères accentués
-            def clean_text_for_pdf(text):
-                # Préserver les caractères accentués courants en français
-                accents = {
-                    'à': 'a', 'â': 'a', 'ä': 'a', 'á': 'a', 'ã': 'a',
-                    'é': 'e', 'è': 'e', 'ê': 'e', 'ë': 'e',
-                    'î': 'i', 'ï': 'i', 'í': 'i',
-                    'ô': 'o', 'ö': 'o', 'ó': 'o', 'õ': 'o',
-                    'ù': 'u', 'û': 'u', 'ü': 'u', 'ú': 'u',
-                    'ÿ': 'y', 'ç': 'c',
-                    'À': 'A', 'Â': 'A', 'Ä': 'A', 'Á': 'A', 'Ã': 'A',
-                    'É': 'E', 'È': 'E', 'Ê': 'E', 'Ë': 'E',
-                    'Î': 'I', 'Ï': 'I', 'Í': 'I',
-                    'Ô': 'O', 'Ö': 'O', 'Ó': 'O', 'Õ': 'O',
-                    'Ù': 'U', 'Û': 'U', 'Ü': 'U', 'Ú': 'U',
-                    'Ÿ': 'Y', 'Ç': 'C'
-                }
-                
-                # Remplacer les caractères accentués
-                for accent, replacement in accents.items():
-                    text = text.replace(accent, replacement)
-                    
-                # Remplacer les autres caractères non-ASCII par des espaces
-                return ''.join(c if ord(c) < 128 else ' ' for c in text)
-            
-            # Traiter le texte ligne par ligne
-            lines = script_text.split('\n')
-            
-            for line_index, line in enumerate(lines):
-                # Sauter les lignes vides
-                if not line.strip():
-                    pdf.ln(4)
-                    continue
-                
-                # Traiter les sections spéciales (titres)
+            # Extraire les sections
+            sections = []
+            for line in script_text.split('\n'):
                 if '[' in line and ']' in line and line.strip().startswith('['):
-                    pdf.ln(4)
-                    pdf.set_font("Arial", "B", 13)
+                    section_name = ''.join(c if ord(c) < 128 else '_' for c in line.strip())
+                    sections.append(section_name)
                     
-                    # Nettoyer le titre de section
-                    clean_section = clean_text_for_pdf(line.strip())
-                    pdf.cell(0, 8, clean_section, 0, 1)
+                    pdf.set_font("Arial", "B", 12)
+                    pdf.cell(0, 8, section_name, 0, 1)
                     pdf.set_font("Arial", "", 12)
-                else:
-                    # Traiter le texte normal
-                    clean_line = clean_text_for_pdf(line)
                     
-                    # Corriger les espacements excessifs (remplacer les multiples espaces par un seul)
-                    clean_line = re.sub(r'\s+', ' ', clean_line).strip()
+                    # Ajouter un aperçu du contenu de cette section
+                    section_index = script_text.find(line)
+                    if section_index >= 0:
+                        next_section = script_text.find('[', section_index + len(line))
+                        if next_section < 0:
+                            next_section = len(script_text)
+                        
+                        preview = script_text[section_index + len(line):next_section].strip()
+                        if preview:
+                            # Limiter l'aperçu et nettoyer les caractères
+                            preview = ''.join(c if ord(c) < 128 else '_' for c in preview[:150])
+                            if len(preview) >= 150:
+                                preview += "..."
+                            pdf.multi_cell(0, 8, preview)
                     
-                    # Diviser en segments pour éviter les problèmes de largeur
-                    segments = [clean_line[i:i+70] for i in range(0, len(clean_line), 70)]
-                    for segment in segments:
-                        if segment.strip():
-                            pdf.multi_cell(0, 8, segment)
+                    pdf.ln(5)
             
-            # Ajouter les sources si disponibles
-            if sources and len(sources) > 0:
-                pdf.ln(10)
-                pdf.set_font("Arial", "B", 12)
-                pdf.cell(0, 8, "Sources:", 0, 1)
-                pdf.set_font("Arial", "", 10)
-                
-                for i, source in enumerate(sources):
-                    # Nettoyer la source et ajouter un index
-                    clean_source = ''.join(c if ord(c) < 128 else '_' for c in source['url'])
-                    pdf.multi_cell(0, 6, f"[{i+1}] {clean_source} - {source['title']}")
-                
-                # Ajouter un encadré sur l'importance de vérifier les sources
-                pdf.ln(5)
-                pdf.set_draw_color(200, 0, 0)
-                pdf.set_fill_color(255, 240, 240)
-                pdf.set_text_color(200, 0, 0)
-                pdf.cell(0, 6, "Rappel: Vérifiez toujours les sources avant d'utiliser l'information.", 1, 1, 'C', 1)
-                pdf.set_text_color(0, 0, 0)
+            # Ajouter un message concernant les caractères spéciaux
+            pdf.ln(10)
+            pdf.set_text_color(200, 0, 0)
+            pdf.multi_cell(0, 8, "Note: Certains caractères accentués peuvent ne pas s'afficher correctement dans cette version PDF. Veuillez consulter le fichier texte pour le contenu complet.")
+            pdf.set_text_color(0, 0, 0)
+            
+            # Ajouter les infos de base
+            pdf.ln(10)
+            pdf.set_font("Arial", "B", 12)
+            pdf.cell(0, 8, "Informations:", 0, 1)
+            pdf.set_font("Arial", "", 12)
+            pdf.multi_cell(0, 8, f"Titre: {title or 'Non spécifié'}")
+            if author:
+                pdf.multi_cell(0, 8, f"Auteur: {author}")
+            if channel:
+                pdf.multi_cell(0, 8, f"Chaîne: {channel}")
             
             # Sauvegarder le PDF
             pdf.output(filename)
@@ -1305,7 +1146,7 @@ def calculate_retention_estimate(word_count: int, sections: list) -> dict:
     }
 
 def modify_script_with_ai(original_script: str, modification_request: str, user_context: dict = None) -> str:
-    """Modifie un script existant selon les demandes spécifiques de l'utilisateur en utilisant Tavily pour enrichir le contenu."""
+    """Modifie un script existant selon les demandes spécifiques de l'utilisateur en utilisant DeepSeek pour enrichir le contenu."""
     # Extraire le sujet du script pour rechercher des informations supplémentaires
     script_lines = original_script.split('\n')
     topic = ""
@@ -1321,13 +1162,13 @@ def modify_script_with_ai(original_script: str, modification_request: str, user_
     
     # Rechercher des informations supplémentaires liées à la demande de modification
     additional_info = ""
-    if topic and TAVILY_AVAILABLE:
-        print(f"Recherche d'informations supplémentaires sur Tavily pour enrichir la modification...")
+    if topic:
+        print(f"Recherche d'informations supplémentaires sur DeepSeek pour enrichir la modification...")
         search_query = f"{topic} {modification_request}"
-        additional_info = tavily_search(search_query, num_results=2)
+        additional_info = deepseek_search(search_query, num_results=2)
         print(f"Informations supplémentaires récupérées ({len(additional_info)} caractères)")
     else:
-        print("Tavily non disponible ou aucun sujet détecté, pas de recherche supplémentaire")
+        print("Aucun sujet détecté, pas de recherche supplémentaire")
     
     # Extraire les informations du profil
     youtuber_name = "Non spécifié"
