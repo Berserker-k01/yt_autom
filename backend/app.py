@@ -1132,20 +1132,22 @@ def generate_direct_script_route():
         content_style = profile.get('content_style', 'informative')
         
         # Rechercher des informations sur l'idée
+        print(f"Recherche d'informations pour l'idée: {idea[:100]}...")
         research = fetch_research(idea)
         
         if not research:
             print("Aucune recherche trouvée, utilisation d'un contexte minimal.")
             research = f"Idée de vidéo YouTube: {idea}"
+        else:
+            print(f"Recherche récupérée: {len(research)} caractères")
         
         # Extraire les vraies sources depuis la recherche
         from main import extract_sources
         real_sources = extract_sources(research)
-        
-        # Utiliser ces sources pour la génération du script
-        sources = real_sources  # Elles sont maintenant au format { url, title }
+        print(f"Sources extraites: {len(real_sources)}")
         
         # Générer le script avec les informations du profil
+        print(f"Génération du script pour l'idée: {idea[:100]}...")
         script_text = generate_script(idea, research, user_context={
             'youtuber_name': youtuber_name,
             'channel_name': channel_name,
@@ -1159,41 +1161,125 @@ def generate_direct_script_route():
             'custom_options': profile.get('custom_options', {})
         })
         
+        # Si l'idée est très courte, l'utiliser comme titre de base, sinon créer un titre plus concis
+        title = idea if len(idea) < 60 else idea[:57] + "..."
+        
         # Générer le PDF si le script a été généré avec succès
         if script_text:
-            pdf_path = save_to_pdf(script_text, title=idea, author=youtuber_name, channel=channel_name, sources=sources)
+            print(f"Script généré avec succès ({len(script_text)} caractères). Génération du PDF...")
+            
+            # Utiliser exactement la même fonctionnalité de génération PDF que pour la méthode traditionnelle
+            pdf_path = save_to_pdf(
+                script_text, 
+                title=title, 
+                author=youtuber_name, 
+                channel=channel_name, 
+                sources=real_sources
+            )
+            
+            if not pdf_path:
+                print("Échec de la création du PDF.")
+                return jsonify({
+                    'script': script_text,
+                    'sources': real_sources,
+                    'error': 'Échec de la génération du PDF'
+                })
             
             # Assurer que seul le nom du fichier est utilisé, pas le chemin complet
             pdf_filename = os.path.basename(pdf_path)
             
-            # Vérifier que le fichier existe
-            if os.name == 'nt':  # Windows
-                temp_dir = tempfile.gettempdir()
-            else:  # Linux/Render
-                temp_dir = '/tmp'
+            # Préparer le PDF pour le téléchargement
+            try:
+                # Vérifier que le fichier existe
+                if os.name == 'nt':  # Windows
+                    temp_dir = tempfile.gettempdir()
+                else:  # Linux/Render
+                    temp_dir = '/tmp'
+                    
+                # Vérifier si le fichier est accessible dans le répertoire temporaire
+                full_path = os.path.join(temp_dir, pdf_filename)
+                if not os.path.exists(full_path) and os.path.exists(pdf_path):
+                    # Si le fichier existe à l'emplacement original mais pas dans temp_dir
+                    try:
+                        import shutil
+                        shutil.copy2(pdf_path, full_path)
+                        print(f"Fichier copié de {pdf_path} vers {full_path}")
+                        accessible_path = full_path
+                    except Exception as copy_error:
+                        print(f"Erreur lors de la copie du fichier: {copy_error}")
+                        accessible_path = pdf_path
+                else:
+                    accessible_path = full_path if os.path.exists(full_path) else pdf_path
                 
-            full_path = os.path.join(temp_dir, pdf_filename)
-            if not os.path.exists(full_path) and os.path.exists(pdf_path):
-                # Si le fichier existe à l'emplacement original mais pas dans temp_dir
-                try:
-                    import shutil
-                    shutil.copy2(pdf_path, full_path)
-                    print(f"Fichier copié de {pdf_path} vers {full_path}")
-                except Exception as copy_error:
-                    print(f"Erreur lors de la copie du fichier: {copy_error}")
-            
-            # Vérifier que le fichier est maintenant accessible
-            accessible_path = full_path if os.path.exists(full_path) else pdf_path
-            print(f"Chemin accessible pour téléchargement: {accessible_path}")
-            print(f"URL de téléchargement générée: /download/{pdf_filename}")
-            
-            result = {
-                'script': script_text,
-                'pdf_url': f"/download/{pdf_filename}",
-                'sources': real_sources
-            }
-            
-            return jsonify(result)
+                # Vérifier si le fichier est accessible
+                if os.path.exists(accessible_path):
+                    print(f"Fichier PDF accessible à: {accessible_path}")
+                    
+                    # Encoder le PDF en base64 pour permettre le téléchargement direct
+                    try:
+                        import base64
+                        with open(accessible_path, 'rb') as pdf_file:
+                            pdf_content = pdf_file.read()
+                            pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
+                            
+                            if pdf_content.startswith(b'%PDF'):
+                                print("Le contenu du PDF est valide.")
+                                
+                                # Utiliser la même structure de réponse que pour l'exportation PDF standard
+                                return jsonify({
+                                    'script': script_text,
+                                    'sources': real_sources,
+                                    'pdf_url': f"/download/{pdf_filename}",
+                                    'file_data': pdf_base64,
+                                    'file_type': 'application/pdf',
+                                    'file_name': pdf_filename,
+                                    'estimated_reading_time': estimate_reading_time(script_text)
+                                })
+                            else:
+                                print("Le contenu du PDF n'est pas valide.")
+                                # Chercher une version texte
+                                txt_path = accessible_path.replace('.pdf', '.txt')
+                                if os.path.exists(txt_path):
+                                    with open(txt_path, 'rb') as txt_file:
+                                        txt_content = txt_file.read()
+                                        txt_base64 = base64.b64encode(txt_content).decode('utf-8')
+                                        
+                                        return jsonify({
+                                            'script': script_text,
+                                            'sources': real_sources,
+                                            'file_data': txt_base64,
+                                            'file_type': 'text/plain',
+                                            'file_name': pdf_filename.replace('.pdf', '.txt'),
+                                            'estimated_reading_time': estimate_reading_time(script_text)
+                                        })
+                                    
+                    except Exception as encode_error:
+                        print(f"Erreur lors de l'encodage du PDF: {encode_error}")
+                        # Continuer avec l'URL du PDF
+                
+                print(f"URL de téléchargement générée: /download/{pdf_filename}")
+                
+                # Retourner les données comme dans la méthode traditionnelle
+                result = {
+                    'script': script_text,
+                    'pdf_url': f"/download/{pdf_filename}",
+                    'sources': real_sources,
+                    'estimated_reading_time': estimate_reading_time(script_text)
+                }
+                
+                return jsonify(result)
+            except Exception as file_error:
+                print(f"Erreur lors du traitement du fichier PDF: {file_error}")
+                import traceback
+                traceback.print_exc()
+                
+                # Retourner au moins le script et les sources
+                return jsonify({
+                    'script': script_text,
+                    'sources': real_sources,
+                    'error': f'Erreur lors du traitement du PDF: {str(file_error)}',
+                    'estimated_reading_time': estimate_reading_time(script_text)
+                })
         else:
             return jsonify({'error': 'Échec de la génération du script'}), 500
             
@@ -1201,7 +1287,7 @@ def generate_direct_script_route():
         print(f"Erreur lors de la génération directe du script: {str(e)}")
         import traceback
         traceback.print_exc()
-        return jsonify({'error': f'Erreur lors de la génération du script: {str(e)}'}), 500
+        return jsonify({'error': f'Erreur lors de la génération directe du script: {str(e)}'}), 500
 
 # Initialiser la base de données et démarrer l'application
 with app.app_context():

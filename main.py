@@ -774,7 +774,7 @@ Si vous avez apprécié cette vidéo, n'oubliez pas de liker, commenter et vous 
 """
 
 def save_to_pdf(script_text: str, title: str = None, author: str = None, channel: str = None, sources: list = None) -> str:
-    """Version améliorée de sauvegarde en PDF avec support des caractères accentués et affichage des sources."""
+    """Génération améliorée de PDF avec mise en page professionnelle et affichage optimisé des sources."""
     import tempfile
     from fpdf import FPDF
     import re
@@ -831,73 +831,223 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
         except Exception as txt_error:
             print(f"Erreur lors de la création du fichier texte: {txt_error}")
         
-        # Utiliser la bibliothèque fpdf standard pour une compatibilité maximale
+        # Créer une classe personnalisée de PDF avec en-tête et pied de page
+        class ScriptPDF(FPDF):
+            def __init__(self, title=None, author=None, channel=None):
+                super().__init__()
+                self.title = title or "Script YouTube"
+                self.author = author or "YouTuber"
+                self.channel = channel or "Chaîne YouTube"
+                self.sections = []  # Pour stocker les sections pour la table des matières
+                
+            def header(self):
+                # En-tête avec informations
+                self.set_font('Arial', 'B', 10)
+                # Date à droite
+                self.cell(0, 10, f"Généré le: {datetime.now().strftime('%d/%m/%Y')}", 0, 0, 'R')
+                # Titre du script à gauche
+                self.set_xy(10, 10)
+                self.cell(100, 10, self.title[:40] + ('...' if len(self.title) > 40 else ''), 0, 0, 'L')
+                # Ligne de séparation
+                self.line(10, 20, 200, 20)
+                # Positionner après l'en-tête
+                self.set_y(25)
+            
+            def footer(self):
+                # Pied de page avec numérotation et informations de chaîne
+                self.set_y(-15)
+                self.set_font('Arial', 'I', 8)
+                # Numéro de page centré
+                self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+                # Chaîne YouTube à gauche
+                self.set_y(-15)
+                self.cell(60, 10, self.channel[:30], 0, 0, 'L')
+                # Auteur/YouTuber à droite
+                self.set_x(150)
+                self.cell(50, 10, self.author[:20], 0, 0, 'R')
+                
+            def add_section(self, section_name):
+                # Garde en mémoire les sections pour la table des matières
+                self.sections.append((section_name, self.page_no()))
+                
+                # Formatage visuel de la section
+                # Créer un fond pour la section
+                current_y = self.get_y()
+                self.set_fill_color(230, 230, 230)  # Gris clair
+                self.rect(10, current_y, 190, 8, 'F')
+                
+                # Écrire le titre de section
+                self.set_font('Arial', 'B', 12)
+                self.cell(0, 8, section_name, 0, 1, 'L')
+                self.ln(2)
+                self.set_font('Arial', '', 11)
+                
+            def add_table_of_contents(self):
+                # Ajouter une table des matières
+                if not self.sections:
+                    return
+                    
+                self.add_page()
+                self.set_font('Arial', 'B', 16)
+                self.cell(0, 10, "Table des matières", 0, 1, 'C')
+                self.ln(5)
+                
+                self.set_font('Arial', '', 11)
+                for section, page in self.sections:
+                    dots = '.' * max(5, 60 - len(section))
+                    self.cell(0, 8, f"{section} {dots} {page}", 0, 1)
+                
+        # Utiliser la classe personnalisée pour créer le PDF
         try:
-            # Créer un PDF simple mais fonctionnel
-            pdf = FPDF()
+            # Initialiser le PDF
+            pdf = ScriptPDF(title, author, channel)
             pdf.add_page()
             
-            # Ajouter le titre
-            pdf.set_font("Arial", "B", 16)
-            pdf.cell(0, 10, title[:80], 0, 1, "C")
+            # Page de titre
+            pdf.set_font('Arial', 'B', 20)
+            pdf.ln(20)  # Espace après l'en-tête
             
-            # Configuration de la police pour le contenu
-            pdf.set_font("Arial", "", 12)
+            # Limiter le titre à 2 lignes maximum
+            if len(title) > 80:
+                part1 = title[:80]
+                part2 = title[80:160]
+                pdf.cell(0, 10, part1, 0, 1, 'C')
+                pdf.cell(0, 10, part2 + ('...' if len(title) > 160 else ''), 0, 1, 'C')
+            else:
+                pdf.cell(0, 10, title, 0, 1, 'C')
+            
+            # Informations sur le créateur
             pdf.ln(10)
+            pdf.set_font('Arial', 'I', 12)
+            pdf.cell(0, 10, f"Par: {author or 'YouTuber'}", 0, 1, 'C')
+            pdf.cell(0, 10, f"Chaîne: {channel or 'YouTube'}", 0, 1, 'C')
             
-            # Extraire les sections
+            # Date de création
+            pdf.ln(5)
+            pdf.set_font('Arial', '', 10)
+            pdf.cell(0, 10, f"Création: {datetime.now().strftime('%d/%m/%Y')}", 0, 1, 'C')
+            
+            # Nouvelle page pour le contenu
+            pdf.add_page()
+            
+            # Traitement du script
             current_section = ""
-            for line in script_text.split('\n'):
-                # Gestion des sections
+            section_content = ""
+            
+            # Analyser le script ligne par ligne
+            lines = script_text.split('\n')
+            for i, line in enumerate(lines):
+                # Détecter les sections (entre crochets)
                 if '[' in line and ']' in line and line.strip().startswith('['):
+                    # Nouvelle section
                     current_section = line.strip()
-                    pdf.set_font("Arial", "B", 12)
-                    pdf.cell(0, 8, current_section, 0, 1)
-                    pdf.set_font("Arial", "", 12)
-                # Traitement des lignes de texte
-                elif line.strip():
-                    # Nettoyer les caractères spéciaux si nécessaire
-                    clean_line = line.strip()
-                    # Limiter la longueur des lignes
-                    if len(clean_line) > 80:
-                        chunks = [clean_line[i:i+80] for i in range(0, len(clean_line), 80)]
-                        for chunk in chunks:
-                            pdf.multi_cell(0, 6, chunk)
+                    pdf.add_section(current_section)
+                    
+                    # Trouver le contenu de cette section
+                    start_idx = script_text.find(line) + len(line)
+                    next_section_match = re.search(r'\n\s*\[[^\]]+\]', script_text[start_idx:])
+                    if next_section_match:
+                        end_idx = start_idx + next_section_match.start()
                     else:
-                        pdf.multi_cell(0, 6, clean_line)
+                        end_idx = len(script_text)
+                    
+                    # Extraire et formater le contenu de la section
+                    section_text = script_text[start_idx:end_idx].strip()
+                    pdf.multi_cell(0, 5, section_text)
+                    pdf.ln(5)
             
-            # Ajouter les sources au PDF de manière évidente
-            if sources and len(sources) > 0:
-                pdf.ln(10)
-                pdf.set_font("Arial", "B", 14)
-                pdf.cell(0, 10, "SOURCES UTILISÉES", 0, 1)
-                pdf.set_font("Arial", "", 10)
+            # Table des matières (après le contenu pour avoir tous les numéros de page)
+            if pdf.sections:
+                toc_page = pdf.page_no()
+                pdf.add_table_of_contents()
+                pdf.page = toc_page + 1
                 
-                for i, source in enumerate(sources, 1):
-                    # Formater selon le type de source
-                    if isinstance(source, str):
-                        source_text = f"[{i}] {source}"
-                        pdf.multi_cell(0, 6, source_text)
-                    elif isinstance(source, dict):
-                        source_url = source.get('url', 'Pas d\'URL')
-                        source_title = source.get('title', 'Sans titre')
-                        pdf.multi_cell(0, 6, f"[{i}] {source_title}")
-                        # L'URL sur une ligne séparée pour être bien visible
+            # Ajouter les sources au PDF de manière professionnelle
+            if sources and len(sources) > 0:
+                pdf.add_page()
+                pdf.set_font('Arial', 'B', 14)
+                pdf.cell(0, 10, "SOURCES & RÉFÉRENCES", 0, 1, 'C')
+                pdf.ln(5)
+                
+                # Tester pour voir si on peut créer un tableau
+                try:
+                    # Entêtes du tableau
+                    pdf.set_font('Arial', 'B', 10)
+                    pdf.set_fill_color(230, 230, 230)  # Gris clair
+                    pdf.cell(10, 8, "#", 1, 0, 'C', 1)
+                    pdf.cell(80, 8, "Source", 1, 0, 'C', 1)
+                    pdf.cell(100, 8, "URL", 1, 1, 'C', 1)
+                    
+                    pdf.set_font('Arial', '', 9)
+                    for i, source in enumerate(sources, 1):
+                        if isinstance(source, str):
+                            # Cas d'une source string
+                            url = source
+                            title = f"Source {i}"
+                        elif isinstance(source, dict):
+                            # Cas d'une source dictionnaire
+                            url = source.get('url', 'N/A')
+                            title = source.get('title', f"Source {i}")
+                        else:
+                            # Cas autre (peu probable)
+                            url = "Format inconnu"
+                            title = f"Source {i}"
+                            
+                        # Numéro
+                        pdf.cell(10, 8, str(i), 1, 0, 'C')
+                        # Titre
+                        title_display = title[:40] + ('...' if len(title) > 40 else '')
+                        pdf.cell(80, 8, title_display, 1, 0, 'L')
+                        # URL en bleu
                         pdf.set_text_color(0, 0, 255)  # Bleu pour les liens
-                        pdf.multi_cell(0, 6, source_url)
+                        url_display = url[:45] + ('...' if len(url) > 45 else '')
+                        pdf.cell(100, 8, url_display, 1, 1, 'L')
                         pdf.set_text_color(0, 0, 0)  # Revenir au noir
-                    pdf.ln(2)
-            
-            # Ajouter les infos de base à la fin
-            pdf.ln(10)
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 8, "Informations:", 0, 1)
-            pdf.set_font("Arial", "", 12)
-            pdf.multi_cell(0, 6, f"Titre: {title or 'Non spécifié'}")
-            if author:
-                pdf.multi_cell(0, 6, f"Auteur: {author}")
-            if channel:
-                pdf.multi_cell(0, 6, f"Chaîne: {channel}")
+                        
+                    # Page supplémentaire avec les URLs complètes
+                    pdf.add_page()
+                    pdf.set_font('Arial', 'B', 12)
+                    pdf.cell(0, 10, "LIENS COMPLETS", 0, 1, 'C')
+                    pdf.ln(5)
+                    
+                    pdf.set_font('Arial', '', 9)
+                    for i, source in enumerate(sources, 1):
+                        # Extraire l'URL
+                        if isinstance(source, str):
+                            url = source
+                        elif isinstance(source, dict):
+                            url = source.get('url', 'N/A')
+                        else:
+                            url = "Format inconnu"
+                        
+                        # Afficher l'URL complète
+                        pdf.set_text_color(0, 0, 255)  # Bleu pour les liens
+                        pdf.cell(10, 6, f"{i}.", 0, 0)
+                        pdf.multi_cell(180, 6, url)
+                        pdf.set_text_color(0, 0, 0)  # Revenir au noir
+                        pdf.ln(2)
+                    
+                except Exception as e:
+                    # En cas d'échec, utiliser une approche plus simple
+                    print(f"Erreur lors de la création du tableau des sources: {e}")
+                    pdf.ln(5)
+                    pdf.set_font('Arial', '', 10)
+                    
+                    for i, source in enumerate(sources, 1):
+                        if isinstance(source, str):
+                            pdf.cell(10, 6, f"{i}.", 0, 0)
+                            pdf.set_text_color(0, 0, 255)
+                            pdf.multi_cell(180, 6, source)
+                            pdf.set_text_color(0, 0, 0)
+                        elif isinstance(source, dict):
+                            url = source.get('url', 'N/A')
+                            title = source.get('title', f"Source {i}")
+                            
+                            pdf.multi_cell(0, 6, f"{i}. {title}")
+                            pdf.set_text_color(0, 0, 255)
+                            pdf.multi_cell(0, 6, url)
+                            pdf.set_text_color(0, 0, 0)
+                        pdf.ln(2)
             
             # Sauvegarder le PDF
             pdf.output(filename)
@@ -914,380 +1064,77 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
             print(f"Erreur lors de la génération du PDF: {pdf_error}")
             import traceback
             traceback.print_exc()
-            return txt_filename  # En cas d'échec, retourner le chemin du fichier texte
-        
+            
+            # Tentative alternative avec un PDF plus simple
+            try:
+                print("Tentative alternative de génération de PDF...")
+                basic_pdf = FPDF()
+                basic_pdf.add_page()
+                
+                # Titre
+                basic_pdf.set_font("Arial", "B", 16)
+                basic_pdf.cell(0, 10, title[:60], 0, 1, "C")
+                
+                # Informations
+                basic_pdf.set_font("Arial", "I", 12)
+                basic_pdf.cell(0, 10, f"Par: {author or 'Non spécifié'} | Chaîne: {channel or 'Non spécifiée'}", 0, 1, "C")
+                basic_pdf.ln(5)
+                
+                # Contenu du script
+                basic_pdf.set_font("Arial", "", 11)
+                
+                # Extraire et formater les sections
+                for line in script_text.split('\n'):
+                    if '[' in line and ']' in line and line.strip().startswith('['):
+                        # Section
+                        basic_pdf.set_font("Arial", "B", 12)
+                        basic_pdf.cell(0, 8, line, 0, 1)
+                        basic_pdf.set_font("Arial", "", 11)
+                    elif line.strip():
+                        # Contenu
+                        basic_pdf.multi_cell(0, 6, line)
+                
+                # Sources
+                if sources and len(sources) > 0:
+                    basic_pdf.add_page()
+                    basic_pdf.set_font("Arial", "B", 14)
+                    basic_pdf.cell(0, 10, "SOURCES", 0, 1, "C")
+                    basic_pdf.ln(5)
+                    
+                    basic_pdf.set_font("Arial", "", 10)
+                    for i, source in enumerate(sources, 1):
+                        if isinstance(source, str):
+                            basic_pdf.set_text_color(0, 0, 255)
+                            basic_pdf.multi_cell(0, 6, f"{i}. {source}")
+                            basic_pdf.set_text_color(0, 0, 0)
+                        elif isinstance(source, dict):
+                            url = source.get('url', 'N/A')
+                            title = source.get('title', f"Source {i}")
+                            
+                            basic_pdf.multi_cell(0, 6, f"{i}. {title}")
+                            basic_pdf.set_text_color(0, 0, 255)
+                            basic_pdf.multi_cell(0, 6, url)
+                            basic_pdf.set_text_color(0, 0, 0)
+                        basic_pdf.ln(2)
+                
+                # Sauvegarder ce PDF alternatif
+                alt_filename = os.path.join(temp_dir, f"{safe_title}_alt_{timestamp}.pdf")
+                basic_pdf.output(alt_filename)
+                
+                if os.path.exists(alt_filename) and os.path.getsize(alt_filename) > 100:
+                    print(f"PDF alternatif généré avec succès: {alt_filename}")
+                    return alt_filename
+                else:
+                    print(f"Échec de la génération du PDF alternatif")
+                    return txt_filename
+                    
+            except Exception as alt_error:
+                print(f"Erreur lors de la génération du PDF alternatif: {alt_error}")
+                traceback.print_exc()
+                return txt_filename
+                
     except Exception as e:
         print(f"Erreur générale lors de la sauvegarde: {e}")
         import traceback
         traceback.print_exc()
-        return ""
-
-def save_as_text(script: dict, filename: str):
-    """Sauvegarde le script en format texte si le PDF échoue."""
-    with open(filename, 'w', encoding='utf-8') as f:
-        f.write(f"{'='*50}\n")
-        f.write(f"TITRE: {script.get('title', '')}\n")
-        f.write(f"{'='*50}\n\n")
-        
-        f.write("INFORMATIONS GÉNÉRALES\n")
-        metadata = script.get("metadata", {})
-        for key, value in metadata.items():
-            f.write(f"{key.replace('_', ' ').title()}: {value}\n")
-        
-        f.write("\nPRÉ-PRODUCTION\n")
-        pre_prod = script.get("pre_production", {})
-        for key, value in pre_prod.items():
-            f.write(f"{key.replace('_', ' ').title()}: {value}\n")
-        
-        f.write("\nSCRIPT DÉTAILLÉ\n")
-        for section in script.get("script_sections", []):
-            f.write(f"\n{section.get('section_title', '')}\n")
-            f.write(f"Durée: {section.get('duration', '')}\n")
-            f.write(f"Contenu:\n{section.get('content', '')}\n")
-            if section.get("notes"):
-                f.write("Notes:\n")
-                for note in section["notes"]:
-                    f.write(f"- {note}\n")
-            if section.get("visuals"):
-                f.write("Visuels:\n")
-                for visual in section["visuals"]:
-                    f.write(f"- {visual}\n")
-        
-        f.write("\nMARKETING ET PROMOTION\n")
-        marketing = script.get("marketing", {})
-        for key, value in marketing.items():
-            f.write(f"{key.replace('_', ' ').title()}: {value}\n")
-
-def run_workflow(theme: str = None) -> list:
-    """Exécute le workflow complet de génération de script."""
-    if not theme:
-        theme = input("Entrez votre thème (ex: Tech et Innovation): ")
-    
-    print(f"\nGénération de sujets pour le thème: {theme}")
-    topics = generate_topics(theme)
-    
-    if not topics:
-        print("\nÉchec de la génération des sujets")
-        return []
-    
-    print("\nSujets suggérés:\n")
-    analyzed_topics = []
-    
-    for i, topic_data in enumerate(topics, 1):
-        print(f"{i}. {topic_data['title']}")
-        print(f"   Angle: {topic_data['angle']}")
-        print(f"   Pourquoi: {topic_data['why_interesting']}")
-        
-        # Afficher les sources pour ce sujet
-        if 'sources' in topic_data and topic_data['sources']:
-            print(f"   Sources ({len(topic_data['sources'])}):") 
-            for j, source in enumerate(topic_data['sources'], 1):
-                print(f"      [{j}] {source['url']} - {source['title']}")
-        print()  # Ligne vide pour la lisibilité
-        
-        # Analyse le potentiel du sujet
-        potential = analyze_topic_potential(topic_data['title'])
-        topic_data['potential'] = potential
-        analyzed_topics.append(topic_data)
-    
-    return topics  # Retourne la liste originale pour préserver l'ordre
-
-def main():
-    """Point d'entrée principal."""
-    theme = input("Entrez votre thème (ex: Tech et Innovation): ")
-    topics = run_workflow(theme=theme)
-    
-    if not topics:
-        return
-    
-    print("\nVoulez-vous générer un script pour l'un de ces sujets ? (1-5, ou 'n' pour quitter)")
-    choice = input("> ")
-    
-    if choice.lower() == 'n':
-        return
-        
-    try:
-        index = int(choice) - 1
-        if 0 <= index < len(topics):
-            selected_topic = topics[index]
-            print(f"\nGénération du script pour: {selected_topic['title']}")
-            
-            # Recherche approfondie sur le sujet
-            research = fetch_research(selected_topic['title'])
-            if not research:
-                print("Aucune recherche trouvée, utilisation d'un contexte de test.")
-                research = f"Contexte fictif pour test: {selected_topic['title']} est un sujet important qui touche à de multiples domaines et intéresse beaucoup de personnes aujourd'hui."
-                
-            # Génération du script
-            script_text = generate_script(selected_topic['title'], research)
-            print(f"DEBUG: Longueur du script généré: {len(script_text)} caractères")
-            
-            if not script_text:
-                print("Aucun script généré, utilisation d'un script de secours.")
-                script_text = f"""[HOOK]
-Bienvenue à cette vidéo sur {selected_topic['title']}! Aujourd'hui nous allons explorer ce sujet fascinant.
-
-[INTRODUCTION]
-Le sujet de {selected_topic['title']} est plus important que jamais. Dans cette vidéo, nous allons voir pourquoi et comment cela nous affecte tous.
-
-[PARTIE 1]
-Commençons par comprendre les bases. Ce sujet touche plusieurs aspects de notre quotidien...
-
-[PARTIE 2]
-Maintenant que nous avons les bases, explorons plus en détail les différentes facettes de ce sujet...
-
-[PARTIE 3]
-Voyons maintenant comment ces connaissances peuvent être appliquées dans la vie quotidienne.
-
-[CONCLUSION]
-En résumé, nous avons vu que {selected_topic['title']} est un domaine riche en possibilités et en défis. J'espère que cette vidéo vous a donné un bon aperçu du sujet et vous a inspiré à en apprendre davantage.
-
-Si vous avez apprécié cette vidéo, n'oubliez pas de liker, commenter et vous abonner pour ne manquer aucun contenu. Merci d'avoir regardé, et à bientôt pour une nouvelle vidéo !
-"""
-                
-            # Récupération des sources
-            sources = selected_topic.get('sources', [])
-            
-            # Génération du PDF avec les sources
-            filename = save_to_pdf(script_text, title=selected_topic['title'], author="Auteur Inconnu", channel="Chaîne Inconnue", sources=sources)
-            if filename:
-                print(f"\nScript généré et sauvegardé: {filename}")
-                print(f"Sources incluses dans le PDF: {len(sources)}")
-            else:
-                print("\nÉchec de la génération du PDF")
-            
-        else:
-            print("Choix invalide - Veuillez entrer un nombre entre 1 et", len(topics))
-            
-    except ValueError:
-        print("Entrée invalide - Veuillez entrer un nombre ou 'n' pour quitter")
-
-def estimate_reading_time(script: str) -> dict:
-    """Estime le temps de lecture d'un script et fournit une analyse détaillée."""
-    # Analyse du texte
-    words = script.split()
-    word_count = len(words)
-    
-    # Analyse des sections
-    sections = []
-    current_section = {"title": "Sans titre", "text": "", "start_pos": 0}
-    lines = script.split('\n')
-    
-    for line_num, line in enumerate(lines):
-        if '[' in line and ']' in line and line.strip().startswith('['):
-            # Si on a trouvé une nouvelle section et qu'on a déjà du texte, on sauvegarde la section précédente
-            if current_section["text"]:
-                section_words = len(current_section["text"].split())
-                current_section["word_count"] = section_words
-                current_section["estimated_time"] = round(section_words / 150 * 60)  # secondes
-                sections.append(current_section)
-            
-            # Nouvelle section
-            section_title = line.strip()
-            current_section = {
-                "title": section_title,
-                "text": "",
-                "start_pos": line_num,
-                "line_num": line_num
-            }
-        else:
-            # Ajouter à la section courante
-            current_section["text"] += line + " "
-    
-    # Ajouter la dernière section
-    if current_section["text"]:
-        section_words = len(current_section["text"].split())
-        current_section["word_count"] = section_words
-        current_section["estimated_time"] = round(section_words / 150 * 60)  # secondes
-        sections.append(current_section)
-    
-    # Calcul du temps total (150 mots/min est la vitesse moyenne de parole)
-    total_seconds = round(word_count / 150 * 60)
-    minutes, seconds = divmod(total_seconds, 60)
-    
-    # Calcul de la répartition du temps
-    total_minutes = max(1, round(total_seconds / 60))
-    
-    # Analyse avancée
-    sentence_count = len([s for s in script.replace('!', '.').replace('?', '.').split('.') if s.strip()])
-    avg_sentence_length = word_count / max(1, sentence_count)
-    
-    # Formatage pour l'affichage
-    formatted_time = f"{minutes:02d}:{seconds:02d}"
-    
-    return {
-        "total_words": word_count,
-        "total_sentences": sentence_count,
-        "avg_sentence_length": round(avg_sentence_length, 1),
-        "total_seconds": total_seconds,
-        "formatted_time": formatted_time,
-        "minutes": int(minutes),
-        "seconds": int(seconds),
-        "sections": sections,
-        "sections_count": len(sections),
-        "estimated_retention": calculate_retention_estimate(word_count, sections)
-    }
-
-def calculate_retention_estimate(word_count: int, sections: list) -> dict:
-    """Calcule une estimation approximative de la rétention d'audience basée sur des métriques YouTube standards."""
-    # Heuristiques basées sur des statistiques YouTube
-    
-    # Indice de base selon la longueur (plus c'est long, plus la rétention diminue en moyenne)
-    base_retention = 95 - min(40, (word_count / 150 * 60) / 60 * 10)
-    
-    # Bonus structurel (plus il y a de sections bien délimitées, meilleure est la rétention)
-    sections_bonus = min(5, len(sections) * 0.5)
-    
-    # Check si le script a un hook et une conclusion clairs
-    has_hook = any("hook" in section["title"].lower() for section in sections)
-    has_conclusion = any("conclusion" in section["title"].lower() for section in sections)
-    hook_bonus = 3 if has_hook else 0
-    conclusion_bonus = 2 if has_conclusion else 0
-    
-    # Calculer le score final (clamp entre 30% et 85%)
-    retention_score = base_retention + sections_bonus + hook_bonus + conclusion_bonus
-    retention_score = max(30, min(85, retention_score))
-    
-    return {
-        "percentage": round(retention_score),
-        "factors": {
-            "base_retention": round(base_retention, 1),
-            "sections_bonus": round(sections_bonus, 1),
-            "hook_bonus": hook_bonus,
-            "conclusion_bonus": conclusion_bonus
-        }
-    }
-
-def modify_script_with_ai(original_script: str, modification_request: str, user_context: dict = None) -> str:
-    """Modifie un script existant selon les demandes spécifiques de l'utilisateur en utilisant DeepSeek pour enrichir le contenu."""
-    # Extraire le sujet du script pour rechercher des informations supplémentaires
-    script_lines = original_script.split('\n')
-    topic = ""
-    for line in script_lines[:10]:  # Regarder dans les 10 premières lignes pour trouver le sujet
-        if ("[HOOK]" in line or "[INTRODUCTION]" in line) and len(line) > 10:
-            topic = line.replace("[HOOK]", "").replace("[INTRODUCTION]", "").strip()
-            break
-    
-    if not topic and len(script_lines) > 0:
-        topic = script_lines[0].strip()
-    
-    print(f"Sujet détecté pour la recherche: {topic}")
-    
-    # Rechercher des informations supplémentaires liées à la demande de modification
-    additional_info = ""
-    if topic:
-        print(f"Recherche d'informations supplémentaires sur DeepSeek pour enrichir la modification...")
-        search_query = f"{topic} {modification_request}"
-        additional_info = deepseek_search(search_query, num_results=2)
-        print(f"Informations supplémentaires récupérées ({len(additional_info)} caractères)")
-    else:
-        print("Aucun sujet détecté, pas de recherche supplémentaire")
-    
-    # Extraire les informations du profil
-    youtuber_name = "Non spécifié"
-    channel_name = "Non spécifié"
-    video_style = "Non spécifié"
-    approach_style = "Non spécifié"
-    target_audience = "Non spécifié"
-    language = "français"
-    content_type = "général"
-    custom_options = {}
-    
-    # Construction du prompt avec le contexte utilisateur si disponible
-    user_context_str = ""
-    if user_context:
-        youtuber_name = user_context.get('youtuber_name', 'Non spécifié')
-        channel_name = user_context.get('channel_name', 'Non spécifié')
-        video_style = user_context.get('video_style', user_context.get('content_style', 'Non spécifié'))
-        approach_style = user_context.get('approach_style', user_context.get('tone', 'professionnel'))
-        target_audience = user_context.get('target_audience', user_context.get('audience_age', 'adultes'))
-        language = user_context.get('language', 'français')
-        content_type = user_context.get('content_type', 'général')
-        custom_options = user_context.get('custom_options', {})
-        
-        user_context_str = f"""
-Informations sur le créateur:
-- Nom de la chaîne: {channel_name}
-- Nom du YouTubeur: {youtuber_name}
-- Langue principale: {language}
-- Type de contenu: {content_type}
-- Style vidéo préféré: {video_style}
-- Approche habituelle: {approach_style}
-- Public cible: {target_audience}
-"""
-        
-        # Ajouter les options personnalisées si présentes
-        if custom_options and len(custom_options) > 0:
-            user_context_str += "\nPréférences personnalisées du créateur:\n"
-            for key, value in custom_options.items():
-                user_context_str += f"- {key}: {value}\n"
-    
-    # Personnalisation supplémentaire basée sur le profil
-    style_guidance = ""
-    if video_style and video_style.lower() != "non spécifié":
-        if "informatif" in video_style.lower():
-            style_guidance = "Garde un ton informatif et factuel. Assure-toi que les explications sont claires et pédagogiques."
-        elif "divertissant" in video_style.lower():
-            style_guidance = "Maintiens un ton énergique et divertissant. N'hésite pas à utiliser l'humour et des anecdotes engageantes."
-        elif "tutoriel" in video_style.lower():
-            style_guidance = "Conserve une structure claire avec des étapes bien définies. Assure-toi que les instructions sont précises."
-        elif "vlog" in video_style.lower():
-            style_guidance = "Garde le style conversationnel et personnel du script. Assure-toi que ça semble naturel et authentique."
-            
-    # Personnalisation pour l'audience
-    audience_guidance = ""
-    if target_audience and target_audience.lower() != "non spécifié":
-        if "enfant" in target_audience.lower() or "jeune" in target_audience.lower():
-            audience_guidance = "Garde un langage simple et des explications accessibles pour un jeune public."
-        elif "professionnel" in target_audience.lower() or "business" in target_audience.lower():
-            audience_guidance = "Maintiens un vocabulaire professionnel et des exemples pertinents pour un public d'affaires."
-        elif "expert" in target_audience.lower():
-            audience_guidance = "Aborde des concepts avancés sans simplifier excessivement."
-    
-    # Assurer les mentions de marque
-    branding_guidance = ""
-    if youtuber_name and youtuber_name.lower() != "non spécifié" and channel_name and channel_name.lower() != "non spécifié":
-        branding_guidance = f"Assure-toi que les références au créateur ('{youtuber_name}') et à la chaîne ('{channel_name}') sont correctement maintenues dans le script."
-    
-    # Adapter le prompt en fonction de la disponibilité des informations supplémentaires
-    additional_info_section = ""
-    if additional_info:
-        additional_info_section = f"""
-INFORMATIONS SUPPLÉMENTAIRES POUR ENRICHIR LE CONTENU:
-{additional_info}
-"""
-    
-    # Prompt de modification de script
-    modification_prompt = f"""En tant qu'expert en rédaction de scripts YouTube, modifie le script suivant selon cette demande :
-
-DEMANDE DE MODIFICATION:
-{modification_request}
-
-SCRIPT ORIGINAL:
-{original_script}
-
-CONTEXTE CRÉATEUR:
-{user_context_str}
-{additional_info_section}
-
-Instructions:
-1. Conserve la structure en sections (ex: [HOOK], [INTRODUCTION], etc.)
-2. {style_guidance}
-3. {audience_guidance}
-4. {branding_guidance}
-5. Intègre subtilement les nouvelles informations et données pertinentes des recherches supplémentaires
-6. Assure-toi que les transitions restent fluides
-7. Retourne uniquement le script modifié, sans commentaires ni explications
-8. Assure-toi que le script reste captivant et adapté au format YouTube
-9. Cite les sources si pertinent dans le contenu
-10. Conserve ou améliore le call-to-action à la fin (invitation à s'abonner, liker, etc.)
-"""
-
-    print(f"Modification du script avec la demande : {modification_request[:100]}...")
-    response = deepseek_generate(modification_prompt)
-    print(f"Script modifié généré ({len(response)} caractères)")
-    
-    return response
-
-if __name__ == "__main__":
-    main()
+        return txt_filename
