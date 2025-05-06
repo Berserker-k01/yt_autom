@@ -103,6 +103,61 @@ const ScriptViewer = ({
               Télécharger le PDF
             </motion.button>
           )}
+          
+          {/* Bouton de génération d'images */}
+          <motion.button
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            onClick={() => {
+              fetch(`${API_BASE}/api/generate-images`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  script: script,
+                  title: title || 'Script YouTube',
+                  num_images: 3
+                })
+              })
+              .then(res => res.json())
+              .then(data => {
+                if (data.success) {
+                  // Ouvrir les images dans de nouveaux onglets
+                  data.images.forEach(img => {
+                    window.open(img.url, '_blank');
+                  });
+                } else {
+                  alert("Erreur: " + data.message);
+                }
+              })
+              .catch(err => {
+                console.error("Erreur:", err);
+                alert("Erreur lors de la génération des images.");
+              });
+            }}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: darkMode ? 'rgba(124, 58, 237, 0.2)' : 'rgba(124, 58, 237, 0.1)',
+              color: darkMode ? '#a78bfa' : '#7c3aed',
+              border: `1px solid ${darkMode ? 'rgba(124, 58, 237, 0.3)' : 'rgba(124, 58, 237, 0.2)'}`,
+              padding: '10px 16px',
+              borderRadius: '8px',
+              cursor: 'pointer',
+              fontWeight: 500,
+              fontSize: '0.875rem',
+              marginLeft: '12px',
+              transition: 'all 0.2s ease'
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect>
+              <circle cx="8.5" cy="8.5" r="1.5"></circle>
+              <polyline points="21 15 16 10 5 21"></polyline>
+            </svg>
+            Générer des images
+          </motion.button>
         </div>
       </div>
       
