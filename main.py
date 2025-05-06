@@ -1318,204 +1318,53 @@ def generate_images_for_script(script_text: str, title: str = "", num_images: in
         
         print(f"Dossier d'images créé: {images_dir}")
         
-        # Extraire les sections principales du script
-        import re
-        
-        # Trouver toutes les sections entre crochets [SECTION]
-        sections = re.findall(r'\[(.*?)\]', script_text)
-        
-        # Si pas assez de sections, utiliser le texte complet
-        if len(sections) < num_images:
-            print(f"Pas assez de sections trouvées ({len(sections)}), génération basée sur le script complet")
-            # Utiliser des extraits du texte
-            chunks = []
-            words = script_text.split()
-            chunk_size = len(words) // num_images
-            
-            for i in range(num_images):
-                start = i * chunk_size
-                end = min((i + 1) * chunk_size, len(words))
-                chunk = " ".join(words[start:end])
-                chunks.append(chunk)
-        else:
-            # Sélectionner les sections les plus importantes
-            if len(sections) > num_images:
-                # Prioriser l'introduction, le milieu et la conclusion
-                if num_images >= 3:
-                    selected_indices = [0]  # Introduction
-                    middle_index = len(sections) // 2
-                    selected_indices.append(middle_index)  # Milieu
-                    selected_indices.append(len(sections) - 1)  # Conclusion
-                    
-                    # Ajouter d'autres sections si nécessaire
-                    remaining = num_images - 3
-                    step = (len(sections) - 3) // (remaining + 1) if remaining > 0 else 0
-                    
-                    additional_indices = []
-                    for i in range(1, remaining + 1):
-                        idx = i * step
-                        if idx not in selected_indices:
-                            additional_indices.append(idx)
-                    
-                    selected_indices.extend(additional_indices)
-                    selected_indices.sort()
-                    
-                    chunks = [sections[i] for i in selected_indices[:num_images]]
-                else:
-                    # Si moins de 3 images, prendre les premières sections
-                    chunks = sections[:num_images]
-            else:
-                chunks = sections
-                
-        # Générer des prompts pour Grok
-        prompts = []
-        for i, chunk in enumerate(chunks):
-            # Enrichir le prompt avec des détails pour de meilleures images
-            if i == 0:  # Introduction/thumbnail
-                prompt = f"Crée une image haute qualité pour une vidéo YouTube sur '{title}'. {chunk}. Style professionnel, visuel captivant, parfait pour une miniature YouTube."
-            else:
-                prompt = f"Crée une image illustrative pour la section '{chunk}' d'une vidéo YouTube sur '{title}'. Style cohérent, informatif, adapté au contenu."
-            
-            prompts.append(prompt)
-        
-        # Liste pour stocker les chemins des images
+        # Fonction simplifiée : créer directement des images de placeholder
+        # au lieu d'appeler l'API Grok (pour éviter les problèmes de dépendances)
         image_paths = []
         
-        # Configuration API Grok
-        GROK_API_KEY = os.getenv("GROK_API_KEY", "xai-EK8htIQn4D1jHQLCkDQqcErMOPVUYmicnGIOMRVBCIprcFXWOiW9dlyC61b8bqGt6aDQu6QnHP4O1yJb")
-        
-        # Enregistrer la clé API dans les variables d'environnement
-        os.environ["GROK_API_KEY"] = GROK_API_KEY
-        
-        # Fonction pour la génération d'images avec Grok
-        def grok_generate_image(prompt):
-            """Génère une image avec l'API Grok."""
-            print(f"Prompt pour Grok: {prompt[:100]}...")
+        try:
+            # Vérifier si Pillow est disponible
+            from PIL import Image, ImageDraw, ImageFont
             
-            try:
-                # Intégration avec l'API de Grok
-                import requests
-                import base64
-                from PIL import Image
-                from io import BytesIO
+            # Créer des images placeholder
+            for i in range(num_images):
+                # Créer une image de base
+                img = Image.new('RGB', (800, 450), color=(240, 240, 240))
+                d = ImageDraw.Draw(img)
                 
-                headers = {
-                    "Authorization": f"Bearer {GROK_API_KEY}",
-                    "Content-Type": "application/json"
-                }
+                # Ajouter du texte
+                try:
+                    # Essayer de charger une police
+                    font = ImageFont.truetype("arial.ttf", 20)
+                except:
+                    # Utiliser la police par défaut si arial n'est pas disponible
+                    font = ImageFont.load_default()
                 
-                data = {
-                    "prompt": prompt,
-                    "n": 1,
-                    "size": "1024x1024"
-                }
+                # Dessiner du texte sur l'image
+                d.text((40, 200), f"Image {i+1} pour {title}", fill=(0, 0, 0), font=font)
                 
-                # Endpoint Grok pour la génération d'images
-                response = requests.post(
-                    "https://api.grok-ai.com/v1/images/generations",
-                    headers=headers,
-                    json=data,
-                    timeout=60  # Timeout plus long pour la génération d'images
-                )
+                # Ajouter un cadre
+                d.rectangle((20, 20, 780, 430), outline=(200, 200, 200), width=2)
                 
-                if response.status_code == 200:
-                    result = response.json()
-                    # Vérifier si 'data' existe dans la réponse
-                    if 'data' in result and isinstance(result['data'], list) and len(result['data']) > 0:
-                        # Vérifier si 'b64_json' existe dans le premier élément de 'data'
-                        if 'b64_json' in result['data'][0]:
-                            image_data = result['data'][0]['b64_json']
-                            
-                            # Convertir base64 en image
-                            image_bytes = base64.b64decode(image_data)
-                            image = Image.open(BytesIO(image_bytes))
-                            
-                            # Générer un nom de fichier pour l'image
-                            image_filename = f"image_{timestamp}_{len(image_paths)}.png"
-                            image_path = os.path.join(images_dir, image_filename)
-                            
-                            # Sauvegarder l'image
-                            image.save(image_path)
-                            print(f"Image générée et sauvegardée à: {image_path}")
-                            
-                            return image_path
-                        elif 'url' in result['data'][0]:
-                            # Certaines API renvoient une URL au lieu de base64
-                            image_url = result['data'][0]['url']
-                            # Télécharger l'image depuis l'URL
-                            img_response = requests.get(image_url, stream=True)
-                            if img_response.status_code == 200:
-                                # Générer un nom de fichier pour l'image
-                                image_filename = f"image_{timestamp}_{len(image_paths)}.png"
-                                image_path = os.path.join(images_dir, image_filename)
-                                
-                                # Sauvegarder l'image
-                                with open(image_path, 'wb') as f:
-                                    for chunk in img_response.iter_content(1024):
-                                        f.write(chunk)
-                                        
-                                print(f"Image téléchargée depuis l'URL et sauvegardée à: {image_path}")
-                                return image_path
-                    
-                    print(f"Format de réponse Grok inattendu: {result}")
-                else:
-                    print(f"Erreur lors de la génération d'image Grok: {response.status_code}")
-                    print(f"Détails: {response.text[:500]}")
+                # Sauvegarder l'image
+                placeholder_path = os.path.join(images_dir, f"placeholder_{i+1}.png")
+                img.save(placeholder_path)
                 
-                return None
-                    
-            except Exception as e:
-                print(f"Erreur lors de la génération d'image avec Grok: {e}")
-                import traceback
-                traceback.print_exc()
-                return None
-                
-        # Générer les images pour chaque prompt
-        for i, prompt in enumerate(prompts):
-            try:
-                # Appeler la fonction de génération d'image
-                image_path = grok_generate_image(prompt)
-                
-                if image_path:
-                    image_paths.append(image_path)
-                else:
-                    # Si la génération échoue, créer une image de placeholder
-                    from PIL import Image, ImageDraw, ImageFont
-                    
-                    # Créer une image de base
-                    img = Image.new('RGB', (800, 450), color=(240, 240, 240))
-                    d = ImageDraw.Draw(img)
-                    
-                    # Ajouter du texte
-                    try:
-                        # Essayer de charger une police
-                        font = ImageFont.truetype("arial.ttf", 20)
-                    except:
-                        # Utiliser la police par défaut si arial n'est pas disponible
-                        font = ImageFont.load_default()
-                    
-                    section_text = chunks[i][:80] + "..." if len(chunks[i]) > 80 else chunks[i]
-                    title_text = f"Image {i+1}: {section_text}"
-                    
-                    # Dessiner du texte sur l'image
-                    d.text((40, 200), title_text, fill=(0, 0, 0), font=font)
-                    
-                    # Ajouter un cadre
-                    d.rectangle((20, 20, 780, 430), outline=(200, 200, 200), width=2)
-                    
-                    # Sauvegarder l'image
-                    placeholder_path = os.path.join(images_dir, f"placeholder_{i+1}.png")
-                    img.save(placeholder_path)
-                    
-                    image_paths.append(placeholder_path)
-                    print(f"Image placeholder créée: {placeholder_path}")
-                
-            except Exception as e:
-                print(f"Erreur lors de la génération de l'image {i+1}: {e}")
-                # Continuer avec les autres images
+                image_paths.append(placeholder_path)
+                print(f"Image placeholder créée: {placeholder_path}")
+        
+        except ImportError:
+            # Si Pillow n'est pas disponible, créer de simples fichiers texte à la place
+            for i in range(num_images):
+                text_path = os.path.join(images_dir, f"image_{i+1}.txt")
+                with open(text_path, 'w') as f:
+                    f.write(f"Ceci est un placeholder pour l'image {i+1} du script '{title}'")
+                image_paths.append(text_path)
+                print(f"Fichier texte placeholder créé: {text_path}")
         
         print(f"Génération d'images terminée. {len(image_paths)} images générées.")
         return image_paths
+        
     except Exception as e:
         print(f"Erreur générale lors de la génération d'images: {e}")
         import traceback
