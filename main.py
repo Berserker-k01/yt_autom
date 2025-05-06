@@ -1138,3 +1138,91 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
         import traceback
         traceback.print_exc()
         return txt_filename
+
+def modify_script_with_ai(script_text: str, instructions: str, profile: dict = None) -> str:
+    """
+    Modifie un script existant en utilisant l'IA selon les instructions fournies.
+    
+    Args:
+        script_text (str): Le texte du script à modifier
+        instructions (str): Les instructions pour guider la modification
+        profile (dict, optional): Profil utilisateur pour personnaliser les modifications
+        
+    Returns:
+        str: Le script modifié
+    """
+    try:
+        print(f"Modification du script avec les instructions: {instructions[:100]}...")
+        
+        # Valider les entrées
+        if not script_text or not instructions:
+            print("Script ou instructions manquants pour la modification")
+            return script_text
+            
+        # Extraire les informations de profil utiles
+        youtuber_name = profile.get('youtuber_name', '') if profile else ''
+        channel_name = profile.get('channel_name', '') if profile else ''
+        content_style = profile.get('content_style', 'informative') if profile else 'informative'
+        
+        # Construire le prompt pour Gemini
+        system_prompt = f"""Tu es un expert en écriture de scripts YouTube.
+        Tu dois modifier le script fourni selon les instructions données.
+        Conserve le style et la structure globale, mais effectue les changements demandés.
+        
+        Style de contenu: {content_style}
+        Chaîne: {channel_name}
+        Créateur: {youtuber_name}
+        
+        Instructions de modification: {instructions}
+        
+        Ne commente pas tes modifications, retourne simplement le script modifié.
+        """
+        
+        # Créer une instance unique de Gemini
+        generation_config = {
+            "temperature": 0.8,
+            "top_p": 0.95,
+            "top_k": 40,
+            "max_output_tokens": 8192,
+        }
+        
+        model = genai.GenerativeModel(
+            model_name="gemini-1.5-pro",
+            generation_config=generation_config
+        )
+        
+        # Combiner le script original et les instructions dans le prompt
+        prompt = f"""
+        INSTRUCTIONS DE MODIFICATION:
+        {instructions}
+        
+        SCRIPT ORIGINAL:
+        {script_text}
+        
+        Fournis le script modifié:
+        """
+        
+        # Générer la réponse
+        response = model.generate_content([system_prompt, prompt])
+        
+        # Extraire le contenu et vérifier s'il est valide
+        if hasattr(response, 'text') and response.text:
+            modified_script = response.text.strip()
+            
+            # Vérifier si la réponse est substantiellement différente
+            if len(modified_script) > len(script_text) * 0.5:
+                print(f"Script modifié avec succès ({len(modified_script)} caractères)")
+                return modified_script
+            else:
+                print("La modification semble incomplète, utilisation du script original")
+                return script_text
+        else:
+            print("Échec de la modification avec Gemini, utilisation du script original")
+            return script_text
+    
+    except Exception as e:
+        print(f"Erreur lors de la modification du script: {e}")
+        import traceback
+        traceback.print_exc()
+        # Retourner le script original en cas d'erreur
+        return script_text
