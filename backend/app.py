@@ -294,27 +294,66 @@ def export_pdf_route():
         if not data:
             return jsonify({'error': 'Aucune donnée reçue'}), 400
             
+        # Accepter les deux formats possibles pour la compatibilité
         script = data.get('script')
+        script_text = data.get('script_text')
         profile = data.get('profile', {})
-        topic = data.get('topic', 'Script YouTube')
+        topic = data.get('topic') or data.get('title', 'Script YouTube')
         sources = data.get('sources', [])
         
-        if not script:
+        # Utiliser l'un ou l'autre format pour le script
+        final_script = script or script_text
+        
+        if not final_script:
             return jsonify({'error': 'Script manquant'}), 400
             
         # Extraire les informations du profil avec les bonnes clés
-        youtuber_name = profile.get('youtuber_name', 'YouTuber')
-        channel_name = profile.get('channel_name', 'Ma Chaîne YouTube')
+        youtuber_name = None
+        channel_name = None
         
-        print(f"Génération du PDF pour {youtuber_name}, chaîne: {channel_name}, sujet: {topic}")
+        # Vérifier si le profil est sous forme de dictionnaire imbriqué ou plat
+        if isinstance(profile, dict):
+            youtuber_name = profile.get('youtuber_name')
+            channel_name = profile.get('channel_name')
+        
+        # Vérifier les champs alternatifs 
+        author = data.get('author')
+        channel = data.get('channel')
+        
+        # Préférer les valeurs du profil, sinon utiliser les champs directs s'ils existent
+        final_youtuber = youtuber_name or author or 'YouTuber'
+        final_channel = channel_name or channel or 'Ma Chaîne YouTube'
+        final_topic = topic or 'Script YouTube'
+        
+        print(f"Génération du PDF pour {final_youtuber}, chaîne: {final_channel}, sujet: {final_topic}")
+        print(f"Nombre de sources: {len(sources)}")
+        
+        # Vérifier la structure des sources et les normaliser si nécessaire
+        normalized_sources = []
+        for source in sources:
+            if isinstance(source, str):
+                # Si c'est simplement une chaîne (URL), créer un dictionnaire
+                normalized_sources.append({
+                    'url': source,
+                    'title': f"Source: {source.split('/')[2] if '/' in source else source}"
+                })
+            elif isinstance(source, dict):
+                # Vérifier que les clés requises sont présentes
+                if 'url' in source:
+                    normalized_sources.append(source)
+                elif 'link' in source:
+                    normalized_sources.append({
+                        'url': source['link'],
+                        'title': source.get('title', f"Source: {source['link']}")
+                    })
         
         # Générer un PDF à partir du script
         pdf_path = save_to_pdf(
-            script,
-            title=topic,
-            author=youtuber_name,
-            channel=channel_name,
-            sources=sources
+            final_script,
+            title=final_topic,
+            author=final_youtuber,
+            channel=final_channel,
+            sources=normalized_sources
         )
         
         if not pdf_path:

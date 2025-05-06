@@ -5,6 +5,7 @@ from datetime import datetime
 import requests
 from fpdf import FPDF
 import google.generativeai as genai
+import re
 
 # Charge les variables d'environnement
 load_dotenv()
@@ -352,7 +353,7 @@ def extract_sources(research_text: str) -> list:
     
     if not research_text:
         print("Aucun texte de recherche fourni pour extraire les sources")
-        return sources
+        return source_data
         
     print(f"Extraction des sources depuis un texte de {len(research_text)} caractères")
     
@@ -388,6 +389,19 @@ def extract_sources(research_text: str) -> list:
                         sources.append(source_url)
                         source_data.append({"url": source_url, "title": title})
                         print(f"Source extraite: {source_url} - {title}")
+    
+    # Extract URLs from the text directly
+    urls = re.findall(r'https?://(?:[-\w.]|(?:%[\da-fA-F]{2}))+[/\w\-._~:/?#[\]@!$&\'()*+,;=]*', research_text)
+    for url in urls:
+        # Clean the URL
+        url = url.strip('.,;:\'\"')
+        if url not in sources:
+            # Generate a title from the URL
+            domain = url.split('/')[2] if len(url.split('/')) > 2 else url
+            title = f"Source depuis {domain}"
+            sources.append(url)
+            source_data.append({"url": url, "title": title})
+            print(f"URL extraite du texte: {url}")
     
     # Si aucune source n'a été trouvée, générer des sources factices
     if not source_data:
@@ -796,166 +810,94 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                 for key, value in metadata.items():
                     f.write(f"{key.replace('_', ' ').title()}: {value}\n")
                 
-                f.write("\nPRÉ-PRODUCTION\n")
-                pre_prod = {}
-                for key, value in pre_prod.items():
-                    f.write(f"{key.replace('_', ' ').title()}: {value}\n")
-                
                 f.write("\nSCRIPT DÉTAILLÉ\n")
                 for section in script_text.split('\n\n'):
                     f.write(f"\n{section}\n")
                 
-                f.write("\nMARKETING ET PROMOTION\n")
-                marketing = {}
-                for key, value in marketing.items():
-                    f.write(f"{key.replace('_', ' ').title()}: {value}\n")
-
                 # Ajouter les sources
                 if sources and len(sources) > 0:
                     f.write("\n\n" + "=" * 50 + "\n")
                     f.write("SOURCES:\n")
                     for i, source in enumerate(sources, 1):
-                        f.write(f"[{i}] {source['url']} - {source['title']}\n")
+                        # Handle both string and dictionary formats
+                        if isinstance(source, str):
+                            f.write(f"[{i}] {source}\n")
+                        elif isinstance(source, dict):
+                            source_url = source.get('url', 'Pas d\'URL')
+                            source_title = source.get('title', 'Sans titre')
+                            f.write(f"[{i}] {source_title} - {source_url}\n")
+
             print(f"Fichier texte de référence créé: {txt_filename}")
         except Exception as txt_error:
             print(f"Erreur lors de la création du fichier texte: {txt_error}")
         
-        # Utilisation de fpdf avec encodage UTF-8
+        # Utiliser la bibliothèque fpdf standard pour une compatibilité maximale
         try:
-            # Définir une classe PDF personnalisée avec support UTF-8
-            class PDF(FPDF):
-                def __init__(self):
-                    super().__init__()
-                    # Ajouter la police Arial avec support UTF-8
-                    self.add_font('DejaVu', '', 'DejaVuSansCondensed.ttf', uni=True)
-                    self.add_font('DejaVu', 'B', 'DejaVuSansCondensed-Bold.ttf', uni=True)
-                
-                def footer(self):
-                    self.set_y(-15)
-                    self.set_font('Arial', 'I', 8)
-                    self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+            # Créer un PDF simple mais fonctionnel
+            pdf = FPDF()
+            pdf.add_page()
             
-            # Vérifier si on peut utiliser les polices DejaVu
-            try:
-                pdf = PDF()
-                has_dejavu = True
-            except Exception:
-                # Si les polices DejaVu ne sont pas disponibles, utiliser une méthode alternative
-                has_dejavu = False
-                
-            # Méthode alternative si DejaVu n'est pas disponible
-            if not has_dejavu:
-                # Créer le PDF avec encodage standard
-                pdf = FPDF()
-                pdf.add_page()
-                
-                # Utiliser Arial standard (limité en caractères accentués)
-                pdf.set_font("Arial", "B", 16)
-            else:
-                # Utiliser DejaVu avec support UTF-8 complet
-                pdf.add_page()
-                pdf.set_font("DejaVu", "B", 16)
-                
             # Ajouter le titre
-            pdf.cell(0, 10, title[:50], 0, 1, "C")
+            pdf.set_font("Arial", "B", 16)
+            pdf.cell(0, 10, title[:80], 0, 1, "C")
             
             # Configuration de la police pour le contenu
-            if has_dejavu:
-                pdf.set_font("DejaVu", "", 12)
-            else:
-                pdf.set_font("Arial", "", 12)
-                
+            pdf.set_font("Arial", "", 12)
             pdf.ln(10)
             
             # Extraire les sections
-            sections = []
+            current_section = ""
             for line in script_text.split('\n'):
+                # Gestion des sections
                 if '[' in line and ']' in line and line.strip().startswith('['):
-                    section_name = line.strip()
-                    sections.append(section_name)
-                    
-                    if has_dejavu:
-                        pdf.set_font("DejaVu", "B", 12)
+                    current_section = line.strip()
+                    pdf.set_font("Arial", "B", 12)
+                    pdf.cell(0, 8, current_section, 0, 1)
+                    pdf.set_font("Arial", "", 12)
+                # Traitement des lignes de texte
+                elif line.strip():
+                    # Nettoyer les caractères spéciaux si nécessaire
+                    clean_line = line.strip()
+                    # Limiter la longueur des lignes
+                    if len(clean_line) > 80:
+                        chunks = [clean_line[i:i+80] for i in range(0, len(clean_line), 80)]
+                        for chunk in chunks:
+                            pdf.multi_cell(0, 6, chunk)
                     else:
-                        pdf.set_font("Arial", "B", 12)
-                        
-                    pdf.cell(0, 8, section_name, 0, 1)
-                    
-                    if has_dejavu:
-                        pdf.set_font("DejaVu", "", 12)
-                    else:
-                        pdf.set_font("Arial", "", 12)
-                    
-                    # Ajouter un aperçu du contenu de cette section
-                    section_index = script_text.find(line)
-                    if section_index >= 0:
-                        next_section = script_text.find('[', section_index + len(line))
-                        if next_section < 0:
-                            next_section = len(script_text)
-                        
-                        preview = script_text[section_index + len(line):next_section].strip()
-                        if preview:
-                            if not has_dejavu:
-                                # Si on n'a pas DejaVu, limiter les caractères spéciaux
-                                preview = ''.join(c if ord(c) < 128 else '_' for c in preview[:200])
-                            else:
-                                # Avec DejaVu, on peut garder tout l'Unicode
-                                preview = preview[:200]
-                                
-                            if len(preview) >= 200:
-                                preview += "..."
-                                
-                            pdf.multi_cell(0, 8, preview)
-                    
-                    pdf.ln(5)
+                        pdf.multi_cell(0, 6, clean_line)
             
-            # Ajouter les sources au PDF
+            # Ajouter les sources au PDF de manière évidente
             if sources and len(sources) > 0:
                 pdf.ln(10)
-                
-                if has_dejavu:
-                    pdf.set_font("DejaVu", "B", 14)
-                else:
-                    pdf.set_font("Arial", "B", 14)
-                    
+                pdf.set_font("Arial", "B", 14)
                 pdf.cell(0, 10, "SOURCES UTILISÉES", 0, 1)
-                
-                if has_dejavu:
-                    pdf.set_font("DejaVu", "", 10)
-                else:
-                    pdf.set_font("Arial", "", 10)
+                pdf.set_font("Arial", "", 10)
                 
                 for i, source in enumerate(sources, 1):
-                    source_text = f"[{i}] {source.get('title', 'Source')} - {source.get('url', '')}"
-                    pdf.multi_cell(0, 6, source_text)
+                    # Formater selon le type de source
+                    if isinstance(source, str):
+                        source_text = f"[{i}] {source}"
+                        pdf.multi_cell(0, 6, source_text)
+                    elif isinstance(source, dict):
+                        source_url = source.get('url', 'Pas d\'URL')
+                        source_title = source.get('title', 'Sans titre')
+                        pdf.multi_cell(0, 6, f"[{i}] {source_title}")
+                        # L'URL sur une ligne séparée pour être bien visible
+                        pdf.set_text_color(0, 0, 255)  # Bleu pour les liens
+                        pdf.multi_cell(0, 6, source_url)
+                        pdf.set_text_color(0, 0, 0)  # Revenir au noir
                     pdf.ln(2)
             
-            # Si on n'a pas utilisé DejaVu, ajouter un message d'avertissement
-            if not has_dejavu:
-                pdf.ln(10)
-                pdf.set_text_color(200, 0, 0)
-                pdf.multi_cell(0, 8, "Note: Certains caractères accentués peuvent ne pas s'afficher correctement dans cette version PDF. Veuillez consulter le fichier texte pour le contenu complet.")
-                pdf.set_text_color(0, 0, 0)
-            
-            # Ajouter les infos de base
+            # Ajouter les infos de base à la fin
             pdf.ln(10)
-            if has_dejavu:
-                pdf.set_font("DejaVu", "B", 12)
-            else:
-                pdf.set_font("Arial", "B", 12)
-                
+            pdf.set_font("Arial", "B", 12)
             pdf.cell(0, 8, "Informations:", 0, 1)
-            
-            if has_dejavu:
-                pdf.set_font("DejaVu", "", 12)
-            else:
-                pdf.set_font("Arial", "", 12)
-                
-            pdf.multi_cell(0, 8, f"Titre: {title or 'Non spécifié'}")
+            pdf.set_font("Arial", "", 12)
+            pdf.multi_cell(0, 6, f"Titre: {title or 'Non spécifié'}")
             if author:
-                pdf.multi_cell(0, 8, f"Auteur: {author}")
+                pdf.multi_cell(0, 6, f"Auteur: {author}")
             if channel:
-                pdf.multi_cell(0, 8, f"Chaîne: {channel}")
+                pdf.multi_cell(0, 6, f"Chaîne: {channel}")
             
             # Sauvegarder le PDF
             pdf.output(filename)
@@ -965,85 +907,14 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                 print(f"PDF généré avec succès: {filename}")
                 return filename
             else:
-                print(f"Problème lors de la génération du PDF: {filename}")
+                print(f"Le PDF généré est trop petit ou invalide: {filename}")
+                return txt_filename
                 
         except Exception as pdf_error:
             print(f"Erreur lors de la génération du PDF: {pdf_error}")
             import traceback
             traceback.print_exc()
-        
-        # Si la première méthode a échoué, essayer avec une méthode plus simple
-        try:
-            print("Tentative de génération du PDF avec une méthode alternative...")
-            
-            # Classe PDF simplifiée
-            class SimplePDF(FPDF):
-                pass
-            
-            pdf = SimplePDF()
-            pdf.add_page()
-            
-            # Ajouter uniquement du texte basique
-            pdf.set_font("Arial", "B", 16)
-            pdf.cell(0, 10, "Script YouTube", 0, 1, "C")
-            
-            pdf.set_font("Arial", "", 12)
-            pdf.ln(10)
-            
-            # Extraire et afficher les sections
-            sections = []
-            current_section = ""
-            for line in script_text.split('\n'):
-                if '[' in line and ']' in line and line.strip().startswith('['):
-                    current_section = line.strip()
-                    pdf.set_font("Arial", "B", 12)
-                    pdf.cell(0, 8, current_section, 0, 1)
-                    pdf.set_font("Arial", "", 12)
-                elif current_section and line.strip():
-                    # Afficher une version simplifiée de chaque ligne
-                    simple_line = ''.join(c if ord(c) < 128 else '_' for c in line[:80])
-                    pdf.multi_cell(0, 6, simple_line)
-            
-            # Ajouter les sources au PDF avec la méthode simple
-            if sources and len(sources) > 0:
-                pdf.ln(10)
-                pdf.set_font("Arial", "B", 14)
-                pdf.cell(0, 10, "SOURCES:", 0, 1)
-                pdf.set_font("Arial", "", 10)
-                
-                for i, source in enumerate(sources, 1):
-                    source_text = f"[{i}] {source.get('title', 'Source')}"
-                    pdf.multi_cell(0, 6, source_text)
-                    # URL sur une nouvelle ligne
-                    pdf.multi_cell(0, 6, source.get('url', ''))
-                    pdf.ln(2)
-            
-            # Ajouter les informations de base
-            pdf.ln(10)
-            pdf.set_font("Arial", "B", 12)
-            pdf.cell(0, 8, "Informations:", 0, 1)
-            pdf.set_font("Arial", "", 12)
-            pdf.multi_cell(0, 8, f"Titre: {title or 'Non spécifié'}")
-            if author:
-                pdf.multi_cell(0, 8, f"Auteur: {author}")
-            if channel:
-                pdf.multi_cell(0, 8, f"Chaîne: {channel}")
-            
-            # Sauvegarder le PDF
-            filename_alt = filename.replace('.pdf', '_alt.pdf')
-            pdf.output(filename_alt)
-            
-            print(f"PDF alternatif généré: {filename_alt}")
-            return filename_alt
-            
-        except Exception as alt_pdf_error:
-            print(f"Erreur lors de la génération du PDF alternatif: {alt_pdf_error}")
-            import traceback
-            traceback.print_exc()
-            
-        # En dernier recours, retourner le nom du fichier texte
-        print(f"La génération du PDF a échoué. Utilisation du fichier texte: {txt_filename}")
-        return txt_filename
+            return txt_filename  # En cas d'échec, retourner le chemin du fichier texte
         
     except Exception as e:
         print(f"Erreur générale lors de la sauvegarde: {e}")
