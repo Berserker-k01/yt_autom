@@ -77,6 +77,8 @@ function Dashboard() {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [editMode, setEditMode] = useState(false); // Nouvel état pour gérer le mode d'édition
   const [isModifyingWithAi, setIsModifyingWithAi] = useState(false); // Pour les modifications avec l'IA
+  const [generatedImages, setGeneratedImages] = useState([]); // Nouvel état pour les images générées
+  const [isGeneratingImages, setIsGeneratingImages] = useState(false); // État pour le chargement des images
 
   // SOLUTION DE CONTOURNEMENT : URL codée en dur pour le déploiement
   const BACKEND_URL_PRODUCTION = 'https://yt-autom.onrender.com';
@@ -386,6 +388,46 @@ function Dashboard() {
       throw e;
     } finally {
       setIsModifyingWithAi(false);
+    }
+  };
+
+  // Fonction pour générer des images basées sur le script
+  const handleGenerateImages = async () => {
+    if (!script || isGeneratingImages) return;
+    
+    setError(null);
+    setIsGeneratingImages(true);
+    
+    try {
+      const res = await fetch(`${API_BASE}/api/generate-images`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          script: script,
+          title: selectedTopic ? selectedTopic.title : 'Script YouTube',
+          num_images: 3
+        })
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Erreur serveur: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Mettre à jour les images générées
+      setGeneratedImages(data.images || []);
+      
+      return data.images;
+    } catch (e) {
+      setError(`Erreur lors de la génération d'images: ${e.message}`);
+      console.error('Erreur complète:', e);
+    } finally {
+      setIsGeneratingImages(false);
     }
   };
 
@@ -1006,6 +1048,20 @@ function Dashboard() {
               <span style={{ marginRight: 6, fontSize: 16 }}>📝</span> 
               Éditer le script
             </button>
+            <button 
+              onClick={handleGenerateImages} 
+              className="btn btn-secondary"
+              style={{ 
+                marginLeft: 18, 
+                padding: '10px 20px', 
+                fontSize: 15,
+                display: 'flex',
+                alignItems: 'center' 
+              }}
+            >
+              <span style={{ marginRight: 6, fontSize: 16 }}>📸</span> 
+              Générer des images
+            </button>
           </div>
           
           {/* Style pour l'animation de brillance */}
@@ -1064,6 +1120,90 @@ function Dashboard() {
             onCancel={handleCancelEdit}
             onAiModify={handleAiModifyScript}
           />
+        </div>
+      )}
+      {generatedImages.length > 0 && (
+        <div style={{ background: 'white', borderRadius: 16, padding: 20, boxShadow: '0 4px 14px rgba(0, 0, 0, 0.1)', marginTop: 25 }}>
+          <h2 style={{ color: '#1e40af', marginBottom: 12, fontSize: 18 }}>
+            <span style={{ marginRight: 6 }}>📸</span> Images générées
+          </h2>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 20, justifyContent: 'center' }}>
+            {generatedImages.map((image, idx) => (
+              <div key={idx} style={{ textAlign: 'center' }}>
+                <img 
+                  src={image.url} 
+                  alt={`Image générée ${idx + 1}`} 
+                  style={{ 
+                    width: 250, 
+                    height: 200, 
+                    borderRadius: 10, 
+                    objectFit: 'cover', 
+                    boxShadow: '0 4px 8px rgba(0,0,0,0.1)',
+                    border: '1px solid #dbeafe'
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'center', marginTop: 8 }}>
+                  <a 
+                    href={image.url}
+                    download={`image_${idx+1}.png`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      background: 'linear-gradient(135deg, #3b82f6, #1e40af)',
+                      color: 'white',
+                      padding: '6px 12px',
+                      borderRadius: 8,
+                      fontSize: 13,
+                      fontWeight: 600,
+                      textDecoration: 'none',
+                      boxShadow: '0 2px 5px rgba(0,0,0,0.1)'
+                    }}
+                  >
+                    <span style={{ marginRight: 5 }}>⬇️</span> Télécharger
+                  </a>
+                </div>
+                <p style={{ 
+                  marginTop: 6, 
+                  fontSize: 14, 
+                  color: '#4b5563',
+                  fontWeight: 500 
+                }}>
+                  Image {idx + 1}
+                </p>
+              </div>
+            ))}
+          </div>
+          <div style={{ 
+            textAlign: 'center', 
+            marginTop: 16, 
+            background: '#f0f9ff', 
+            padding: 10, 
+            borderRadius: 8,
+            border: '1px solid #dbeafe',
+            color: '#1e3a8a',
+            fontSize: 14
+          }}>
+            <p>Ces images sont générées par Grok AI basées sur le contenu de votre script.</p>
+            <p>Elles peuvent être utilisées comme miniatures ou illustrations pour votre vidéo YouTube.</p>
+          </div>
+        </div>
+      )}
+      {isGeneratingImages && (
+        <div style={{ 
+          textAlign: 'center', 
+          marginTop: 20, 
+          padding: 15, 
+          borderRadius: 10, 
+          background: '#eff6ff',
+          border: '1px solid #dbeafe'
+        }}>
+          <div style={{ fontSize: 18, marginBottom: 10, color: '#1e40af' }}>
+            <span role="img" aria-label="loading" style={{ marginRight: 10, fontSize: 24 }}>⏳</span>
+            Génération d'images en cours...
+          </div>
+          <p style={{ color: '#3b82f6' }}>Cela peut prendre jusqu'à 30 secondes.</p>
         </div>
       )}
     </div>
