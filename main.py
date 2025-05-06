@@ -289,11 +289,9 @@ def generate_topics(theme: str, num_topics: int = 5, user_context: dict = None) 
     
     # Extrait les sources des résultats de recherche
     sources = extract_sources(search_results)
-    print(f"\n{len(sources)} sources trouvées:")
-    for i, source in enumerate(sources, 1):
-        print(f"[{i}] {source}")
+    print(f"\n{len(sources)} sources trouvées")
     
-    # Construction du prompt avec le contexte utilisateur si disponible
+    # Construction du contexte utilisateur
     user_context_str = ""
     if user_context and any(user_context.values()):
         user_context_str = f"""
@@ -306,72 +304,127 @@ Informations sur le créateur:
 - Durée vidéo préférée: {user_context.get('video_length', 'Non spécifié')}
 """
     
-    print("\nGénération des sujets avec DeepSeek...")
-    try:
-        # Essayer d'abord DeepSeek
-        prompt = f"""Tu es un expert en création de contenu YouTube francophone, spécialiste de la viralité et de l'actualité.
-Pour le thème "{theme}", propose-moi {num_topics} sujets de vidéos YouTube qui sont :
-- Basés sur les tendances et actualités du moment (actualité très récente, sujets chauds, viraux)
-- Optimisés pour générer un fort engagement sur YouTube (taux de clics, watchtime, partages)
-- Rédigés sans aucune faute d'orthographe ou de grammaire
-- Avec un titre digne des plus grands youtubeurs (accrocheur, original, viral)
-- Avec un angle unique et une justification sur l'intérêt du sujet
+    print("\nGénération des sujets...")
+    
+    # Simplified prompt for better compatibility with DeepSeek
+    prompt = f"""En tant qu'expert en création de contenu YouTube francophone, propose {num_topics} sujets de vidéos sur le thème "{theme}" qui soient tendance et engageants.
+
+Voici les résultats de recherche à exploiter:
+{search_results[:1500]}  
+
 {user_context_str}
-    
-Voici les résultats de recherche à exploiter :
-{search_results}
-    
-IMPORTANT: Ta réponse doit être UNIQUEMENT un objet JSON valide avec cette structure:
+
+Réponds UNIQUEMENT avec un JSON valide où chaque sujet a:
+- "title": titre accrocheur
+- "angle": angle unique
+- "why_interesting": pourquoi c'est pertinent maintenant
+- "key_points": points clés (liste)
+- "target_audience": public cible
+- "estimated_duration": durée estimée en minutes
+
+Format exact:
 {{
-    "topics": [
-        {{
-            "title": "Titre accrocheur format podcast",
-            "angle": "Angle de discussion unique",
-            "why_interesting": "Pourquoi c'est pertinent maintenant",
-            "key_points": ["Points clés à aborder"],
-            "target_audience": "Public cible",
-            "estimated_duration": "Durée estimée en minutes",
-            "potential_guests": ["Experts ou invités potentiels"],
-            "factual_accuracy": "high",
-            "timeliness": "very_recent",
-            "sources": ["sources fiables à citer"]
-        }}
-    ]
+  "topics": [
+    {{
+      "title": "Titre accrocheur",
+      "angle": "Angle unique",
+      "why_interesting": "Pertinence actuelle",
+      "key_points": ["Point 1", "Point 2", "Point 3"],
+      "target_audience": "Public cible",
+      "estimated_duration": "10-15 minutes"
+    }}
+  ]
 }}
+
+N'inclus RIEN d'autre que le JSON."""
     
-Ne génère RIEN d'autre que ce JSON. Pas d'explications, pas de texte avant ou après."""
+    # Essayer DeepSeek d'abord
+    try:
         response = deepseek_generate(prompt)
-        if not response or "topics" not in response:
-            # Si DeepSeek échoue, essayer Gemini comme fallback
-            print("Échec avec DeepSeek, essai avec Gemini...")
+        if not response:
+            print("Pas de réponse de DeepSeek, essai avec Gemini...")
             response = gemini_generate(prompt)
     except Exception as e:
-        print(f"Erreur lors de la génération avec DeepSeek: {e}")
-        # Utiliser Gemini comme fallback
+        print(f"Erreur avec DeepSeek: {e}")
         response = gemini_generate(prompt)
+    
     if not response:
-        print("Erreur: Aucune réponse de Gemini")
+        print("Erreur: Aucune réponse générée")
         return []
-        
+    
+    # Extraire le JSON de la réponse, même s'il est entouré de texte
     try:
-        result = json.loads(response)
-        topics = result.get("topics", [])
-        if not topics:
-            print("Erreur: Aucun sujet trouvé dans la réponse")
-            return []
+        # Chercher un objet JSON dans la réponse
+        json_start = response.find('{')
+        json_end = response.rfind('}') + 1
         
-        # Ajouter les sources à chaque sujet généré
-        sources = extract_sources(search_results)
-        for topic in topics:
-            topic['sources'] = sources
+        if json_start >= 0 and json_end > 0:
+            json_str = response[json_start:json_end]
+            print(f"JSON extrait de la réponse ({len(json_str)} caractères)")
             
-        print(f"\n{len(topics)} sujets générés avec succès")
-        return topics[:num_topics]
-        
+            # Tenter de parser le JSON
+            result = json.loads(json_str)
+            topics = result.get("topics", [])
+            
+            if not topics:
+                print("Aucun sujet trouvé dans le JSON")
+                # Générer des sujets de secours
+                topics = generate_fallback_topics(theme, num_topics)
+            
+            # Ajouter les sources à chaque sujet
+            for topic in topics:
+                topic['sources'] = sources
+            
+            print(f"\n{len(topics)} sujets générés avec succès")
+            return topics[:num_topics]
+        else:
+            print("Aucun JSON trouvé dans la réponse")
+            return generate_fallback_topics(theme, num_topics)
+            
     except json.JSONDecodeError as e:
-        print(f"Erreur: Réponse JSON invalide - {str(e)}")
-        print(f"Début de la réponse reçue: {response[:200]}...")
-        return []
+        print(f"Erreur JSON: {e}")
+        print(f"Début de la réponse: {response[:200]}...")
+        return generate_fallback_topics(theme, num_topics)
+    except Exception as e:
+        print(f"Erreur lors de la génération des sujets: {e}")
+        import traceback
+        traceback.print_exc()
+        return generate_fallback_topics(theme, num_topics)
+
+def generate_fallback_topics(theme: str, num_topics: int = 5) -> list:
+    """Génère des sujets de secours si la génération principale échoue."""
+    print("Génération de sujets de secours...")
+    
+    topics = []
+    base_themes = [
+        "Les dernières tendances",
+        "Comment optimiser",
+        "Top 5 secrets",
+        "L'évolution de",
+        "Ce que personne ne dit sur",
+        "Pourquoi vous devriez connaître",
+        "La révolution du/de la",
+        "Les erreurs à éviter avec"
+    ]
+    
+    import random
+    for i in range(min(num_topics, len(base_themes))):
+        topic = {
+            "title": f"{base_themes[i]} {theme}",
+            "angle": f"Un regard {random.choice(['critique', 'novateur', 'approfondi', 'personnel'])} sur {theme}",
+            "why_interesting": f"Ce sujet est particulièrement d'actualité et permet d'engager votre audience",
+            "key_points": [
+                f"Les fondamentaux de {theme}",
+                f"Comment appliquer ces connaissances",
+                f"Perspectives d'avenir pour {theme}"
+            ],
+            "target_audience": "Votre audience habituelle",
+            "estimated_duration": f"{random.randint(8, 15)}-{random.randint(15, 25)} minutes",
+            "sources": []
+        }
+        topics.append(topic)
+    
+    return topics
 
 def extract_sources(research_text: str) -> list:
     """Extrait les sources depuis un texte de recherche."""
