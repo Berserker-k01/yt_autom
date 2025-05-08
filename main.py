@@ -699,42 +699,82 @@ def generate_script(topic: str, research: str, user_context: dict = None) -> str
     """Génère un script détaillé avec DeepSeek + Gemini et retourne le texte intégral."""
     # Gestion robuste des erreurs pour éviter les crashs
     try:
-        # Vérification de la disponibilité de Gemini
-        gemini_available = True
+        # Définir des variables de secours au cas où
+        youtuber_name = "YouTubeur"
+        channel_name = "Chaîne YouTube"
         try:
-            # Test rapide pour vérifier si l'API est accessible
-            test_response = gemini_generate("Bonjour")
-            if not test_response:
-                print("AVERTISSEMENT: Gemini ne répond pas correctement au test initial")
-                gemini_available = False
-        except Exception as check_error:
-            print(f"ERREUR lors du test de Gemini: {check_error}")
-            gemini_available = False
-            
-        if not gemini_available:
-            print("ÉCHEC d'accès à Gemini - utilisation immédiate du script de secours")
-            # Extraire les informations de base nécessaires pour le script de secours
-            youtuber_name = "YouTubeur"
-            channel_name = "Chaîne YouTube"
+            if user_context:
+                youtuber_name = str(user_context.get('youtuber_name', 'YouTubeur'))
+                channel_name = str(user_context.get('channel_name', 'Chaîne YouTube'))
+        except Exception:
+            pass
+        
+        # Vérification de la disponibilité de Gemini avec une robustesse accrue
+        print("Vérification de la connexion à l'API Gemini...")
+        gemini_available = False
+        retry_count = 0
+        max_retries = 2
+        
+        while not gemini_available and retry_count < max_retries:
             try:
-                if user_context:
-                    youtuber_name = str(user_context.get('youtuber_name', 'YouTubeur'))
-                    channel_name = str(user_context.get('channel_name', 'Chaîne YouTube'))
-            except Exception:
-                pass
+                # Test avec timeout et retry
+                import time
+                time.sleep(1)  # Petit délai entre les tentatives
+                
+                # Test le plus simple possible
+                test_response = model.generate_content("Test").text
+                if test_response and len(test_response) > 0:
+                    print("Connexion à Gemini établie avec succès")
+                    gemini_available = True
+                else:
+                    retry_count += 1
+                    print(f"Tentative {retry_count}/{max_retries} échouée : réponse vide")
+            except Exception as check_error:
+                retry_count += 1
+                print(f"Tentative {retry_count}/{max_retries} échouée : {check_error}")
+                
+        # Si Gemini n'est pas disponible après les tentatives, utiliser le plan B
+        if not gemini_available:
+            print("ÉCHEC d'accès à Gemini - utilisation du script de secours")
             return generate_fallback_script(topic, youtuber_name, channel_name)
         
-        # Récupérer des informations supplémentaires avec DeepSeek
-        print(f"Recherche d'informations supplémentaires pour: {topic}")
+        # Récupérer des informations : essayer d'abord avec la recherche fournie
+        print(f"Traitement des informations pour: {topic}")
+        
+        # Si la recherche fournie est vide ou invalide, en chercher une nouvelle
+        if not research or len(research.strip()) < 100:
+            print("Recherche fournie insuffisante, tentative de récupération de nouvelles données...")
+            try:
+                # Essayer d'abord avec DeepSeek
+                research_attempt = deepseek_search(f"{topic} données complètes informations récentes", num_results=3)
+                if research_attempt and len(research_attempt.strip()) > 200:
+                    research = research_attempt
+                    print("Nouvelles données récupérées avec succès")
+            except Exception as deepseek_err:
+                print(f"Erreur DeepSeek: {deepseek_err}")
+                # Ne pas lever d'exception ici, continuer avec ce qu'on a
+
+        # Dans tous les cas, essayer de récupérer des informations supplémentaires
         additional_research = ""
         try:
-            # Utiliser toujours DeepSeek pour la recherche d'informations supplémentaires
-            additional_research = deepseek_search(f"{topic} faits statistiques études expert tendances", num_results=3)
-            if not additional_research:
-                print("Recherche DeepSeek vide, utilisation des recherches existantes uniquement")
-        except Exception as e:
-            print(f"Erreur lors de la recherche d'informations supplémentaires: {e}")
-            print("Poursuite de la génération sans recherches supplémentaires...")
+            # Utiliser Gemini directement comme source de recherche secondaire si DeepSeek a échoué
+            if not research or len(research.strip()) < 100:
+                simple_research_prompt = f"Donne-moi des informations factuelles sur '{topic}'. Inclus des faits, statistiques et tendances récentes."
+                research = gemini_generate(simple_research_prompt)
+                if research and len(research.strip()) > 100:
+                    print("Informations de base récupérées via Gemini")
+
+            # Essayer d'enrichir avec des données supplémentaires
+            try:
+                additional_prompt = f"Quelles sont les statistiques, faits intéressants et études récentes sur '{topic}'?"
+                additional_research = gemini_generate(additional_prompt)
+                if additional_research and len(additional_research.strip()) > 100:
+                    print("Informations supplémentaires récupérées avec succès")
+            except Exception as add_research_err:
+                print(f"Erreur lors de la recherche d'informations supplémentaires: {add_research_err}")
+        except Exception as research_err:
+            print(f"Erreur lors de la recherche d'informations: {research_err}")
+            # Continuer avec les informations disponibles
         
         # Construction du prompt avec le contexte utilisateur si disponible
         user_context_str = ""

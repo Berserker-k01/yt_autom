@@ -117,6 +117,7 @@ def generate_topics_route():
         data = request.get_json()
         theme = data.get('theme', '')
         profile = data.get('profile', {})
+        generate_images = data.get('generate_images', False)  # Nouveau paramètre pour générer des images
         
         if not theme:
             return jsonify({'error': 'Un thème est requis'}), 400
@@ -139,6 +140,45 @@ def generate_topics_route():
         
         # Sauvegarder dans l'historique avec l'utilisateur si disponible
         save_theme_to_history(theme, youtuber_name)
+        
+        # Si demandé, générer une image d'aperçu pour chaque sujet
+        if generate_images and result:
+            base_url = request.url_root.rstrip('/')
+            for topic in result:
+                try:
+                    # Générer une image pour ce sujet (une seule image par sujet)
+                    title = topic.get('title', '')
+                    if title:
+                        # Utiliser les points clés comme contexte pour l'image
+                        key_points = topic.get('key_points', [])
+                        context_text = "\n".join(key_points) if key_points else title
+                        
+                        # Générer une image avec style approprié au contenu
+                        style = 'moderne'  # par défaut
+                        if 'interview' in title.lower() or 'podcast' in title.lower():
+                            style = 'minimaliste'
+                        elif 'guide' in title.lower() or 'tutoriel' in title.lower():
+                            style = 'coloré'
+                        elif 'analyse' in title.lower() or 'étude' in title.lower():
+                            style = 'sombre'
+                        
+                        # Générer l'image
+                        image_paths = generate_images_for_script(
+                            script_text=context_text,
+                            title=title,
+                            num_images=1,
+                            style=style
+                        )
+                        
+                        # Ajouter l'URL de l'image au résultat
+                        if image_paths and len(image_paths) > 0:
+                            # Utiliser l'API de téléchargement existante
+                            filename = os.path.basename(image_paths[0])
+                            image_url = f"{base_url}/download/{filename}"
+                            topic['preview_image'] = image_url
+                except Exception as img_err:
+                    print(f"Erreur lors de la génération d'image pour le sujet '{title}': {img_err}")
+                    # Continuer même en cas d'erreur
         
         return jsonify({"topics": result})
     except Exception as e:
