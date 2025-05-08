@@ -1034,6 +1034,35 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
     from fpdf import FPDF
     import re
     
+    # Gestion défensive des paramètres
+    if not script_text:
+        print("Erreur: aucun texte de script fourni pour la génération du PDF")
+        return None
+        
+    # Sanitarisation des sources pour éviter les erreurs
+    sanitized_sources = []
+    if sources:
+        for source in sources:
+            try:
+                if isinstance(source, dict):
+                    # Vérifier les clés minimales nécessaires
+                    sanitized_source = {
+                        'url': str(source.get('url', 'N/A')),
+                        'title': str(source.get('title', 'Source sans titre')),
+                        'type': str(source.get('type', 'web'))
+                    }
+                    sanitized_sources.append(sanitized_source)
+                elif source:
+                    # Format string simple
+                    sanitized_sources.append({
+                        'url': str(source),
+                        'title': f"Source: {str(source)[:30]}...",
+                        'type': 'web'
+                    })
+            except Exception as e:
+                print(f"Erreur lors de la sanitarisation d'une source: {e}")
+                # Skip this source
+    
     try:
         # Configuration pour le PDF
         timestamp = datetime.now().strftime("%Y%m%d_%H%M")
@@ -1231,7 +1260,7 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                     
                     # Regrouper les sources par type pour un affichage organisé
                     source_types = {}
-                    for source in sources:
+                    for source in sanitized_sources:
                         if isinstance(source, dict):
                             # Vérifier la structure des sources et s'assurer qu'elle est valide
                             if not source.get('url') and not source.get('title'):
