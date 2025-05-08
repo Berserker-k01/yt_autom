@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { motion } from 'framer-motion';
 import ScriptEditor from '../script/ScriptEditor';
+import Modal from 'react-modal';
 
 // Configuration de l'URL de base de l'API
 const API_BASE = process.env.REACT_APP_API_URL || '';

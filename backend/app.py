@@ -1364,10 +1364,8 @@ def generate_images_route():
             print(f"Format non supporté: {format_image}, utilisation du format par défaut")
             format_image = 'paysage'
             
-        print(f"Génération de {num_images} images en style '{style}', format '{format_image}'")
-        
-        # Générer les images avec les options personnalisées
-        image_paths = generate_images_for_script(
+        # Générer les images avec les options personnalisées et capturer les messages de progression
+        image_paths, progress_messages = generate_images_for_script(
             script_text=script_text, 
             title=title, 
             num_images=num_images,
@@ -1392,7 +1390,8 @@ def generate_images_route():
         return jsonify({
             'success': True,
             'message': f'{len(image_paths)} images générées avec succès',
-            'images': image_urls
+            'images': image_urls,
+            'progress_messages': progress_messages
         })
         
     except Exception as e:
