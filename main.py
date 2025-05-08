@@ -1233,15 +1233,32 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                     source_types = {}
                     for source in sources:
                         if isinstance(source, dict):
-                            source_type = source.get('type', 'web')
+                            # Vérifier la structure des sources et s'assurer qu'elle est valide
+                            if not source.get('url') and not source.get('title'):
+                                # Source incorrecte, la classer comme non-classée
+                                print(f"Source invalide trouvée: {source}")
+                                if 'non-classées' not in source_types:
+                                    source_types['non-classées'] = []
+                                source_types['non-classées'].append({'url': str(source), 'title': 'Source invalide'})
+                                continue
+                                
+                            # Extraire le type de manière sécurisée
+                            source_type = source.get('type', 'web') 
+                            # Protection contre les types manquants ou invalides
+                            if not source_type or not isinstance(source_type, str):
+                                source_type = 'web'
+                                
+                            # S'assurer que la liste pour ce type existe
                             if source_type not in source_types:
                                 source_types[source_type] = []
+                            
+                            # Ajouter la source au type approprié
                             source_types[source_type].append(source)
                         else:
                             # Sources sous forme de chaînes (ancien format)
                             if 'non-classées' not in source_types:
                                 source_types['non-classées'] = []
-                            source_types['non-classées'].append({'url': source, 'title': f"Source {len(source_types['non-classées'])+1}"})
+                            source_types['non-classées'].append({'url': str(source), 'title': f"Source {len(source_types['non-classées'])+1}"})
                     
                     # Définir l'ordre d'affichage des types de sources
                     type_order = ['académique', 'presse', 'encyclopédie', 'article', 'magazine', 'blog', 'web', 'non-classées']
@@ -1281,12 +1298,30 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                             
                             # Afficher chaque source de ce type
                             for source in source_types[source_type]:
-                                # Informations de base de la source
-                                url = source.get('url', 'N/A')
-                                title = source.get('title', f"Source {source_index}")
-                                reliability = source.get('fiabilité', '')
-                                date = source.get('date', '')
-                                summary = source.get('résumé', '')
+                                try:
+                                    # Informations de base de la source avec validation
+                                    url = source.get('url', 'N/A')
+                                    # S'assurer que l'URL est une chaîne
+                                    if not isinstance(url, str):
+                                        url = str(url) if url else 'N/A'
+                                    
+                                    # Sécuriser le titre
+                                    title = source.get('title', f"Source {source_index}")
+                                    if not isinstance(title, str):
+                                        title = str(title) if title else f"Source {source_index}"
+                                    
+                                    # Récupérer les métadonnées additionnelles avec sécurité
+                                    reliability = source.get('fiabilité', '')
+                                    if not isinstance(reliability, str):
+                                        reliability = str(reliability) if reliability else ''
+                                        
+                                    date = source.get('date', '')
+                                    if not isinstance(date, str):
+                                        date = str(date) if date else ''
+                                        
+                                    summary = source.get('résumé', '')
+                                    if not isinstance(summary, str):
+                                        summary = str(summary) if summary else ''
                                 
                                 # Formater l'affichage selon les métadonnées disponibles
                                 # Titre de la source en gras
@@ -1430,22 +1465,13 @@ def estimate_reading_time(script_text: str) -> dict:
         script_text (str): Le texte du script à analyser
         
     Returns:
-        dict: Dictionnaire contenant les estimations de temps (en minutes et secondes)
+        str: Chemin vers le PDF généré
     """
     try:
-        # Valider l'entrée
-        if not script_text:
-            return {
-                'minutes': 0,
-                'seconds': 0,
-                'total_seconds': 0,
-                'word_count': 0
-            }
-            
-        # Nettoyer le texte (supprimer les sections entre [])
-        import re
-        cleaned_text = re.sub(r'\[.*?\]', '', script_text)
-        
+        # Créer un nom de fichier sécurisé
+        safe_title = "".join([c if c.isalnum() or c in " -_" else "_" for c in title])
+        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+        if os.name == 'nt':
         # Compter les mots
         words = cleaned_text.split()
         word_count = len(words)
