@@ -405,7 +405,7 @@ def export_pdf_route():
 # Route pour télécharger un PDF généré
 @app.route('/download/<filename>', methods=['GET'])
 def download_file(filename):
-    """Route pour télécharger un fichier généré (PDF ou texte)."""
+    """Route pour télécharger un fichier généré (PDF, TXT ou image)."""
     try:
         print(f"Demande de téléchargement pour: {filename}")
         
@@ -438,84 +438,63 @@ def download_file(filename):
             basename_parts = basename.split('_')
             if len(basename_parts) > 1:
                 title_part = basename_parts[0]
-                matching_files = [f for f in os.listdir(temp_dir) if title_part in f and (f.endswith('.pdf') or f.endswith('.txt'))]
+                matching_files = [f for f in os.listdir(temp_dir) if title_part in f and (f.endswith('.pdf') or f.endswith('.txt') or f.endswith('.png') or f.endswith('.jpg'))]
                 
                 if matching_files:
                     newest_file = max(matching_files, key=lambda f: os.path.getmtime(os.path.join(temp_dir, f)))
                     file_path = os.path.join(temp_dir, newest_file)
                     print(f" Fichier alternatif trouvé par correspondance partielle: {file_path}")
                 else:
-                    # Si toujours pas trouvé, chercher le fichier PDF le plus récent
-                    pdf_files = [f for f in os.listdir(temp_dir) if f.endswith('.pdf')]
-                    if pdf_files:
-                        newest_pdf = max(pdf_files, key=lambda f: os.path.getmtime(os.path.join(temp_dir, f)))
-                        file_path = os.path.join(temp_dir, newest_pdf)
-                        print(f" Dernier fichier PDF trouvé comme alternative: {file_path}")
+                    # Si toujours pas trouvé, chercher le fichier le plus récent avec les extensions acceptées
+                    all_files = [f for f in os.listdir(temp_dir) if f.endswith('.pdf') or f.endswith('.txt') or f.endswith('.png') or f.endswith('.jpg')]
+                    if all_files:
+                        newest_file = max(all_files, key=lambda f: os.path.getmtime(os.path.join(temp_dir, f)))
+                        file_path = os.path.join(temp_dir, newest_file)
+                        print(f" Dernier fichier trouvé comme alternative: {file_path}")
         
         # Vérifier si le fichier existe après toutes nos tentatives
         if not os.path.exists(file_path):
             print(f" Fichier introuvable après toutes les tentatives: {file_path}")
-            return jsonify({'error': 'Fichier PDF introuvable'}), 404
+            return jsonify({'error': 'Fichier introuvable'}), 404
         
         # Vérifier si le fichier est lisible et valide
         if os.path.getsize(file_path) == 0:
             print(f" Fichier vide: {file_path}")
-            return jsonify({'error': 'Le fichier PDF est vide'}), 500
+            return jsonify({'error': 'Le fichier est vide'}), 500
         
-        # Déterminer si le fichier est un PDF ou un TXT
+        # Déterminer si le fichier est un PDF, TXT ou image
         is_pdf = file_path.lower().endswith('.pdf')
         is_txt = file_path.lower().endswith('.txt')
+        is_image = file_path.lower().endswith(('.png', '.jpg', '.jpeg'))
         
         # Déterminer le nom de fichier à utiliser pour le téléchargement
         filename_base = os.path.splitext(os.path.basename(file_path))[0]
         download_name = f"{filename_base}_YT_Script"
-        download_name += ".pdf" if is_pdf else ".txt"
+        if is_pdf:
+            download_name += ".pdf"
+        elif is_txt:
+            download_name += ".txt"
+        elif is_image:
+            # Conserver l'extension d'origine pour les images
+            ext = os.path.splitext(file_path)[1]
+            download_name += ext
         
         try:
-            # Si c'est un fichier PDF, vérifier qu'il est valide
+            # Envoyer le fichier (qu'il soit PDF, TXT ou image)
             if is_pdf:
-                with open(file_path, 'rb') as f:
-                    header = f.read(10)
-                    
-                    # Si ce n'est pas un PDF valide, chercher une version simplifiée
-                    if not header.startswith(b'%PDF'):
-                        print(f" Fichier non valide comme PDF: {file_path}")
-                        
-                        # Chercher une version PDF simplifiée si elle existe
-                        if "_simplified_" not in filename:
-                            simplified_filename = filename.replace(".pdf", "_simplified_.pdf")
-                            simplified_path = os.path.join(temp_dir, simplified_filename)
-                            if os.path.exists(simplified_path):
-                                print(f" Utilisation de la version simplifiée: {simplified_path}")
-                                return send_file(
-                                    simplified_path,
-                                    as_attachment=True,
-                                    download_name=download_name,
-                                    mimetype='application/pdf'
-                                )
-                        
-                        # Si non, chercher une version texte
-                        txt_path = file_path.replace('.pdf', '.txt')
-                        if os.path.exists(txt_path):
-                            print(f" Utilisation de l'alternative texte: {txt_path}")
-                            return send_file(
-                                txt_path,
-                                as_attachment=True,
-                                download_name=download_name.replace(".pdf", ".txt"),
-                                mimetype='text/plain'
-                            )
-                        else:
-                            # Tenter d'envoyer le fichier PDF même s'il n'est pas valide
-                            print(f" Tentative d'envoi du fichier PDF potentiellement invalide")
-                            return send_file(
-                                file_path,
-                                as_attachment=True,
-                                download_name=download_name,
-                                mimetype='application/pdf'
-                            )
+                mimetype = 'application/pdf'
+            elif is_txt:
+                mimetype = 'text/plain'
+            elif is_image:
+                if file_path.lower().endswith('.png'):
+                    mimetype = 'image/png'
+                elif file_path.lower().endswith(('.jpg', '.jpeg')):
+                    mimetype = 'image/jpeg'
+                else:
+                    mimetype = 'application/octet-stream'
+            else:
+                mimetype = 'application/octet-stream'
             
-            # Envoyer le fichier (qu'il soit PDF ou TXT)
-            mimetype = 'application/pdf' if is_pdf else 'text/plain'
             print(f" Envoi du fichier {file_path} ({os.path.getsize(file_path)} octets)")
             return send_file(
                 file_path,
