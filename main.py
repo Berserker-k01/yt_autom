@@ -1351,6 +1351,10 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                                     summary = source.get('résumé', '')
                                     if not isinstance(summary, str):
                                         summary = str(summary) if summary else ''
+                                        
+                                except Exception as source_err:
+                                    print(f"Erreur lors du traitement de la source: {source_err}")
+                                    continue
                                 
                                 # Formater l'affichage selon les métadonnées disponibles
                                 # Titre de la source en gras
