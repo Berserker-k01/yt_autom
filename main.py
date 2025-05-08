@@ -1642,7 +1642,7 @@ def modify_script_with_ai(script_text: str, instructions: str, profile: dict = N
         # Retourner le script original en cas d'erreur
         return script_text
 
-def generate_images_for_script(script_text: str, title: str = "", num_images: int = 3, style: str = "moderne", format: str = "paysage") -> list:
+def generate_images_for_script(script_text: str, title: str = "", num_images: int = 3, style: str = "moderne", format: str = "paysage") -> tuple:
     """
     Génère des images basées sur le contenu du script avec options avancées.
     
@@ -1654,14 +1654,18 @@ def generate_images_for_script(script_text: str, title: str = "", num_images: in
         format (str): Format des images (paysage, portrait, carré)
         
     Returns:
-        list: Liste des chemins vers les images générées
+        tuple: (Liste des chemins vers les images générées, liste des messages de progression)
     """
+    # Liste pour stocker les messages de progression à afficher dans l'interface
+    progress_messages = []
+    image_paths = []
+    
     try:
-        print(f"Génération de {num_images} images pour le script: {title[:50]}...")
+        progress_messages.append(f"Génération de {num_images} images pour: {title[:50]}...")
         
         if not script_text:
-            print("Aucun script fourni pour la génération d'images")
-            return []
+            progress_messages.append("Aucun script fourni pour la génération d'images")
+            return [], progress_messages
         
         # Créer un dossier pour stocker les images si nécessaire
         import os
@@ -1682,11 +1686,10 @@ def generate_images_for_script(script_text: str, title: str = "", num_images: in
         images_dir = os.path.join(temp_dir, f"script_images_{safe_title}_{timestamp}")
         os.makedirs(images_dir, exist_ok=True)
         
-        print(f"Dossier d'images créé: {images_dir}")
+        progress_messages.append(f"Dossier d'images créé: {images_dir}")
         
         # Fonction améliorée : créer des images plus attrayantes et personnalisées
         # basées sur les paramètres et le contenu du script
-        image_paths = []
         
         try:
             # Vérifier si Pillow est disponible
@@ -1809,7 +1812,7 @@ def generate_images_for_script(script_text: str, title: str = "", num_images: in
                     background.paste(img, (0, 0), None)
                     img = background
                 except Exception as filter_error:
-                    print(f"Info: Effet de filtre non appliqué: {filter_error}")
+                    progress_messages.append(f"Info: Effet de filtre non appliqué: {filter_error}")
                 
                 # Ajouter un numéro d'image discrètement
                 d = ImageDraw.Draw(img)
@@ -1820,17 +1823,16 @@ def generate_images_for_script(script_text: str, title: str = "", num_images: in
                 img.save(placeholder_path, quality=95)
                 
                 image_paths.append(placeholder_path)
-                print(f"Image stylisée créée: {placeholder_path}")
+                progress_messages.append(f"Image stylisée créée: {placeholder_path}")
         
         except ImportError as import_err:
-            print(f"Erreur d'importation de PIL: {import_err}")
-            print("Installation de Pillow pour la génération d'images...")
+            progress_messages.append(f"Installation de Pillow pour la génération d'images...")
             
             # Tenter d'installer Pillow dynamiquement
             try:
                 import subprocess
                 subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pillow'])
-                print("Pillow installé avec succès, nouvelle tentative de génération...")
+                progress_messages.append("Pillow installé avec succès, nouvelle tentative de génération...")
                 
                 # Réessayer après installation
                 try:
@@ -1845,33 +1847,32 @@ def generate_images_for_script(script_text: str, title: str = "", num_images: in
                         placeholder_path = os.path.join(images_dir, f"simple_{i+1}.png")
                         img.save(placeholder_path)
                         image_paths.append(placeholder_path)
-                        print(f"Image de base créée après installation: {placeholder_path}")
+                        progress_messages.append(f"Image de base créée: {placeholder_path}")
                     
                 except Exception as pil_retry_error:
-                    print(f"Échec de la génération après installation: {pil_retry_error}")
+                    progress_messages.append(f"Échec de la génération après installation: {pil_retry_error}")
                     # Fallback vers des fichiers texte
                     for i in range(num_images):
                         text_path = os.path.join(images_dir, f"image_{i+1}.txt")
                         with open(text_path, 'w') as f:
                             f.write(f"Ceci est un placeholder pour l'image {i+1} du script '{title}'")
                         image_paths.append(text_path)
-                        print(f"Fichier texte placeholder créé: {text_path}")
+                        progress_messages.append(f"Fichier texte placeholder créé: {text_path}")
             
             except Exception as install_error:
-                print(f"Échec de l'installation de Pillow: {install_error}")
+                progress_messages.append(f"Échec de l'installation de Pillow: {install_error}")
                 # Fallback vers des fichiers texte
                 for i in range(num_images):
                     text_path = os.path.join(images_dir, f"image_{i+1}.txt")
                     with open(text_path, 'w') as f:
                         f.write(f"Ceci est un placeholder pour l'image {i+1} du script '{title}'")
                     image_paths.append(text_path)
-                    print(f"Fichier texte placeholder créé: {text_path}")
         
-        print(f"Génération d'images terminée. {len(image_paths)} images générées.")
-        return image_paths
+        progress_messages.append(f"Génération d'images terminée. {len(image_paths)} images générées.")
+        return image_paths, progress_messages
         
     except Exception as e:
-        print(f"Erreur générale lors de la génération d'images: {e}")
         import traceback
         traceback.print_exc()
-        return []
+        progress_messages.append(f"Erreur générale lors de la génération d'images: {e}")
+        return [], progress_messages
