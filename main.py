@@ -1478,7 +1478,6 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                 else:
                     print(f"Échec de la génération du PDF alternatif")
                     return txt_filename
-                    
             except Exception as alt_error:
                 print(f"Erreur lors de la génération du PDF alternatif: {alt_error}")
                 traceback.print_exc()
