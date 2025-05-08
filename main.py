@@ -1497,13 +1497,24 @@ def estimate_reading_time(script_text: str) -> dict:
         script_text (str): Le texte du script à analyser
         
     Returns:
-        str: Chemin vers le PDF généré
+        dict: Dictionnaire contenant les estimations de temps (en minutes et secondes)
     """
     try:
-        # Créer un nom de fichier sécurisé
-        safe_title = "".join([c if c.isalnum() or c in " -_" else "_" for c in title])
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M")
-        if os.name == 'nt':
+        # Valider l'entrée
+        if not script_text:
+            return {
+                'minutes': 0,
+                'seconds': 0,
+                'total_seconds': 0,
+                'word_count': 0,
+                'formatted': "0:00",
+                'text': "Aucun texte fourni"
+            }
+            
+        # Nettoyer le texte (supprimer les sections entre [])
+        import re
+        cleaned_text = re.sub(r'\[.*?\]', '', script_text)
+        
         # Compter les mots
         words = cleaned_text.split()
         word_count = len(words)
