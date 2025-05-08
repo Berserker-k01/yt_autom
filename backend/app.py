@@ -1276,20 +1276,43 @@ def generate_images_route():
         script_text = data.get('script', '')
         title = data.get('title', '')
         num_images = data.get('num_images', 3)
+        style = data.get('style', 'moderne')
+        format_image = data.get('format', 'paysage')
         
-        if not script_text:
+        if not script_text and not title:
             return jsonify({
                 'success': False,
-                'message': 'Le texte du script est requis',
+                'message': 'Le texte du script ou le titre est requis',
                 'images': []
             }), 400
             
         # Limiter le nombre d'images pour éviter les abus
         if num_images > 5:
             num_images = 5
+            print(f"Limitation du nombre d'images à {num_images}")
             
-        # Générer les images
-        image_paths = generate_images_for_script(script_text, title, num_images)
+        # Validation des styles supportés
+        styles_supportes = ['moderne', 'minimaliste', 'coloré', 'sombre', 'nature']
+        if style not in styles_supportes:
+            print(f"Style non supporté: {style}, utilisation du style par défaut")
+            style = 'moderne'
+            
+        # Validation des formats supportés
+        formats_supportes = ['paysage', 'portrait', 'carré']
+        if format_image not in formats_supportes:
+            print(f"Format non supporté: {format_image}, utilisation du format par défaut")
+            format_image = 'paysage'
+            
+        print(f"Génération de {num_images} images en style '{style}', format '{format_image}'")
+        
+        # Générer les images avec les options personnalisées
+        image_paths = generate_images_for_script(
+            script_text=script_text, 
+            title=title, 
+            num_images=num_images,
+            style=style,
+            format=format_image
+        )
         
         # Préparation des URLs pour les images générées
         base_url = request.url_root.rstrip('/')
