@@ -1669,6 +1669,7 @@ def generate_images_for_script(script_text: str, title: str = "", num_images: in
         
         # Créer un dossier pour stocker les images si nécessaire
         import os
+        import sys
         import tempfile
         from datetime import datetime
         
@@ -1766,11 +1767,41 @@ def generate_images_for_script(script_text: str, title: str = "", num_images: in
                 
                 # Ajouter le titre en haut
                 try:
-                    # Essayer de charger une police plus élaborée
-                    large_font = ImageFont.truetype("arial.ttf", height//15)
-                    medium_font = ImageFont.truetype("arial.ttf", height//25)
-                except:
-                    # Utiliser les polices par défaut
+                    # Liste de polices à essayer dans l'ordre
+                    font_options = [
+                        "arial.ttf",
+                        "Arial.ttf",
+                        "verdana.ttf",
+                        "Verdana.ttf",
+                        "timesnewroman.ttf",
+                        "times.ttf",
+                        "calibri.ttf",
+                        "Calibri.ttf",
+                        "DejaVuSans.ttf",  # Common on Linux
+                        "FreeSans.ttf"      # Common on Linux
+                    ]
+                    
+                    large_font = None
+                    medium_font = None
+                    
+                    # Essayer chaque police
+                    for font_name in font_options:
+                        try:
+                            large_font = ImageFont.truetype(font_name, height//15)
+                            medium_font = ImageFont.truetype(font_name, height//25)
+                            print(f"Police trouvée et utilisée: {font_name}")
+                            break
+                        except Exception as e:
+                            continue
+                            
+                    # Si aucune police n'a fonctionné, utiliser la police par défaut
+                    if not large_font or not medium_font:
+                        large_font = ImageFont.load_default()
+                        medium_font = large_font
+                        print("Utilisation de la police par défaut")
+                except Exception as font_error:
+                    # Utiliser les polices par défaut avec un message d'erreur
+                    print(f"Erreur lors du chargement des polices: {font_error}")
                     large_font = ImageFont.load_default()
                     medium_font = large_font
                 
@@ -1806,13 +1837,19 @@ def generate_images_for_script(script_text: str, title: str = "", num_images: in
                 
                 # Ajouter un léger flou au background pour un effet professionnel
                 try:
-                    # Créer une copie, appliquer un filtre et fusionner
-                    background = img.copy()
-                    background = background.filter(ImageFilter.GaussianBlur(radius=10))
-                    background.paste(img, (0, 0), None)
-                    img = background
+                    # Vérifier si le filtre est disponible avant de l'appliquer
+                    if hasattr(ImageFilter, 'GaussianBlur'):
+                        # Créer une copie, appliquer un filtre et fusionner
+                        background = img.copy()
+                        background = background.filter(ImageFilter.GaussianBlur(radius=5))  # Réduit le radius pour éviter les problèmes de mémoire
+                        # Utiliser une approche plus simple pour la fusion pour éviter les erreurs
+                        img = background
+                        progress_messages.append("Filtre de flou appliqué avec succès")
+                    else:
+                        progress_messages.append("Le filtre GaussianBlur n'est pas disponible dans cette version de Pillow")
                 except Exception as filter_error:
                     progress_messages.append(f"Info: Effet de filtre non appliqué: {filter_error}")
+                    print(f"Erreur lors de l'application du filtre: {filter_error}")
                 
                 # Ajouter un numéro d'image discrètement
                 d = ImageDraw.Draw(img)
@@ -1826,13 +1863,23 @@ def generate_images_for_script(script_text: str, title: str = "", num_images: in
                 progress_messages.append(f"Image stylisée créée: {placeholder_path}")
         
         except ImportError as import_err:
-            progress_messages.append(f"Installation de Pillow pour la génération d'images...")
+            progress_messages.append(f"Pillow est requis pour la génération d'images: {import_err}")
+            print(f"ImportError détaillée: {import_err}")
             
-            # Tenter d'installer Pillow dynamiquement
+            # Tenter d'installer Pillow dynamiquement seulement si autorisé
             try:
-                import subprocess
-                subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pillow'])
-                progress_messages.append("Pillow installé avec succès, nouvelle tentative de génération...")
+                # Vérifier d'abord si l'installation automatique est autorisée
+                # Cette vérification est importante pour les environnements de production où pip peut ne pas être disponible
+                auto_install = os.environ.get('AUTO_INSTALL_DEPS', 'false').lower() == 'true'
+                
+                if auto_install:
+                    import subprocess
+                    print("Installation automatique de Pillow...")
+                    subprocess.check_call([sys.executable, '-m', 'pip', 'install', 'pillow'])
+                    progress_messages.append("Pillow installé avec succès, nouvelle tentative de génération...")
+                else:
+                    progress_messages.append("L'installation automatique de dépendances n'est pas activée. Veuillez installer manuellement 'pillow'")
+                    print("Pour activer l'installation automatique, définissez la variable d'environnement AUTO_INSTALL_DEPS=true")
                 
                 # Réessayer après installation
                 try:
@@ -1874,5 +1921,18 @@ def generate_images_for_script(script_text: str, title: str = "", num_images: in
     except Exception as e:
         import traceback
         traceback.print_exc()
-        progress_messages.append(f"Erreur générale lors de la génération d'images: {e}")
+        error_details = str(e)
+        error_type = type(e).__name__
+        
+        # Créer des messages d'erreur plus informatifs selon le type d'erreur
+        if "permission" in error_details.lower():
+            progress_messages.append(f"Erreur de permission: Impossible d'accéder au dossier ou au fichier. Détails: {error_details}")
+        elif "memory" in error_details.lower():
+            progress_messages.append(f"Erreur de mémoire: Pas assez de mémoire disponible pour générer les images. Essayez avec moins d'images ou de taille plus petite.")
+        elif "not found" in error_details.lower() or "no such file" in error_details.lower():
+            progress_messages.append(f"Fichier ou dossier introuvable: {error_details}")
+        else:
+            progress_messages.append(f"Erreur {error_type} lors de la génération d'images: {error_details}")
+        
+        print(f"Erreur détaillée dans generate_images_for_script: {error_details}")
         return [], progress_messages
