@@ -387,17 +387,38 @@ def export_pdf_route():
                         'title': source.get('title', f"Source: {source['link']}")
                     })
         
-        # Générer un PDF à partir du script
-        pdf_path = save_to_pdf(
-            final_script,
-            title=final_topic,
-            author=final_youtuber,
-            channel=final_channel,
-            sources=normalized_sources
-        )
-        
-        if not pdf_path:
-            return jsonify({'error': 'Échec de la génération du PDF'}), 500
+        # Générer un PDF à partir du script avec gestion améliorée des erreurs
+        try:
+            pdf_path = save_to_pdf(
+                final_script,
+                title=final_topic,
+                author=final_youtuber,
+                channel=final_channel,
+                sources=normalized_sources
+            )
+            
+            if not pdf_path:
+                print("Aucun chemin de PDF retourné par save_to_pdf")
+                # Créer un fichier texte de secours
+                temp_dir = tempfile.gettempdir() if os.name == 'nt' else '/tmp'
+                timestamp = datetime.now().strftime("%Y%m%d_%H%M")
+                safe_title = "".join([c if c.isalnum() or c in " -_" else "_" for c in final_topic])
+                txt_path = os.path.join(temp_dir, f"{safe_title}_{timestamp}.txt")
+                
+                try:
+                    with open(txt_path, 'w', encoding='utf-8') as f:
+                        f.write(f"SCRIPT: {final_topic}\n\n")
+                        f.write(final_script)
+                    pdf_path = txt_path
+                    print(f"Fichier texte de secours créé: {txt_path}")
+                except Exception as txt_err:
+                    print(f"Erreur lors de la création du fichier texte de secours: {txt_err}")
+                    return jsonify({'error': 'Échec complet de la génération du document'}), 500
+        except Exception as pdf_gen_err:
+            print(f"Exception lors de l'appel à save_to_pdf: {pdf_gen_err}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({'error': f'Erreur lors de la génération du PDF: {str(pdf_gen_err)}'}), 500
             
         # Au lieu de renvoyer une URL, on lit le contenu du PDF et on l'encode en base64
         try:
