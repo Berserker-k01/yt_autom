@@ -4,6 +4,7 @@ from flask_login import LoginManager, login_user, logout_user, login_required, c
 import os
 import sys
 import json
+import base64
 from datetime import datetime, timedelta
 import io
 import tempfile
@@ -546,6 +547,26 @@ def export_pdf_route():
                     temp_dir = '/tmp'
                 force_pdf_path = os.path.join(temp_dir, force_pdf_filename)
                 
+                # Fonction pour sanitiser les chaînes de texte contre les problèmes d'encodage
+                def sanitize_text(text):
+                    if not text:
+                        return ""
+                    # Remplacer les apostrophes typographiques par des apostrophes simples
+                    text = text.replace('\u2019', "'")
+                    # Remplacer les guillemets typographiques par des guillemets simples
+                    text = text.replace('\u201c', '"').replace('\u201d', '"')
+                    # Remplacer les tirets longs par des tirets standards
+                    text = text.replace('\u2014', '-').replace('\u2013', '-')
+                    # Remplacer les ellipses par trois points
+                    text = text.replace('\u2026', '...')
+                    # Sanitiser tous les autres caractères Unicode qui pourraient causer des problèmes
+                    text = ''.join(c if ord(c) < 128 else ' ' for c in text)
+                    return text
+                
+                # Sanitiser le texte du script et du titre
+                safe_script = sanitize_text(final_script)
+                safe_topic = sanitize_text(final_topic)
+                
                 # Créer un PDF basique
                 pdf = FPDF()
                 pdf.add_page()
@@ -553,14 +574,16 @@ def export_pdf_route():
                 
                 # Titre du document
                 pdf.set_font("Arial", 'B', 16)
-                pdf.cell(200, 10, txt=final_topic, ln=True, align='C')
+                pdf.cell(200, 10, txt=safe_topic, ln=True, align='C')
                 pdf.ln(5)
                 
                 # Ajouter le script
                 pdf.set_font("Arial", size=11)
                 # Découper le script en lignes
-                for line in final_script.split('\n'):
-                    pdf.multi_cell(0, 5, txt=line)
+                for line in safe_script.split('\n'):
+                    # Sanitiser chaque ligne individuellement
+                    safe_line = sanitize_text(line)
+                    pdf.multi_cell(0, 5, txt=safe_line)
                     pdf.ln(2)
                 
                 # Ajouter les sources si disponibles
@@ -573,10 +596,17 @@ def export_pdf_route():
                     pdf.set_font("Arial", size=10)
                     for i, source in enumerate(normalized_sources):
                         pdf.set_font("Arial", 'B', 10)
-                        pdf.cell(200, 8, txt=f"Source {i+1}: {source.get('title', 'Source sans titre')}", ln=True, align='L')
-                        pdf.set_font("Arial", size=10)
-                        pdf.cell(200, 6, txt=source.get('url', ''), ln=True, align='L')
-                        pdf.multi_cell(0, 5, txt=source.get('summary', ''))
+                        if isinstance(source, dict):
+                            safe_title = sanitize_text(source.get('title', f'Source {i+1}'))
+                            safe_url = sanitize_text(source.get('url', ''))
+                            safe_summary = sanitize_text(source.get('summary', ''))
+                            
+                            pdf.cell(200, 8, txt=f"Source {i+1}: {safe_title}", ln=True, align='L')
+                            pdf.set_font("Arial", size=10)
+                            pdf.cell(200, 6, txt=safe_url, ln=True, align='L')
+                            pdf.multi_cell(0, 5, txt=safe_summary)
+                        else:
+                            pdf.cell(200, 8, txt=f"Source {i+1}", ln=True, align='L')
                         pdf.ln(5)
                 
                 # Sauvegarder le PDF
@@ -600,11 +630,32 @@ def export_pdf_route():
                 try:
                     print("Tentative de création d'un PDF minimal...")
                     from fpdf import FPDF
+                    
+                    # Utiliser la fonction de sanitisation déjà définie (ou la redéfinir)
+                    def sanitize_text(text):
+                        if not text:
+                            return ""
+                        # Remplacer les apostrophes typographiques par des apostrophes simples
+                        text = text.replace('\u2019', "'")
+                        # Remplacer les guillemets typographiques par des guillemets simples
+                        text = text.replace('\u201c', '"').replace('\u201d', '"')
+                        # Remplacer les tirets longs par des tirets standards
+                        text = text.replace('\u2014', '-').replace('\u2013', '-')
+                        # Remplacer les ellipses par trois points
+                        text = text.replace('\u2026', '...')
+                        # Sanitiser tous les autres caractères Unicode qui pourraient causer des problèmes
+                        text = ''.join(c if ord(c) < 128 else ' ' for c in text)
+                        return text
+                    
+                    # Sanitiser le texte du titre pour éviter les problèmes d'encodage
+                    safe_topic = sanitize_text(final_topic)
+                    message_safe = sanitize_text("Le script est disponible dans l'interface")
+                    
                     minimal_pdf = FPDF()
                     minimal_pdf.add_page()
                     minimal_pdf.set_font("Arial", size=12)
-                    minimal_pdf.cell(200, 10, txt=final_topic, ln=True, align='C')
-                    minimal_pdf.cell(200, 10, txt="Le script est disponible dans l'interface", ln=True, align='C')
+                    minimal_pdf.cell(200, 10, txt=safe_topic, ln=True, align='C')
+                    minimal_pdf.cell(200, 10, txt=message_safe, ln=True, align='C')
                     
                     minimal_pdf_filename = f"script_minimal_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
                     minimal_pdf_path = os.path.join(temp_dir, minimal_pdf_filename)
