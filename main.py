@@ -1642,7 +1642,60 @@ def modify_script_with_ai(script_text: str, instructions: str, profile: dict = N
         # Retourner le script original en cas d'erreur
         return script_text
 
-def generate_images_for_script(script_text: str, title: str = "", num_images: int = 3, style: str = "moderne", format: str = "paysage") -> tuple:
+def generate_deepseek_image_prompt(script_text: str, title: str = "") -> str:
+    """
+    Génère un prompt optimisé via DeepSeek pour créer des images avec Grok.
+    
+    Args:
+        script_text (str): Le texte du script pour générer le prompt
+        title (str): Le titre du script ou de la vidéo
+        
+    Returns:
+        str: Un prompt optimisé pour Grok
+    """
+    try:
+        prompt = f"""
+Tu es un expert en création de prompts pour la génération d'images par IA. J'ai besoin que tu crées 
+un prompt optimisé pour Grok qui va générer une image basée sur le script YouTube suivant :
+
+TITRE: {title}
+
+CONTENU DU SCRIPT:
+{script_text[:1500]}  # Limiter à 1500 caractères pour éviter de surcharger DeepSeek
+
+Crée un prompt détaillé pour Grok qui:
+1. Capture l'essence visuelle principale du script
+2. Inclut des détails sur le style visuel (photo-réaliste, dessin, 3D, etc.)
+3. Spécifie l'ambiance et la palette de couleurs appropriées
+4. Mentionne les éléments clés qui devraient être présents dans l'image
+5. Ne dépasse pas 250 mots
+
+Répondre UNIQUEMENT avec le prompt final, rien d'autre.
+"""
+        
+        # Utiliser DeepSeek pour générer le prompt optimisé
+        response = deepseek_generate(prompt)
+        
+        if not response:
+            # Fallback si DeepSeek échoue
+            return f"Créer une image représentative pour une vidéo YouTube intitulée '{title}' dans un style moderne et professionnel."
+            
+        # Nettoyer et formater le prompt
+        response = response.strip()
+        
+        # Limiter à 300 mots maximum
+        words = response.split()
+        if len(words) > 300:
+            response = " ".join(words[:300]) + "..."
+            
+        print(f"Prompt d'image généré avec succès ({len(response)} caractères)")
+        return response
+        
+    except Exception as e:
+        print(f"Erreur lors de la génération du prompt d'image: {e}")
+        return f"Créer une image représentative pour une vidéo YouTube intitulée '{title}' dans un style moderne et professionnel."
+
+def generate_images_for_script(script_text: str, title: str = "", num_images: int = 3, style: str = "moderne", format: str = "paysage", use_grok: bool = False) -> tuple:
     """
     Génère des images basées sur le contenu du script avec options avancées.
     
@@ -1688,6 +1741,13 @@ def generate_images_for_script(script_text: str, title: str = "", num_images: in
         os.makedirs(images_dir, exist_ok=True)
         
         progress_messages.append(f"Dossier d'images créé: {images_dir}")
+        
+        # Si l'option Grok est activée, générer un prompt optimisé avec DeepSeek
+        if use_grok:
+            prompt = generate_deepseek_image_prompt(script_text, title)
+            progress_messages.append(f"Prompt optimisé pour Grok généré ({len(prompt)} caractères)")
+            progress_messages.append("Utilisation de la méthode interne en attendant l'intégration Grok...")
+            # À implémenter: appel à l'API Grok
         
         # Fonction améliorée : créer des images plus attrayantes et personnalisées
         # basées sur les paramètres et le contenu du script

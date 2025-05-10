@@ -1276,22 +1276,40 @@ def generate_direct_script_route():
                                     'estimated_reading_time': estimate_reading_time(script_text)
                                 })
                             else:
-                                print("Le contenu du PDF n'est pas valide.")
-                                # Chercher une version texte
-                                txt_path = accessible_path.replace('.pdf', '.txt')
-                                if os.path.exists(txt_path):
-                                    with open(txt_path, 'rb') as txt_file:
-                                        txt_content = txt_file.read()
-                                        txt_base64 = base64.b64encode(txt_content).decode('utf-8')
+                                print("Le contenu du PDF n'est pas valide. Nouvelle tentative de génération...")
+                                # Au lieu d'utiliser un TXT, on essaie de régénérer le PDF
+                                new_pdf_path = save_to_pdf(
+                                    script_text,
+                                    title=title,
+                                    author=youtuber_name,
+                                    channel=channel_name,
+                                    sources=real_sources
+                                )
+                                
+                                if new_pdf_path and os.path.exists(new_pdf_path):
+                                    print(f"Nouveau PDF généré avec succès: {new_pdf_path}")
+                                    with open(new_pdf_path, 'rb') as new_pdf_file:
+                                        new_pdf_content = new_pdf_file.read()
+                                        new_pdf_base64 = base64.b64encode(new_pdf_content).decode('utf-8')
                                         
                                         return jsonify({
                                             'script': script_text,
                                             'sources': real_sources,
-                                            'file_data': txt_base64,
-                                            'file_type': 'text/plain',
-                                            'file_name': pdf_filename.replace('.pdf', '.txt'),
+                                            'pdf_url': f"/download/{os.path.basename(new_pdf_path)}",
+                                            'file_data': new_pdf_base64,
+                                            'file_type': 'application/pdf',
+                                            'file_name': os.path.basename(new_pdf_path),
                                             'estimated_reading_time': estimate_reading_time(script_text)
                                         })
+                                else:
+                                    # Échec catastrophique - retourner uniquement le script sans PDF
+                                    print("Échec de la génération de PDF, retour du script uniquement")
+                                    return jsonify({
+                                        'script': script_text,
+                                        'sources': real_sources,
+                                        'error': 'Impossible de générer le PDF correctement',
+                                        'estimated_reading_time': estimate_reading_time(script_text)
+                                    })
                                     
                     except Exception as encode_error:
                         print(f"Erreur lors de l'encodage du PDF: {encode_error}")
@@ -1329,7 +1347,7 @@ def generate_direct_script_route():
         traceback.print_exc()
         return jsonify({'error': f'Erreur lors de la génération directe du script: {str(e)}'}), 500
 
-# Route pour générer des images à partir d'un script
+# Route pour générer des images à partir d'un script avec l'approche standard
 @app.route('/api/generate-images', methods=['POST'])
 def generate_images_route():
     try:
@@ -1400,6 +1418,67 @@ def generate_images_route():
         return jsonify({
             'success': False,
             'message': f'Erreur lors de la génération des images: {str(e)}',
+            'images': []
+        }), 500
+
+# Route pour générer des images à partir d'un script avec Grok
+@app.route('/api/generate-grok-images', methods=['POST'])
+def generate_grok_images_route():
+    try:
+        data = request.json
+        script_text = data.get('script', '')
+        title = data.get('title', '')
+        num_images = data.get('num_images', 3)
+        format_image = data.get('format', 'paysage')
+        
+        if not script_text and not title:
+            return jsonify({
+                'success': False,
+                'message': 'Le texte du script ou le titre est requis',
+                'images': []
+            }), 400
+            
+        # Limiter le nombre d'images pour éviter les abus
+        if num_images > 5:
+            num_images = 5
+            print(f"Limitation du nombre d'images à {num_images}")
+        
+        # Générer les images avec l'option Grok activée
+        image_paths, progress_messages = generate_images_for_script(
+            script_text=script_text, 
+            title=title, 
+            num_images=num_images,
+            format=format_image,
+            use_grok=True  # Utilisation de Grok
+        )
+        
+        # Préparation des URLs pour les images générées
+        base_url = request.url_root.rstrip('/')
+        image_urls = []
+        
+        for i, path in enumerate(image_paths):
+            # Utiliser l'API de téléchargement existante
+            filename = os.path.basename(path)
+            url = f"{base_url}/download/{filename}"
+            image_urls.append({
+                'url': url,
+                'path': path,
+                'index': i+1
+            })
+            
+        return jsonify({
+            'success': True,
+            'message': f'{len(image_paths)} images générées avec succès via Grok',
+            'images': image_urls,
+            'progress_messages': progress_messages
+        })
+        
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        return jsonify({
+            'success': False,
+            'message': f'Erreur lors de la génération des images avec Grok: {str(e)}',
             'images': []
         }), 500
 
