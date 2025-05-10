@@ -1721,13 +1721,107 @@ def generate_direct_script_route():
                 import traceback
                 traceback.print_exc()
                 
-                # Retourner au moins le script et les sources
-                return jsonify({
-                    'script': script_text,
-                    'sources': real_sources,
-                    'error': f'Erreur lors du traitement du PDF: {str(file_error)}',
-                    'estimated_reading_time': estimate_reading_time(script_text)
-                })
+                # Essayer le niveau 2 directement ici sans passer par le flux normal
+                try:
+                    print("Tentative directe de génération de PDF de niveau 2...")
+                    # Définir temp_dir s'il n'est pas déjà défini
+                    if 'temp_dir' not in locals():
+                        if os.name == 'nt':  # Windows
+                            temp_dir = tempfile.gettempdir()
+                        else:  # Linux/Render
+                            temp_dir = '/tmp'
+                    
+                    # Générer un nom de fichier unique
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    safe_title = "".join(c if c.isalnum() or c in [' ', '_', '-'] else '_' for c in title[:30])
+                    safe_title = safe_title.replace(' ', '_')
+                    fallback_pdf_filename = f"fallback_script_{safe_title}_{timestamp}.pdf"
+                    fallback_pdf_path = os.path.join(temp_dir, fallback_pdf_filename)
+                    
+                    # Fonction de sanitisation révisée
+                    def sanitize_text(text):
+                        if not text or not isinstance(text, str):
+                            return ""
+                        # Convertir tous les caractères spéciaux en ASCII simple
+                        result = ""
+                        for c in text:
+                            if ord(c) < 128:
+                                result += c
+                            else:
+                                # Remplacement des caractères spéciaux connus
+                                if c == '\u2019': result += "'"  # apostrophe typographique
+                                elif c == '\u201c' or c == '\u201d': result += '"'  # guillemets typographiques
+                                elif c == '\u2014' or c == '\u2013': result += '-'  # tirets longs
+                                elif c == '\u2026': result += '...'  # points de suspension
+                                elif c == '\u00e9': result += 'e'  # é
+                                elif c == '\u00e8': result += 'e'  # è
+                                elif c == '\u00e0': result += 'a'  # à
+                                elif c == '\u00e7': result += 'c'  # ç
+                                elif c == '\u00f9': result += 'u'  # ù
+                                else:
+                                    result += ' '  # tout autre caractère devient espace
+                        return result
+                    
+                    # Sanitiser le texte et le titre
+                    safe_title_text = sanitize_text(title)
+                    safe_script_text = sanitize_text(script_text)
+                    
+                    # Créer un PDF basique avec FPDF
+                    from fpdf import FPDF
+                    fallback_pdf = FPDF()
+                    fallback_pdf.add_page()
+                    
+                    # Titre
+                    fallback_pdf.set_font("Arial", "B", 16)
+                    fallback_pdf.cell(0, 10, txt=safe_title_text, ln=1, align="C")
+                    fallback_pdf.ln(5)
+                    
+                    # Contenu du script
+                    fallback_pdf.set_font("Arial", "", 12)
+                    # Découper en paragraphes courts pour éviter les problèmes
+                    paragraphs = safe_script_text.split('\n')
+                    for p in paragraphs:
+                        # Limiter la taille de chaque paragraphe pour éviter les erreurs
+                        if p.strip():
+                            # Traiter par morceaux de 100 caractères maximum
+                            for i in range(0, len(p), 100):
+                                chunk = p[i:i+100]
+                                fallback_pdf.multi_cell(0, 8, txt=chunk)
+                            fallback_pdf.ln(4)
+                    
+                    # Sauvegarder le PDF
+                    fallback_pdf.output(fallback_pdf_path)
+                    
+                    if os.path.exists(fallback_pdf_path):
+                        with open(fallback_pdf_path, 'rb') as pdf_file:
+                            pdf_content = pdf_file.read()
+                            pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
+                        
+                        return jsonify({
+                            'script': script_text,
+                            'sources': real_sources,
+                            'pdf_url': f"/download/{fallback_pdf_filename}",
+                            'file_data': pdf_base64,
+                            'file_type': 'application/pdf',
+                            'file_name': fallback_pdf_filename,
+                            'estimated_reading_time': estimate_reading_time(script_text),
+                            'message': 'PDF de secours généré avec succès'
+                        })
+                except Exception as fallback_error:
+                    print(f"Erreur lors de la génération du PDF de secours: {fallback_error}")
+                    traceback.print_exc()
+                    
+                    # Dernier recours : renvoyer uniquement le script, sans PDF
+                    return jsonify({
+                        'script': script_text,
+                        'sources': real_sources,
+                        'estimated_reading_time': estimate_reading_time(script_text),
+                        'error': f'Impossible de générer le PDF: {str(fallback_error)}',
+                        'message': 'Le script a bien été généré mais le PDF n\'a pas pu être créé'
+                    })
+                
+                # Si tout échoue, renvoyer une erreur 500
+                return jsonify({'error': f'Erreur lors du traitement du PDF: {str(file_error)}'}), 500
         else:
             return jsonify({'error': 'Échec de la génération du script'}), 500
             
