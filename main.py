@@ -1028,6 +1028,61 @@ En résumé, nous avons vu que {str(topic) if topic else 'notre sujet du jour'} 
 Si vous avez apprécié cette vidéo, n'oubliez pas de liker, commenter et vous abonner pour ne manquer aucun contenu. Merci d'avoir regardé, et à bientôt pour une nouvelle vidéo !
 """
 
+def sanitize_text(text: str) -> str:
+    """Sanitarise le texte pour s'assurer qu'il est compatible avec l'encodage latin-1 de FPDF."""
+    if not text:
+        return ""
+        
+    # Table de conversion des caractères spéciaux
+    replacements = {
+        # Apostrophes et guillemets typographiques
+        '\u2018': "'", # guillemet simple ouvrant
+        '\u2019': "'", # guillemet simple fermant (apostrophe typographique)
+        '\u201c': '"', # guillemet double ouvrant
+        '\u201d': '"', # guillemet double fermant
+        # Tirets
+        '\u2013': '-', # tiret demi-cadratin (en dash)
+        '\u2014': '--', # tiret cadratin (em dash)
+        # Espaces
+        '\u00a0': ' ', # espace insécable
+        # Symboles divers
+        '\u2022': '*', # puce
+        '\u2026': '...', # points de suspension
+        # Lettres accentuées françaises et autres caractères spéciaux
+        'œ': 'oe',
+        'Œ': 'OE',
+        'æ': 'ae',
+        'Æ': 'AE'
+    }
+    
+    # Remplacer les caractères spéciaux
+    for special_char, replacement in replacements.items():
+        text = text.replace(special_char, replacement)
+    
+    # Pour les autres caractères non compatibles avec latin-1, essayer de convertir
+    # ou supprimer si impossible
+    result = ""
+    for char in text:
+        try:
+            # Tester si le caractère peut être encodé en latin-1
+            char.encode('latin-1')
+            result += char
+        except UnicodeEncodeError:
+            # Si le caractère ne peut pas être encodé, le remplacer par un équivalent
+            # ou le supprimer
+            if char in replacements:
+                result += replacements[char]
+            else:
+                # Tentative de normalisation (supprimer les accents)
+                import unicodedata
+                normalized = unicodedata.normalize('NFKD', char).encode('ASCII', 'ignore')
+                if normalized:
+                    result += normalized.decode('ASCII')
+                else:
+                    result += '_'  # Caractère de remplacement si tout échoue
+    
+    return result
+
 def save_to_pdf(script_text: str, title: str = None, author: str = None, channel: str = None, sources: list = None) -> str:
     """Génération améliorée de PDF avec mise en page professionnelle et affichage optimisé des sources."""
     import tempfile
@@ -1181,10 +1236,16 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                     dots = '.' * max(5, 60 - len(section))
                     self.cell(0, 8, f"{section} {dots} {page}", 0, 1)
                 
+        # Sanitariser tous les textes à l'avance
+        sanitized_script_text = sanitize_text(script_text)
+        sanitized_title = sanitize_text(title) if title else None
+        sanitized_author = sanitize_text(author) if author else None
+        sanitized_channel = sanitize_text(channel) if channel else None
+        
         # Utiliser la classe personnalisée pour créer le PDF
         try:
-            # Initialiser le PDF
-            pdf = ScriptPDF(title, author, channel)
+            # Initialiser le PDF avec les textes sanitarisés
+            pdf = ScriptPDF(sanitized_title, sanitized_author, sanitized_channel)
             pdf.add_page()
             
             # Page de titre
@@ -1214,12 +1275,12 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
             # Nouvelle page pour le contenu
             pdf.add_page()
             
-            # Traitement du script
+            # Traitement du script sanitarisé
             current_section = ""
             section_content = ""
             
             # Analyser le script ligne par ligne
-            lines = script_text.split('\n')
+            lines = sanitized_script_text.split('\n')
             for i, line in enumerate(lines):
                 # Détecter les sections (entre crochets)
                 if '[' in line and ']' in line and line.strip().startswith('['):
@@ -1236,7 +1297,7 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                         end_idx = len(script_text)
                     
                     # Extraire et formater le contenu de la section
-                    section_text = script_text[start_idx:end_idx].strip()
+                    section_text = sanitized_script_text[start_idx:end_idx].strip()
                     pdf.multi_cell(0, 5, section_text)
                     pdf.ln(5)
             
@@ -1339,25 +1400,28 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                                     if not isinstance(title, str):
                                         title = str(title) if title else f"Source {source_index}"
                                     
-                                    # Récupérer les métadonnées additionnelles avec sécurité
+                                    # Récupérer les métadonnées additionnelles avec sécurité et sanitarisation
                                     reliability = source.get('fiabilité', '')
                                     if not isinstance(reliability, str):
                                         reliability = str(reliability) if reliability else ''
+                                    reliability = sanitize_text(reliability)
                                         
                                     date = source.get('date', '')
                                     if not isinstance(date, str):
                                         date = str(date) if date else ''
+                                    date = sanitize_text(date)
                                         
                                     summary = source.get('résumé', '')
                                     if not isinstance(summary, str):
                                         summary = str(summary) if summary else ''
+                                    summary = sanitize_text(summary)
                                         
                                 except Exception as source_err:
                                     print(f"Erreur lors du traitement de la source: {source_err}")
                                     continue
                                 
                                 # Formater l'affichage selon les métadonnées disponibles
-                                # Titre de la source en gras
+                                # Titre de la source en gras (déjà sanitarisé)
                                 pdf.set_font('Arial', 'B', 10)
                                 pdf.multi_cell(0, 6, f"[{source_index}] {title}")
                                 pdf.set_font('Arial', '', 9)
@@ -1424,25 +1488,33 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                 
                 # Titre
                 basic_pdf.set_font("Arial", "B", 16)
-                basic_pdf.cell(0, 10, title[:60], 0, 1, "C")
+                # Sanitariser les textes pour le PDF alternatif
+                safe_title = sanitize_text(title) if title else "Script"
+                safe_author = sanitize_text(author) if author else 'Non spécifié'
+                safe_channel = sanitize_text(channel) if channel else 'Non spécifiée'
+                
+                basic_pdf.cell(0, 10, safe_title[:60], 0, 1, "C")
                 
                 # Informations
                 basic_pdf.set_font("Arial", "I", 12)
-                basic_pdf.cell(0, 10, f"Par: {author or 'Non spécifié'} | Chaîne: {channel or 'Non spécifiée'}", 0, 1, "C")
+                basic_pdf.cell(0, 10, f"Par: {safe_author} | Chaîne: {safe_channel}", 0, 1, "C")
                 basic_pdf.ln(5)
                 
                 # Contenu du script
                 basic_pdf.set_font("Arial", "", 11)
                 
+                # Sanitariser le script pour le PDF basique
+                safe_script = sanitize_text(script_text)
+                
                 # Extraire et formater les sections
-                for line in script_text.split('\n'):
+                for line in safe_script.split('\n'):
                     if '[' in line and ']' in line and line.strip().startswith('['):
                         # Section
                         basic_pdf.set_font("Arial", "B", 12)
                         basic_pdf.cell(0, 8, line, 0, 1)
                         basic_pdf.set_font("Arial", "", 11)
                     elif line.strip():
-                        # Contenu
+                        # Contenu (déjà sanitarisé)
                         basic_pdf.multi_cell(0, 6, line)
                 
                 # Sources
@@ -1456,13 +1528,13 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                     for i, source in enumerate(sources, 1):
                         if isinstance(source, str):
                             basic_pdf.set_text_color(0, 0, 255)
-                            basic_pdf.multi_cell(0, 6, f"{i}. {source}")
+                            basic_pdf.multi_cell(0, 6, f"{i}. {sanitize_text(source)}")
                             basic_pdf.set_text_color(0, 0, 0)
                         elif isinstance(source, dict):
-                            url = source.get('url', 'N/A')
-                            title = source.get('title', f"Source {i}")
+                            url = sanitize_text(source.get('url', 'N/A'))
+                            source_title = sanitize_text(source.get('title', f"Source {i}"))
                             
-                            basic_pdf.multi_cell(0, 6, f"{i}. {title}")
+                            basic_pdf.multi_cell(0, 6, f"{i}. {source_title}")
                             basic_pdf.set_text_color(0, 0, 255)
                             basic_pdf.multi_cell(0, 6, url)
                             basic_pdf.set_text_color(0, 0, 0)
