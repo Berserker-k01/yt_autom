@@ -1470,6 +1470,13 @@ def generate_direct_script_route():
                             print("Le PDF généré n'est pas valide, passage au niveau 2")
                             raise Exception("PDF invalid")
                         pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
+                        
+                # Définir temp_dir avant son utilisation
+                if os.name == 'nt':  # Windows
+                    temp_dir = tempfile.gettempdir()
+                else:  # Linux/Render
+                    temp_dir = '/tmp'
+                    
                 full_path = os.path.join(temp_dir, pdf_filename)
                 if not os.path.exists(full_path) and os.path.exists(pdf_path):
                     # Si le fichier existe à l'emplacement original mais pas dans temp_dir
