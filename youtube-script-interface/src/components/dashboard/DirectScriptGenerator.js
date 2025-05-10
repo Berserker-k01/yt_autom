@@ -13,6 +13,8 @@ const DirectScriptGenerator = ({
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [script, setScript] = useState(null);
+  const [pdfData, setPdfData] = useState(null);
+  const [pdfFileName, setPdfFileName] = useState(null);
   const [sources, setSources] = useState([]);
   const [pdfUrl, setPdfUrl] = useState(null);
 
@@ -53,6 +55,8 @@ const DirectScriptGenerator = ({
       
       setScript(data.script || "");
       setPdfUrl(data.pdf_url || null);
+      setPdfData(data.file_data || null);
+      setPdfFileName(data.file_name || null);
       setSources(data.sources || []);
       
       // Informer le composant parent que le script a été généré
@@ -79,6 +83,8 @@ const DirectScriptGenerator = ({
       <ScriptViewer 
         script={script} 
         pdfUrl={pdfUrl} 
+        pdfData={pdfData}
+        pdfFileName={pdfFileName}
         sources={sources}
         title={idea}
         userProfile={userProfile}
@@ -87,6 +93,8 @@ const DirectScriptGenerator = ({
         onBack={() => {
           setScript(null);
           setPdfUrl(null);
+          setPdfData(null);
+          setPdfFileName(null);
           setSources([]);
         }}
       />

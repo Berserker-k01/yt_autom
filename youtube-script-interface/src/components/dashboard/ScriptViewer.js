@@ -4,6 +4,8 @@ import { motion } from 'framer-motion';
 const ScriptViewer = ({ 
   script, 
   pdfUrl, 
+  pdfData, 
+  pdfFileName,
   sources = [], 
   title,
   userProfile,
@@ -15,9 +17,27 @@ const ScriptViewer = ({
   const [isGeneratingImages, setIsGeneratingImages] = useState(false);
   const [imageError, setImageError] = useState(null);
   
-  // Fonction pour télécharger le PDF
+  // Fonction pour télécharger le PDF directement sans redirection
   const handleDownloadPDF = () => {
-    if (pdfUrl) {
+    // Si nous avons les données base64 du PDF, utiliser un téléchargement direct
+    if (pdfData) {
+      // Créer un lien de téléchargement temporaire
+      const linkSource = `data:application/pdf;base64,${pdfData}`;
+      const downloadLink = document.createElement('a');
+      const fileName = pdfFileName || 'script_youtube.pdf';
+      
+      // Configurer le lien
+      downloadLink.href = linkSource;
+      downloadLink.download = fileName;
+      downloadLink.style.display = 'none';
+      
+      // Ajouter à la page, cliquer, puis supprimer
+      document.body.appendChild(downloadLink);
+      downloadLink.click();
+      document.body.removeChild(downloadLink);
+    } 
+    // Fallback: utiliser l'URL de téléchargement si les données base64 ne sont pas disponibles
+    else if (pdfUrl) {
       window.open(pdfUrl, '_blank');
     }
   };
