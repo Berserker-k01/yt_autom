@@ -1795,6 +1795,8 @@ def generate_direct_script_route():
                     if os.path.exists(fallback_pdf_path):
                         with open(fallback_pdf_path, 'rb') as pdf_file:
                             pdf_content = pdf_file.read()
+                            # Import explicite de base64 dans ce bloc
+                            import base64
                             pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
                         
                         return jsonify({
