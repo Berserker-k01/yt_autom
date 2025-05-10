@@ -1459,6 +1459,11 @@ def generate_direct_script_route():
                     sources=real_sources
                 )
                 
+                # Initialisation des variables pour éviter les erreurs
+                pdf_filename = None
+                pdf_base64 = None
+                accessible_path = None
+                
                 if pdf_path and os.path.exists(pdf_path) and pdf_path.endswith('.pdf'):
                     pdf_filename = os.path.basename(pdf_path)
                     print(f"PDF généré avec succès: {pdf_path}")
@@ -1470,29 +1475,39 @@ def generate_direct_script_route():
                             print("Le PDF généré n'est pas valide, passage au niveau 2")
                             raise Exception("PDF invalid")
                         pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
-                        
+                else:
+                    # Si aucun PDF valide n'a été généré, passer directement au niveau 2
+                    print("Aucun PDF valide n'a été généré, passage au niveau 2")
+                    raise Exception("PDF path invalid or non-existent")
+                
                 # Définir temp_dir avant son utilisation
                 if os.name == 'nt':  # Windows
                     temp_dir = tempfile.gettempdir()
                 else:  # Linux/Render
                     temp_dir = '/tmp'
-                    
-                full_path = os.path.join(temp_dir, pdf_filename)
-                if not os.path.exists(full_path) and os.path.exists(pdf_path):
-                    # Si le fichier existe à l'emplacement original mais pas dans temp_dir
-                    try:
-                        import shutil
-                        shutil.copy2(pdf_path, full_path)
-                        print(f"Fichier copié de {pdf_path} vers {full_path}")
+                
+                # Vérifier que pdf_filename est bien défini avant de l'utiliser
+                if pdf_filename:
+                    full_path = os.path.join(temp_dir, pdf_filename)
+                    if not os.path.exists(full_path) and os.path.exists(pdf_path):
+                        # Si le fichier existe à l'emplacement original mais pas dans temp_dir
+                        try:
+                            import shutil
+                            shutil.copy2(pdf_path, full_path)
+                            print(f"Fichier copié de {pdf_path} vers {full_path}")
+                            accessible_path = full_path
+                        except Exception as copy_error:
+                            print(f"Erreur lors de la copie du fichier: {copy_error}")
+                            accessible_path = pdf_path
+                    else:
+                        # Si le fichier existe déjà à l'emplacement temporaire
                         accessible_path = full_path
-                    except Exception as copy_error:
-                        print(f"Erreur lors de la copie du fichier: {copy_error}")
-                        accessible_path = pdf_path
                 else:
-                    accessible_path = full_path if os.path.exists(full_path) else pdf_path
+                    # Si pdf_filename n'est pas défini, utiliser pdf_path
+                    accessible_path = pdf_path if pdf_path and os.path.exists(pdf_path) else None
                 
                 # Vérifier si le fichier est accessible
-                if os.path.exists(accessible_path):
+                if accessible_path and os.path.exists(accessible_path):
                     print(f"Fichier PDF accessible à: {accessible_path}")
                     
                     # Encoder le PDF en base64 pour permettre le téléchargement direct
@@ -1535,6 +1550,26 @@ def generate_direct_script_route():
                                         temp_dir = '/tmp'
                                     force_pdf_path = os.path.join(temp_dir, force_pdf_filename)
                                     
+                                    # Fonction pour sanitiser les chaînes de texte contre les problèmes d'encodage
+                                    def sanitize_text(text):
+                                        if not text:
+                                            return ""
+                                        # Remplacer les apostrophes typographiques par des apostrophes simples
+                                        text = text.replace('\u2019', "'")
+                                        # Remplacer les guillemets typographiques par des guillemets simples
+                                        text = text.replace('\u201c', '"').replace('\u201d', '"')
+                                        # Remplacer les tirets longs par des tirets standards
+                                        text = text.replace('\u2014', '-').replace('\u2013', '-')
+                                        # Remplacer les ellipses par trois points
+                                        text = text.replace('\u2026', '...')
+                                        # Sanitiser tous les autres caractères Unicode qui pourraient causer des problèmes
+                                        text = ''.join(c if ord(c) < 128 else ' ' for c in text)
+                                        return text
+                                    
+                                    # Sanitiser le texte du script et du titre
+                                    safe_title = sanitize_text(title)
+                                    safe_script = sanitize_text(script_text)
+                                    
                                     # Créer un PDF basique
                                     pdf = FPDF()
                                     pdf.add_page()
@@ -1542,14 +1577,15 @@ def generate_direct_script_route():
                                     
                                     # Titre du document
                                     pdf.set_font("Arial", 'B', 16)
-                                    pdf.cell(200, 10, txt=title, ln=True, align='C')
+                                    pdf.cell(200, 10, txt=safe_title, ln=True, align='C')
                                     pdf.ln(5)
                                     
                                     # Ajouter le script
                                     pdf.set_font("Arial", size=11)
                                     # Découper le script en lignes
-                                    for line in script_text.split('\n'):
-                                        pdf.multi_cell(0, 5, txt=line)
+                                    for line in safe_script.split('\n'):
+                                        safe_line = sanitize_text(line)  # Sanitiser chaque ligne individuellement
+                                        pdf.multi_cell(0, 5, txt=safe_line)
                                         pdf.ln(2)
                                     
                                     # Ajouter les sources si disponibles
@@ -1562,10 +1598,16 @@ def generate_direct_script_route():
                                         pdf.set_font("Arial", size=10)
                                         for i, source in enumerate(real_sources):
                                             pdf.set_font("Arial", 'B', 10)
-                                            pdf.cell(200, 8, txt=f"Source {i+1}: {source.get('title', 'Source sans titre')}", ln=True, align='L')
+                                            
+                                            # Sanitiser les informations des sources
+                                            safe_source_title = sanitize_text(source.get('title', f'Source {i+1}'))
+                                            safe_source_url = sanitize_text(source.get('url', ''))
+                                            safe_source_summary = sanitize_text(source.get('summary', ''))
+                                            
+                                            pdf.cell(200, 8, txt=f"Source {i+1}: {safe_source_title}", ln=True, align='L')
                                             pdf.set_font("Arial", size=10)
-                                            pdf.cell(200, 6, txt=source.get('url', ''), ln=True, align='L')
-                                            pdf.multi_cell(0, 5, txt=source.get('summary', ''))
+                                            pdf.cell(200, 6, txt=safe_source_url, ln=True, align='L')
+                                            pdf.multi_cell(0, 5, txt=safe_source_summary)
                                             pdf.ln(5)
                                     
                                     # Sauvegarder le PDF
