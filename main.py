@@ -1415,22 +1415,30 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
             for i, line in enumerate(lines):
                 # Détecter les sections (entre crochets)
                 if '[' in line and ']' in line and line.strip().startswith('['):
-                    # Nouvelle section
-                    current_section = line.strip()
-                    pdf.add_section(current_section)
+                    # Extraire proprement le nom de la section pour éviter les doublons
+                    section_name = line.strip()
                     
-                    # Trouver le contenu de cette section
-                    start_idx = script_text.find(line) + len(line)
-                    next_section_match = re.search(r'\n\s*\[[^\]]+\]', script_text[start_idx:])
-                    if next_section_match:
-                        end_idx = start_idx + next_section_match.start()
-                    else:
-                        end_idx = len(script_text)
+                    # Ajouter la section au PDF
+                    pdf.add_section(section_name)
                     
-                    # Extraire et formater le contenu de la section
-                    section_text = sanitized_script_text[start_idx:end_idx].strip()
-                    pdf.multi_cell(0, 5, section_text)
-                    pdf.ln(5)
+                    # Trouver le contenu de cette section de manière plus robuste
+                    current_pos = i
+                    section_content = []
+                    
+                    # Parcourir les lignes suivantes jusqu'à la prochaine section
+                    for j in range(i + 1, len(lines)):
+                        next_line = lines[j]
+                        # Vérifier si c'est une nouvelle section
+                        if '[' in next_line and ']' in next_line and next_line.strip().startswith('['):
+                            break
+                        # Sinon, ajouter au contenu de la section courante
+                        section_content.append(next_line)
+                    
+                    # Joindre le contenu et le formater
+                    content_text = '\n'.join(section_content).strip()
+                    if content_text:
+                        pdf.multi_cell(0, 5, content_text)
+                        pdf.ln(5)
             
             # Table des matières (après le contenu pour avoir tous les numéros de page)
             if pdf.sections:
