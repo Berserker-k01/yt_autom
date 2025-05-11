@@ -384,7 +384,7 @@ def extract_sources(research_text: str) -> list:
         # Format alternatif ([source] url - titre)
         {"source_prefix": "[source]", "title_prefix": "-", "summary_prefix": "|"},
         # Format numéroté ([1] url - titre)
-        {"source_prefix": "[\d+]", "title_prefix": "-", "summary_prefix": "|"},
+        {"source_prefix": "[\\d+]", "title_prefix": "-", "summary_prefix": "|"},
     ]
     
     # 1. Recherche de sources structurées dans différents formats
@@ -418,9 +418,9 @@ def extract_sources(research_text: str) -> list:
         for pattern in source_patterns:
             for i, line in enumerate(lines):
                 # Recherche du préfixe de source (peut contenir une regex pour les numéros)
-                if re.search(f"^\s*{pattern['source_prefix']}", line, re.IGNORECASE):
+                if re.search(f"^\\s*{pattern['source_prefix']}", line, re.IGNORECASE):
                     # Extraire l'URL
-                    source_url = re.sub(f"^\s*{pattern['source_prefix']}\s*", "", line, flags=re.IGNORECASE)
+                    source_url = re.sub(f"^\\s*{pattern['source_prefix']}\\s*", "", line, flags=re.IGNORECASE)
                     # Nettoyer l'URL des caractères non désirés
                     source_url = source_url.strip('.,;:\'\"')
                     
