@@ -1311,15 +1311,27 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                 self.sections = []  # Pour stocker les sections pour la table des matières
                 
             def header(self):
-                # En-tête avec informations
+                # En-tête avec informations (structure améliorée)
                 self.set_font('Arial', 'B', 10)
+                
                 # Date à droite
                 self.cell(0, 10, f"Généré le: {datetime.now().strftime('%d/%m/%Y')}", 0, 0, 'R')
-                # Titre du script à gauche
+                
+                # Titre du script au centre avec meilleure gestion des titres longs
+                max_title_length = 50  # Limite raisonnable pour l'en-tête
+                
+                # Déterminer l'affichage du titre (tronqué si trop long)
+                display_title = self.title
+                if len(display_title) > max_title_length:
+                    display_title = display_title[:max_title_length-3] + '...'
+                
+                # Positionner et afficher le titre centré
                 self.set_xy(10, 10)
-                self.cell(100, 10, self.title[:40] + ('...' if len(self.title) > 40 else ''), 0, 0, 'L')
+                self.cell(190, 10, display_title, 0, 0, 'C')
+                
                 # Ligne de séparation
                 self.line(10, 20, 200, 20)
+                
                 # Positionner après l'en-tête
                 self.set_y(25)
             
@@ -1379,28 +1391,46 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
             pdf = ScriptPDF(sanitized_title, sanitized_author, sanitized_channel)
             pdf.add_page()
             
-            # Page de titre
+            # Page de titre (centralisée et avec meilleure gestion des titres longs)
             pdf.set_font('Arial', 'B', 20)
-            pdf.ln(20)  # Espace après l'en-tête
+            pdf.ln(30)  # Plus d'espace pour centrer verticalement
             
-            # Limiter le titre à 2 lignes maximum
-            if len(title) > 80:
-                part1 = title[:80]
-                part2 = title[80:160]
-                pdf.cell(0, 10, part1, 0, 1, 'C')
-                pdf.cell(0, 10, part2 + ('...' if len(title) > 160 else ''), 0, 1, 'C')
+            # Division intelligente du titre sur plusieurs lignes si nécessaire
+            if len(title) > 60:  # Réduit à 60 caractères par ligne pour une meilleure lisibilité
+                # Découper le titre en mots
+                words = title.split()
+                lines = []
+                current_line = ""
+                
+                # Construire les lignes intelligemment en fonction de la longueur
+                for word in words:
+                    if len(current_line + " " + word) <= 60 or not current_line:  # Si la ligne reste sous 60 caractères
+                        if current_line:  # Ajouter un espace si ce n'est pas le premier mot
+                            current_line += " "
+                        current_line += word
+                    else:  # Si la ligne dépasse 60 caractères, commencer une nouvelle ligne
+                        lines.append(current_line)
+                        current_line = word
+                
+                # Ajouter la dernière ligne
+                if current_line:
+                    lines.append(current_line)
+                
+                # Afficher les lignes du titre
+                for line in lines:
+                    pdf.cell(0, 12, line, 0, 1, 'C')
             else:
-                pdf.cell(0, 10, title, 0, 1, 'C')
+                pdf.cell(0, 12, title, 0, 1, 'C')
             
-            # Informations sur le créateur
-            pdf.ln(10)
-            pdf.set_font('Arial', 'I', 12)
+            # Informations sur le créateur (augmenter l'espacement)
+            pdf.ln(15)
+            pdf.set_font('Arial', 'B', 14)  # Police plus grande et en gras
             pdf.cell(0, 10, f"Par: {author or 'YouTuber'}", 0, 1, 'C')
             pdf.cell(0, 10, f"Chaîne: {channel or 'YouTube'}", 0, 1, 'C')
             
             # Date de création
-            pdf.ln(5)
-            pdf.set_font('Arial', '', 10)
+            pdf.ln(10)  # Plus d'espace
+            pdf.set_font('Arial', 'B', 12)  # Police plus grande
             pdf.cell(0, 10, f"Création: {datetime.now().strftime('%d/%m/%Y')}", 0, 1, 'C')
             
             # Nouvelle page pour le contenu
@@ -1625,19 +1655,51 @@ def save_to_pdf(script_text: str, title: str = None, author: str = None, channel
                 basic_pdf = FPDF()
                 basic_pdf.add_page()
                 
-                # Titre
-                basic_pdf.set_font("Arial", "B", 16)
+                # Titre avec meilleure gestion des titres longs
                 # Sanitariser les textes pour le PDF alternatif
                 safe_title = sanitize_text(title) if title else "Script"
                 safe_author = sanitize_text(author) if author else 'Non spécifié'
                 safe_channel = sanitize_text(channel) if channel else 'Non spécifiée'
                 
-                basic_pdf.cell(0, 10, safe_title[:60], 0, 1, "C")
+                # Centrer verticalement
+                basic_pdf.ln(20)
                 
-                # Informations
-                basic_pdf.set_font("Arial", "I", 12)
-                basic_pdf.cell(0, 10, f"Par: {safe_author} | Chaîne: {safe_channel}", 0, 1, "C")
+                # Définir la police du titre
+                basic_pdf.set_font("Arial", "B", 18)  # Police plus grande
+                
+                # Division du titre sur plusieurs lignes si nécessaire
+                if len(safe_title) > 60:
+                    words = safe_title.split()
+                    lines = []
+                    current_line = ""
+                    
+                    for word in words:
+                        test_line = current_line + (" " if current_line else "") + word
+                        if len(test_line) <= 60 or not current_line:
+                            current_line = test_line
+                        else:
+                            lines.append(current_line)
+                            current_line = word
+                            
+                    if current_line:
+                        lines.append(current_line)
+                        
+                    for line in lines:
+                        basic_pdf.cell(0, 10, line, 0, 1, "C")
+                else:
+                    basic_pdf.cell(0, 10, safe_title, 0, 1, "C")
+                
+                # Informations (centrer et mettre en valeur)
+                basic_pdf.ln(10)
+                basic_pdf.set_font("Arial", "B", 14)  # Plus grand et en gras
+                basic_pdf.cell(0, 10, f"Par: {safe_author}", 0, 1, "C")
+                basic_pdf.cell(0, 10, f"Chaîne: {safe_channel}", 0, 1, "C")
+                
+                # Date de création
                 basic_pdf.ln(5)
+                basic_pdf.set_font("Arial", "B", 12)
+                basic_pdf.cell(0, 10, f"Création: {datetime.now().strftime('%d/%m/%Y')}", 0, 1, "C")
+                basic_pdf.ln(10)  # Plus d'espace
                 
                 # Contenu du script
                 basic_pdf.set_font("Arial", "", 11)
