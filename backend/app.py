@@ -1576,45 +1576,297 @@ def generate_direct_script_route():
                                     safe_title = sanitize_text(title)
                                     safe_script = sanitize_text(script_text)
                                     
-                                    # Créer un PDF basique
-                                    pdf = FPDF()
+                                    # Créer un PDF amélioré avec une mise en page professionnelle
+                                    class ScriptPDF(FPDF):
+                                        def __init__(self, title=None, author=None, channel=None):
+                                            super().__init__()
+                                            self.title = title or "Script YouTube"
+                                            self.author = author or "YouTuber"
+                                            self.channel = channel or "Chaîne YouTube"
+                                            self.sections = []  # Pour stocker les sections pour la table des matières
+                                
+                                        def header(self):
+                                            # En-tête avec informations
+                                            self.set_font('Arial', 'B', 10)
+                                            
+                                            # Date à droite
+                                            self.cell(0, 10, f"Généré le: {datetime.now().strftime('%d/%m/%Y')}", 0, 0, 'R')
+                                            
+                                            # Titre du script au centre avec meilleure gestion des titres longs
+                                            max_title_length = 50  # Limite raisonnable pour l'en-tête
+                                            
+                                            # Déterminer l'affichage du titre (tronqué si trop long)
+                                            display_title = self.title
+                                            if len(display_title) > max_title_length:
+                                                display_title = display_title[:max_title_length-3] + '...'
+                                            
+                                            # Positionner et afficher le titre centré
+                                            self.set_xy(10, 10)
+                                            self.cell(190, 10, display_title, 0, 0, 'C')
+                                            
+                                            # Ligne de séparation
+                                            self.line(10, 20, 200, 20)
+                                            
+                                            # Positionner après l'en-tête
+                                            self.set_y(25)
+                                        
+                                        def footer(self):
+                                            # Pied de page avec numérotation et informations de chaîne
+                                            self.set_y(-15)
+                                            self.set_font('Arial', 'I', 8)
+                                            # Numéro de page centré
+                                            self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+                                            # Chaîne YouTube à gauche
+                                            self.set_y(-15)
+                                            self.cell(60, 10, self.channel[:30], 0, 0, 'L')
+                                            # Auteur/YouTuber à droite
+                                            self.set_x(150)
+                                            self.cell(50, 10, self.author[:20], 0, 0, 'R')
+                                            
+                                        def add_section(self, section_name):
+                                            # Garde en mémoire les sections pour la table des matières
+                                            self.sections.append((section_name, self.page_no()))
+                                            
+                                            # Formatage visuel de la section
+                                            current_y = self.get_y()
+                                            self.set_fill_color(230, 230, 230)  # Gris clair
+                                            self.rect(10, current_y, 190, 8, 'F')
+                                            
+                                            # Écrire le titre de section
+                                            self.set_font('Arial', 'B', 12)
+                                            self.cell(0, 8, section_name, 0, 1, 'L')
+                                            self.ln(2)
+                                            self.set_font('Arial', '', 11)
+                                            
+                                        def add_table_of_contents(self):
+                                            # Ajouter une table des matières
+                                            if not self.sections:
+                                                return
+                                                
+                                            self.add_page()
+                                            self.set_font('Arial', 'B', 16)
+                                            self.cell(0, 10, "Table des matières", 0, 1, 'C')
+                                            self.ln(5)
+                                            
+                                            self.set_font('Arial', '', 11)
+                                            for section, page in self.sections:
+                                                dots = '.' * max(5, 60 - len(section))
+                                                self.cell(0, 8, f"{section} {dots} {page}", 0, 1)
+                                    
+                                    # Initialiser le PDF amélioré
+                                    pdf = ScriptPDF(safe_title, youtuber_name, channel_name)
                                     pdf.add_page()
-                                    pdf.set_font("Arial", size=12)
                                     
-                                    # Titre du document
-                                    pdf.set_font("Arial", 'B', 16)
-                                    pdf.cell(200, 10, txt=safe_title, ln=True, align='C')
-                                    pdf.ln(5)
+                                    # Page de titre (centralisée et avec meilleure gestion des titres longs)
+                                    pdf.set_font('Arial', 'B', 20)
+                                    pdf.ln(30)  # Plus d'espace pour centrer verticalement
                                     
-                                    # Ajouter le script
-                                    pdf.set_font("Arial", size=11)
-                                    # Découper le script en lignes
-                                    for line in safe_script.split('\n'):
-                                        safe_line = sanitize_text(line)  # Sanitiser chaque ligne individuellement
-                                        pdf.multi_cell(0, 5, txt=safe_line)
-                                        pdf.ln(2)
+                                    # Division intelligente du titre sur plusieurs lignes si nécessaire
+                                    if len(safe_title) > 60:  # Réduit à 60 caractères par ligne pour une meilleure lisibilité
+                                        # Découper le titre en mots
+                                        words = safe_title.split()
+                                        lines = []
+                                        current_line = ""
+                                        
+                                        # Construire les lignes intelligemment en fonction de la longueur
+                                        for word in words:
+                                            if len(current_line + " " + word) <= 60 or not current_line:  # Si la ligne reste sous 60 caractères
+                                                if current_line:  # Ajouter un espace si ce n'est pas le premier mot
+                                                    current_line += " "
+                                                current_line += word
+                                            else:  # Si la ligne dépasse 60 caractères, commencer une nouvelle ligne
+                                                lines.append(current_line)
+                                                current_line = word
+                                        
+                                        # Ajouter la dernière ligne
+                                        if current_line:
+                                            lines.append(current_line)
+                                        
+                                        # Afficher les lignes du titre
+                                        for line in lines:
+                                            pdf.cell(0, 12, line, 0, 1, 'C')
+                                    else:
+                                        pdf.cell(0, 12, safe_title, 0, 1, 'C')
                                     
-                                    # Ajouter les sources si disponibles
+                                    # Informations sur le créateur (augmenter l'espacement)
+                                    pdf.ln(15)
+                                    pdf.set_font('Arial', 'B', 14)  # Police plus grande et en gras
+                                    pdf.cell(0, 10, f"Par: {youtuber_name or 'YouTuber'}", 0, 1, 'C')
+                                    pdf.cell(0, 10, f"Chaîne: {channel_name or 'YouTube'}", 0, 1, 'C')
+                                    
+                                    # Date de création
+                                    pdf.ln(10)  # Plus d'espace
+                                    pdf.set_font('Arial', 'B', 12)  # Police plus grande
+                                    pdf.cell(0, 10, f"Création: {datetime.now().strftime('%d/%m/%Y')}", 0, 1, 'C')
+                                    
+                                    # Nouvelle page pour le contenu
+                                    pdf.add_page()
+                                    
+                                    # Détecter les sections dans le script et les ajouter proprement
+                                    # Découper le script en lignes pour traitement
+                                    lines = safe_script.split('\n')
+                                    
+                                    for i, line in enumerate(lines):
+                                        # Détecter les sections (entre crochets)
+                                        if '[' in line and ']' in line and line.strip().startswith('['):
+                                            # Extraire proprement le nom de la section pour éviter les doublons
+                                            section_name = line.strip()
+                                            
+                                            # Ajouter la section au PDF
+                                            pdf.add_section(section_name)
+                                            
+                                            # Trouver le contenu de cette section de manière plus robuste
+                                            current_pos = i
+                                            section_content = []
+                                            
+                                            # Parcourir les lignes suivantes jusqu'à la prochaine section
+                                            for j in range(i + 1, len(lines)):
+                                                next_line = lines[j]
+                                                # Vérifier si c'est une nouvelle section
+                                                if '[' in next_line and ']' in next_line and next_line.strip().startswith('['):
+                                                    break
+                                                # Sinon, ajouter au contenu de la section courante
+                                                section_content.append(next_line)
+                                            
+                                            # Joindre le contenu et le formater
+                                            content_text = '\n'.join(section_content).strip()
+                                            if content_text:
+                                                pdf.multi_cell(0, 5, content_text)
+                                                pdf.ln(5)
+                                    
+                                    # Table des matières (après le contenu pour avoir tous les numéros de page)
+                                    if pdf.sections:
+                                        toc_page = pdf.page_no()
+                                        pdf.add_table_of_contents()
+                                        pdf.page = toc_page + 1
+                                    
+                                    # Ajouter les sources avec présentation améliorée
                                     if real_sources and len(real_sources) > 0:
                                         pdf.add_page()
-                                        pdf.set_font("Arial", 'B', 14)
-                                        pdf.cell(200, 10, txt="Sources", ln=True, align='L')
+                                        pdf.set_font('Arial', 'B', 16)
+                                        pdf.cell(0, 10, "SOURCES & RÉFÉRENCES", 0, 1, 'C')
                                         pdf.ln(5)
                                         
-                                        pdf.set_font("Arial", size=10)
-                                        for i, source in enumerate(real_sources):
-                                            pdf.set_font("Arial", 'B', 10)
-                                            
-                                            # Sanitiser les informations des sources
-                                            safe_source_title = sanitize_text(source.get('title', f'Source {i+1}'))
-                                            safe_source_url = sanitize_text(source.get('url', ''))
-                                            safe_source_summary = sanitize_text(source.get('summary', ''))
-                                            
-                                            pdf.cell(200, 8, txt=f"Source {i+1}: {safe_source_title}", ln=True, align='L')
-                                            pdf.set_font("Arial", size=10)
-                                            pdf.cell(200, 6, txt=safe_source_url, ln=True, align='L')
-                                            pdf.multi_cell(0, 5, txt=safe_source_summary)
-                                            pdf.ln(5)
+                                        # Ajouter une introduction pour la section des sources
+                                        pdf.set_font('Arial', 'I', 10)
+                                        pdf.multi_cell(0, 5, "Les sources suivantes ont été utilisées pour la création de ce script.")
+                                        pdf.ln(5)
+                                        
+                                        # Regrouper les sources par type pour un affichage organisé
+                                        source_types = {}
+                                        for source in real_sources:
+                                            if isinstance(source, dict):
+                                                # Vérifier la structure des sources et s'assurer qu'elle est valide
+                                                if not source.get('url') and not source.get('title'):
+                                                    # Source incorrecte, la classer comme non-classée
+                                                    if 'non-classées' not in source_types:
+                                                        source_types['non-classées'] = []
+                                                    source_types['non-classées'].append({'url': str(source), 'title': 'Source invalide'})
+                                                    continue
+                                                    
+                                                # Extraire le type de manière sécurisée
+                                                source_type = source.get('type', 'web') 
+                                                # Protection contre les types manquants ou invalides
+                                                if not source_type or not isinstance(source_type, str):
+                                                    source_type = 'web'
+                                                    
+                                                # S'assurer que la liste pour ce type existe
+                                                if source_type not in source_types:
+                                                    source_types[source_type] = []
+                                                
+                                                # Ajouter la source au type approprié
+                                                source_types[source_type].append(source)
+                                            else:
+                                                # Sources sous forme de chaînes (ancien format)
+                                                if 'non-classées' not in source_types:
+                                                    source_types['non-classées'] = []
+                                                source_types['non-classées'].append({'url': str(source), 'title': f"Source {len(source_types['non-classées'])+1}"})
+                                        
+                                        # Définir l'ordre d'affichage des types de sources
+                                        type_order = ['académique', 'presse', 'encyclopédie', 'article', 'magazine', 'blog', 'web', 'non-classées']
+                                        # Couleurs par type de source pour les en-têtes (RGB)
+                                        type_colors = {
+                                            'académique': (0, 102, 153),    # Bleu foncé
+                                            'presse': (153, 0, 0),         # Rouge foncé
+                                            'encyclopédie': (0, 102, 0),    # Vert foncé
+                                            'article': (102, 51, 153),      # Violet
+                                            'magazine': (204, 102, 0),      # Orange
+                                            'blog': (153, 102, 51),         # Marron
+                                            'web': (51, 51, 51),            # Gris foncé
+                                            'non-classées': (100, 100, 100)  # Gris moyen
+                                        }
+                                        
+                                        # Compteur global pour la numérotation
+                                        source_index = 1
+                                        
+                                        # Afficher les sources par type dans l'ordre défini
+                                        for source_type in type_order:
+                                            if source_type in source_types and source_types[source_type]:
+                                                # En-tête du type de source avec couleur spécifique
+                                                pdf.ln(3)
+                                                # Couleur de fond pour l'en-tête du type de source
+                                                pdf.set_fill_color(*type_colors.get(source_type, (80, 80, 80)))
+                                                pdf.set_text_color(255, 255, 255)  # Texte blanc
+                                                pdf.set_font('Arial', 'B', 11)
+                                                
+                                                # Traduire le type en français avec première lettre en majuscule
+                                                type_display = source_type.capitalize()
+                                                pdf.cell(0, 7, f"Sources {type_display}", 0, 1, 'L', True)
+                                                pdf.ln(2)
+                                                
+                                                # Restaurer les couleurs normales
+                                                pdf.set_text_color(0, 0, 0)
+                                                pdf.set_font('Arial', '', 10)
+                                                
+                                                # Afficher chaque source de ce type
+                                                for source in source_types[source_type]:
+                                                    try:
+                                                        # Informations de base de la source avec validation
+                                                        url = source.get('url', 'N/A')
+                                                        # S'assurer que l'URL est une chaîne
+                                                        if not isinstance(url, str):
+                                                            url = str(url) if url else 'N/A'
+                                                        url = sanitize_text(url)
+                                                        
+                                                        # Sécuriser le titre
+                                                        title = source.get('title', f"Source {source_index}")
+                                                        if not isinstance(title, str):
+                                                            title = str(title) if title else f"Source {source_index}"
+                                                        title = sanitize_text(title)
+                                                        
+                                                        # Récupérer les métadonnées additionnelles avec sécurité
+                                                        summary = source.get('summary', source.get('résumé', ''))
+                                                        if not isinstance(summary, str):
+                                                            summary = str(summary) if summary else ''
+                                                        summary = sanitize_text(summary)
+                                                            
+                                                    except Exception as source_err:
+                                                        print(f"Erreur lors du traitement de la source: {source_err}")
+                                                        continue
+                                                    
+                                                    # Formater l'affichage selon les métadonnées disponibles
+                                                    # Titre de la source en gras
+                                                    pdf.set_font('Arial', 'B', 10)
+                                                    pdf.multi_cell(0, 6, f"[{source_index}] {title}")
+                                                    
+                                                    # URL en bleu et souligné
+                                                    pdf.set_text_color(0, 0, 255)
+                                                    pdf.set_font('Arial', 'U', 9)
+                                                    pdf.multi_cell(0, 5, url)
+                                                    pdf.set_text_color(0, 0, 0)
+                                                    pdf.set_font('Arial', '', 9)
+                                                    
+                                                    # Ajouter un résumé si disponible
+                                                    if summary:
+                                                        pdf.set_font('Arial', 'I', 8)
+                                                        # Limiter le résumé à 150 caractères
+                                                        if len(summary) > 150:
+                                                            summary = summary[:147] + "..."
+                                                        pdf.multi_cell(0, 5, f"Résumé: {summary}")
+                                                    
+                                                    # Incrémenter le compteur et ajouter un espace après chaque source
+                                                    source_index += 1
+                                                    pdf.ln(3)
                                     
                                     # Sauvegarder le PDF
                                     pdf.output(force_pdf_path)
