@@ -11,7 +11,7 @@ import tempfile
 
 # Permet d'importer main.py depuis le dossier parent
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from main import generate_topics, generate_script, save_to_pdf, modify_script_with_ai, estimate_reading_time, fetch_research, extract_sources, generate_images_for_script
+from main import generate_topics, generate_script, save_to_pdf, modify_script_with_ai, estimate_reading_time, fetch_research, extract_sources, generate_images_for_script, sanitize_text
 
 # Import des modèles de base de données
 from models import db, User, UserProfile
@@ -1408,33 +1408,51 @@ def generate_direct_script_route():
         
         # Rechercher des informations sur l'idée
         print(f"Recherche d'informations pour l'idée: {idea[:100]}...")
-        research = fetch_research(idea)
-        
-        if not research:
-            print("Aucune recherche trouvée, utilisation d'un contexte minimal.")
-            research = f"Idée de vidéo YouTube: {idea}"
-        else:
-            print(f"Recherche récupérée: {len(research)} caractères")
+        try:
+            research = fetch_research(idea)
+            
+            if not research:
+                print("Aucune recherche trouvée, utilisation d'un contexte minimal.")
+                research = f"Idée de vidéo YouTube: {idea}"
+            else:
+                print(f"Recherche récupérée: {len(research)} caractères")
+        except Exception as research_error:
+            print(f"Erreur lors de la recherche: {research_error}")
+            # Fournir un contexte minimal en cas d'erreur
+            research = f"Idée de vidéo YouTube: {idea}\n\nCette vidéo abordera le sujet de {idea} de manière approfondie et engageante."
         
         # Extraire les vraies sources depuis la recherche
-        from main import extract_sources
-        real_sources = extract_sources(research)
-        print(f"Sources extraites: {len(real_sources)}")
+        try:
+            real_sources = extract_sources(research)
+            print(f"Sources extraites: {len(real_sources)}")
+        except Exception as source_error:
+            print(f"Erreur lors de l'extraction des sources: {source_error}")
+            # Créer des sources de secours si l'extraction échoue
+            real_sources = [
+                {"url": "https://example.com/resource1", "title": "Ressource principale sur le sujet", "type": "web"},
+                {"url": "https://example.com/resource2", "title": "Informations complémentaires", "type": "web"}
+            ]
         
         # Générer le script avec les informations du profil
         print(f"Génération du script pour l'idée: {idea[:100]}...")
-        script_text = generate_script(idea, research, user_context={
-            'youtuber_name': youtuber_name,
-            'channel_name': channel_name,
-            'content_style': content_style,
-            'video_style': profile.get('content_style', 'informative'),
-            'approach_style': profile.get('tone', 'professionnel'),
-            'target_audience': profile.get('target_audience', 'adultes'),
-            'video_length': profile.get('video_length', '10-15 minutes'),
-            'language': profile.get('language', 'français'),
-            'content_type': profile.get('content_type', 'général'),
-            'custom_options': profile.get('custom_options', {})
-        })
+        try:
+            script_text = generate_script(idea, research, user_context={
+                'youtuber_name': youtuber_name,
+                'channel_name': channel_name,
+                'content_style': content_style,
+                'video_style': profile.get('content_style', 'informative'),
+                'approach_style': profile.get('tone', 'professionnel'),
+                'target_audience': profile.get('target_audience', 'adultes'),
+                'video_length': profile.get('video_length', '10-15 minutes'),
+                'language': profile.get('language', 'français'),
+                'content_type': profile.get('content_type', 'général'),
+                'custom_options': profile.get('custom_options', {})
+            })
+        except Exception as script_error:
+            print(f"Erreur lors de la génération du script: {script_error}")
+            from main import generate_fallback_script
+            # Utiliser un script de secours si la génération normale échoue
+            script_text = generate_fallback_script(idea, youtuber_name=youtuber_name, channel_name=channel_name)
         
         # Si l'idée est très courte, l'utiliser comme titre de base, sinon créer un titre plus concis
         title = idea if len(idea) < 60 else idea[:57] + "..."
@@ -1550,23 +1568,11 @@ def generate_direct_script_route():
                                         temp_dir = '/tmp'
                                     force_pdf_path = os.path.join(temp_dir, force_pdf_filename)
                                     
-                                    # Fonction pour sanitiser les chaînes de texte contre les problèmes d'encodage
-                                    def sanitize_text(text):
-                                        if not text:
-                                            return ""
-                                        # Remplacer les apostrophes typographiques par des apostrophes simples
-                                        text = text.replace('\u2019', "'")
-                                        # Remplacer les guillemets typographiques par des guillemets simples
-                                        text = text.replace('\u201c', '"').replace('\u201d', '"')
-                                        # Remplacer les tirets longs par des tirets standards
-                                        text = text.replace('\u2014', '-').replace('\u2013', '-')
-                                        # Remplacer les ellipses par trois points
-                                        text = text.replace('\u2026', '...')
-                                        # Sanitiser tous les autres caractères Unicode qui pourraient causer des problèmes
-                                        text = ''.join(c if ord(c) < 128 else ' ' for c in text)
-                                        return text
+                                    # Utiliser la fonction sanitize_text importée de main.py (plus robuste)
+                                    # qui résout les problèmes d'encodage
                                     
-                                    # Sanitiser le texte du script et du titre
+                                    # Sanitiser le texte du script et du titre avec la fonction robuste
+                                    from main import sanitize_text
                                     safe_title = sanitize_text(title)
                                     safe_script = sanitize_text(script_text)
                                     

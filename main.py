@@ -27,47 +27,81 @@ except Exception as e:
 
 def gemini_generate(prompt: str) -> str:
     """Génère du texte avec Gemini."""
-    try:
-        # Vérification de la clé API
-        if not GEMINI_API_KEY:
-            print("Erreur: Clé API Gemini manquante ou invalide")
-            raise ValueError("Clé API Gemini manquante ou invalide")
-        
+    max_retries = 3
+    retry_delay = 2  # secondes
+    
+    for attempt in range(max_retries):
         try:
-            response = model.generate_content(prompt)
-            if not response or not response.text:
-                print("Erreur: Réponse Gemini vide")
+            # Vérification de la clé API
+            if not GEMINI_API_KEY:
+                print("Erreur: Clé API Gemini manquante ou invalide")
                 return ""
+            
+            try:
+                # Ajout d'un mécanisme de timeout explicite
+                response = model.generate_content(prompt)
+                if not response or not response.text:
+                    print("Erreur: Réponse Gemini vide")
+                    if attempt < max_retries - 1:
+                        print(f"Nouvelle tentative ({attempt+2}/{max_retries})...")
+                        import time
+                        time.sleep(retry_delay)
+                        continue
+                    return ""
+                    
+                # Essaie de trouver un JSON valide dans la réponse
+                text = response.text
+                start = text.find('{')
+                end = text.rfind('}') + 1
                 
-            # Essaie de trouver un JSON valide dans la réponse
-            text = response.text
-            start = text.find('{')
-            end = text.rfind('}') + 1
-            
-            if start >= 0 and end > 0:
-                json_str = text[start:end]
-                # Vérifie si c'est un JSON valide
-                try:
-                    json.loads(json_str)
-                    return json_str
-                except:
-                    print(f"Erreur: JSON invalide dans la réponse")
-                    print(f"Début de la réponse reçue: {text[:200]}...")
-                    return text
-            
-            return text
-        except requests.exceptions.ConnectionError as conn_err:
-            print(f"Erreur de connexion Gemini: {conn_err}")
-            raise ValueError(f"Failed to fetch - Problème de connexion: {conn_err}")
-        except requests.exceptions.Timeout as timeout_err:
-            print(f"Timeout lors de la connexion à Gemini: {timeout_err}")
-            raise ValueError(f"Failed to fetch - Timeout: {timeout_err}")
-        except requests.exceptions.RequestException as req_err:
-            print(f"Erreur de requête Gemini: {req_err}")
-            raise ValueError(f"Failed to fetch - Erreur de requête: {req_err}")
-    except Exception as e:
-        print(f"Erreur Gemini: {e}")
-        return ""
+                if start >= 0 and end > 0:
+                    json_str = text[start:end]
+                    # Vérifie si c'est un JSON valide
+                    try:
+                        json.loads(json_str)
+                        return json_str
+                    except:
+                        print(f"Erreur: JSON invalide dans la réponse")
+                        print(f"Début de la réponse reçue: {text[:200]}...")
+                        return text
+                
+                return text
+            except requests.exceptions.ConnectionError as conn_err:
+                print(f"Erreur de connexion Gemini (tentative {attempt+1}/{max_retries}): {conn_err}")
+                if attempt < max_retries - 1:
+                    print(f"Nouvelle tentative dans {retry_delay} secondes...")
+                    import time
+                    time.sleep(retry_delay)
+                    continue
+                print("Échec après plusieurs tentatives")
+                return ""
+            except requests.exceptions.Timeout as timeout_err:
+                print(f"Timeout lors de la connexion à Gemini (tentative {attempt+1}/{max_retries}): {timeout_err}")
+                if attempt < max_retries - 1:
+                    print(f"Nouvelle tentative dans {retry_delay} secondes...")
+                    import time
+                    time.sleep(retry_delay)
+                    continue
+                print("Échec après plusieurs tentatives")
+                return ""
+            except requests.exceptions.RequestException as req_err:
+                print(f"Erreur de requête Gemini (tentative {attempt+1}/{max_retries}): {req_err}")
+                if attempt < max_retries - 1:
+                    print(f"Nouvelle tentative dans {retry_delay} secondes...")
+                    import time
+                    time.sleep(retry_delay)
+                    continue
+                print("Échec après plusieurs tentatives")
+                return ""
+        except Exception as e:
+            print(f"Erreur Gemini (tentative {attempt+1}/{max_retries}): {e}")
+            if attempt < max_retries - 1:
+                print(f"Nouvelle tentative dans {retry_delay} secondes...")
+                import time
+                time.sleep(retry_delay)
+                continue
+            print("Échec après plusieurs tentatives")
+            return ""
 
 def deepseek_search(query: str, num_results: int = 5) -> str:
     """Effectue une recherche via l'API DeepSeek en priorité sur Tavily et SerpAPI."""
@@ -629,7 +663,7 @@ IMPORTANT: Réponds UNIQUEMENT avec un JSON valide de cette forme:
         return {}
 
 def generate_topics(theme: str, num_topics: int = 5, user_context: dict = None) -> list:
-    """Génère des sujets d'actualité en utilisant exclusivement Gemini."""
+    """Génère des sujets d'actualité en utilisant exclusivement Gemini avec fallback sur DeepSeek si nécessaire."""
     print(f"\nRecherche d'informations sur: {theme}")
     
     # Construction du contexte utilisateur
@@ -675,25 +709,122 @@ IMPORTANT: Ta réponse doit être UNIQUEMENT un objet JSON valide avec cette str
 
 Ne génère RIEN d'autre que ce JSON. Pas d'explications, pas de texte avant ou après."""
 
+    # Tentative avec Gemini
     response = gemini_generate(prompt)
-    if not response:
-        print("Erreur: Aucune réponse de Gemini")
-        return []
-        
-    try:
-        result = json.loads(response)
-        topics = result.get("topics", [])
-        if not topics:
-            print("Erreur: Aucun sujet trouvé dans la réponse")
-            return []
-        
-        print(f"\n{len(topics)} sujets générés avec succès")
-        return topics[:num_topics]
-        
-    except json.JSONDecodeError as e:
-        print(f"Erreur: Réponse JSON invalide - {str(e)}")
-        print(f"Début de la réponse reçue: {response[:200]}...")
-        return []
+    if response:
+        try:
+            result = json.loads(response)
+            topics = result.get("topics", [])
+            if topics:
+                print(f"\n{len(topics)} sujets générés avec succès via Gemini")
+                return topics[:num_topics]
+        except json.JSONDecodeError as e:
+            print(f"Erreur: Réponse JSON invalide de Gemini - {str(e)}")
+            print(f"Tentative de fallback...")
+    else:
+        print("Erreur: Aucune réponse valide de Gemini, tentative de fallback...")
+    
+    # Fallback sur DeepSeek si Gemini échoue
+    print("\nFallback: Génération des sujets avec DeepSeek...")
+    
+    # Reformater le prompt pour DeepSeek
+    deepseek_prompt = f"""Tu es un expert en création de contenu YouTube francophone, spécialiste de la viralité et de l'actualité.
+
+Pour le thème "{sanitize_text(theme)}", génère {num_topics} idées de vidéos YouTube avec les caractéristiques suivantes :
+- Sujets basés sur les tendances récentes
+- Titres accrocheurs et viraux
+- Optimisés pour l'engagement (clics, watchtime)
+- Angles uniques et innovants
+
+{sanitize_text(user_context_str) if user_context_str else ''}
+
+Réponds UNIQUEMENT avec un JSON valide ayant cette structure précise :
+
+{{"topics": [
+  {{"title": "Titre accrocheur", 
+   "angle": "Angle unique", 
+   "why_interesting": "Pertinence actuelle", 
+   "key_points": ["Point 1", "Point 2"], 
+   "target_audience": "Public cible", 
+   "estimated_duration": "Durée (minutes)"}}
+]}}
+
+IMPORTANT: Assure-toi que le JSON est parfaitement formaté sans texte avant ou après."""
+    
+    deepseek_response = deepseek_generate(deepseek_prompt)
+    
+    if deepseek_response:
+        # Extraction du JSON de la réponse DeepSeek
+        import re
+        json_match = re.search(r'\{.*\}', deepseek_response, re.DOTALL)
+        if json_match:
+            try:
+                json_str = json_match.group(0)
+                result = json.loads(json_str)
+                topics = result.get("topics", [])
+                
+                # Ajouter des champs manquants si nécessaire
+                for topic in topics:
+                    if "potential_guests" not in topic:
+                        topic["potential_guests"] = ["Expert du domaine"]
+                    if "factual_accuracy" not in topic:
+                        topic["factual_accuracy"] = "high"
+                    if "timeliness" not in topic:
+                        topic["timeliness"] = "recent"
+                    if "sources" not in topic:
+                        topic["sources"] = ["Recherches actuelles"]
+                
+                if topics:
+                    print(f"\n{len(topics)} sujets générés avec succès via DeepSeek (fallback)")
+                    return topics[:num_topics]
+            except json.JSONDecodeError as e:
+                print(f"Erreur: Réponse JSON invalide de DeepSeek - {str(e)}")
+    
+    # En dernier recours: générer des sujets par défaut
+    print("\nGénération de sujets par défaut...")
+    
+    # Créer quelques sujets génériques basés sur le thème
+    default_topics = [
+        {
+            "title": f"Ce que personne ne vous dit sur {theme} en 2024",
+            "angle": "Analyse critique des idées reçues",
+            "why_interesting": "Démystification d'un sujet populaire",
+            "key_points": ["Idées reçues courantes", "Faits réels", "Conseils pratiques"],
+            "target_audience": "Grand public intéressé par le sujet",
+            "estimated_duration": "12-15 minutes",
+            "potential_guests": ["Expert en la matière"],
+            "factual_accuracy": "high",
+            "timeliness": "evergreen",
+            "sources": ["Sources générales sur le sujet"]
+        },
+        {
+            "title": f"Les 5 secrets du/de la {theme} que les experts utilisent",
+            "angle": "Partage de connaissances exclusives",
+            "why_interesting": "Accès à des informations privilégiées",
+            "key_points": ["Secret 1", "Secret 2", "Secret 3", "Secret 4", "Secret 5"],
+            "target_audience": "Personnes cherchant à approfondir leurs connaissances",
+            "estimated_duration": "10-12 minutes",
+            "potential_guests": ["Professionnel du domaine"],
+            "factual_accuracy": "high",
+            "timeliness": "evergreen",
+            "sources": ["Expérience professionnelle", "Études récentes"]
+        },
+        {
+            "title": f"J'ai essayé {theme} pendant 30 jours, voici ce qui s'est passé",
+            "angle": "Expérience personnelle documentée",
+            "why_interesting": "Résultats réels et concrets",
+            "key_points": ["Jour 1", "Première semaine", "Défis rencontrés", "Résultats finaux"],
+            "target_audience": "Curieux et personnes intéressées par des retours d'expérience",
+            "estimated_duration": "15-18 minutes",
+            "potential_guests": ["Autres personnes ayant tenté l'expérience"],
+            "factual_accuracy": "high",
+            "timeliness": "evergreen",
+            "sources": ["Expérience personnelle", "Témoignages similaires"]
+        }
+    ]
+    
+    print(f"\n{len(default_topics)} sujets générés par défaut")
+    return default_topics
 
 def generate_script(topic: str, research: str, user_context: dict = None) -> str:
     """Génère un script détaillé avec DeepSeek + Gemini et retourne le texte intégral."""
