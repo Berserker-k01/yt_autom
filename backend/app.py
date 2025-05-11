@@ -1915,17 +1915,96 @@ def generate_direct_script_route():
                                             'estimated_reading_time': estimate_reading_time(script_text)
                                         })
                                 
-                                # Échec catastrophique - renvoyer un PDF vide plutôt que rien
-                                print("Dernière tentative avec création d'un PDF minimal")
+                                # Échec catastrophique - renvoyer un PDF de secours formaté plutôt que rien
+                                print("Dernière tentative avec création d'un PDF de secours style ")
                                 try:
                                     from fpdf import FPDF
-                                    minimal_pdf = FPDF()
-                                    minimal_pdf.add_page()
-                                    minimal_pdf.set_font("Arial", size=12)
-                                    minimal_pdf.cell(200, 10, txt="Erreur de génération du PDF complet", ln=True, align='C')
-                                    minimal_pdf.cell(200, 10, txt="Le script est disponible dans l'interface", ln=True, align='C')
                                     
-                                    minimal_pdf_filename = f"script_minimal_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
+                                    # Utiliser une classe similaire à ScriptPDF pour garantir une cohérence visuelle
+                                    class EmergencyPDF(FPDF):
+                                        def __init__(self, title=None, author=None, channel=None):
+                                            super().__init__()
+                                            self.title = title or "Script YouTube"
+                                            self.author = author or "YouTuber"
+                                            self.channel = channel or "Chaîne YouTube"
+                                            
+                                        def header(self):
+                                            # En-tête avec informations
+                                            self.set_font('Arial', 'B', 10)
+                                            # Date à droite
+                                            self.cell(0, 10, f"Généré le: {datetime.now().strftime('%d/%m/%Y')}", 0, 0, 'R')
+                                            # Titre du script au centre
+                                            self.set_xy(10, 10)
+                                            self.cell(190, 10, self.title, 0, 0, 'C')
+                                            # Ligne de séparation
+                                            self.line(10, 20, 200, 20)
+                                            # Positionner après l'en-tête
+                                            self.set_y(25)
+                                            
+                                        def footer(self):
+                                            # Pied de page avec numérotation et informations de chaîne
+                                            self.set_y(-15)
+                                            self.set_font('Arial', 'I', 8)
+                                            # Numéro de page centré
+                                            self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+                                            # Chaîne YouTube à gauche
+                                            self.set_y(-15)
+                                            self.cell(60, 10, self.channel[:30], 0, 0, 'L')
+                                            # Auteur/YouTuber à droite
+                                            self.set_x(150)
+                                            self.cell(50, 10, self.author[:20], 0, 0, 'R')
+                                    
+                                    # Créer un PDF d'urgence mais formaté avec style
+                                    safe_title = sanitize_text(title) if title else "Script de secours"
+                                    
+                                    minimal_pdf = EmergencyPDF(safe_title, youtuber_name, channel_name)
+                                    minimal_pdf.add_page()
+                                    
+                                    # Page de titre centralisée
+                                    minimal_pdf.ln(30)  # Espace pour centrer
+                                    
+                                    # Titre principal formaté
+                                    minimal_pdf.set_font('Arial', 'B', 20)
+                                    minimal_pdf.cell(0, 12, safe_title, 0, 1, 'C')
+                                    
+                                    # Informations sur l'auteur
+                                    minimal_pdf.ln(15)
+                                    minimal_pdf.set_font('Arial', 'B', 14)
+                                    minimal_pdf.cell(0, 10, f"Par: {youtuber_name or 'YouTuber'}", 0, 1, 'C')
+                                    minimal_pdf.cell(0, 10, f"Chaîne: {channel_name or 'YouTube'}", 0, 1, 'C')
+                                    
+                                    # Message d'erreur formaté
+                                    minimal_pdf.add_page()
+                                    minimal_pdf.set_font('Arial', 'B', 14)
+                                    minimal_pdf.set_fill_color(230, 230, 230)  # Gris clair
+                                    minimal_pdf.rect(10, minimal_pdf.get_y(), 190, 8, 'F')
+                                    minimal_pdf.cell(0, 8, "NOTE IMPORTANTE", 0, 1, 'C')
+                                    minimal_pdf.ln(5)
+                                    
+                                    minimal_pdf.set_font('Arial', '', 12)
+                                    minimal_pdf.multi_cell(0, 7, "Ce PDF est une version de secours générée suite à une erreur technique lors de la création du PDF complet. Le script complet est disponible dans l'interface web.")
+                                    minimal_pdf.ln(10)
+                                    
+                                    # Ajouter un extrait du script si disponible
+                                    if script_text:
+                                        lines = script_text.split('\n')[:15]  # Prendre seulement les 15 premières lignes
+                                        if lines:
+                                            minimal_pdf.set_font('Arial', 'B', 14)
+                                            minimal_pdf.set_fill_color(230, 230, 230)  # Gris clair
+                                            minimal_pdf.rect(10, minimal_pdf.get_y(), 190, 8, 'F')
+                                            minimal_pdf.cell(0, 8, "DÉBUT DU SCRIPT", 0, 1, 'C')
+                                            minimal_pdf.ln(5)
+                                            
+                                            minimal_pdf.set_font('Arial', '', 11)
+                                            for line in lines:
+                                                safe_line = sanitize_text(line)
+                                                minimal_pdf.multi_cell(0, 5, safe_line)
+                                            
+                                            minimal_pdf.ln(5)
+                                            minimal_pdf.set_font('Arial', 'I', 10)
+                                            minimal_pdf.cell(0, 5, "[Script tronqué - la version complète est disponible dans l'interface web]", 0, 1, 'C')
+                                    
+                                    minimal_pdf_filename = f"script_{sanitize_text(title).replace(' ', '_')[:20]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
                                     minimal_pdf_path = os.path.join(temp_dir, minimal_pdf_filename)
                                     minimal_pdf.output(minimal_pdf_path)
                                     
