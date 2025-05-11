@@ -1163,12 +1163,8 @@ def sanitize_text(text: str) -> str:
     """Sanitarise le texte pour s'assurer qu'il est compatible avec l'encodage latin-1 de FPDF."""
     if not text:
         return ""
-    
-    # Importer unicodedata dès le début pour éviter les imports répétés
-    import unicodedata
-    import re
         
-    # Table de conversion des caractères spéciaux améliorée
+    # Table de conversion des caractères spéciaux
     replacements = {
         # Apostrophes et guillemets typographiques
         '\u2018': "'", # guillemet simple ouvrant
@@ -1187,50 +1183,15 @@ def sanitize_text(text: str) -> str:
         'œ': 'oe',
         'Œ': 'OE',
         'æ': 'ae',
-        'Æ': 'AE',
-        # Caractères accentués supplémentaires qui posent problème
-        'é': 'e',
-        'è': 'e',
-        'ê': 'e',
-        'ë': 'e',
-        'à': 'a',
-        'â': 'a',
-        'ä': 'a',
-        'î': 'i',
-        'ï': 'i',
-        'ô': 'o',
-        'ö': 'o',
-        'ù': 'u',
-        'û': 'u',
-        'ü': 'u',
-        'ÿ': 'y',
-        'ç': 'c',
-        'É': 'E',
-        'È': 'E',
-        'Ê': 'E',
-        'Ë': 'E',
-        'À': 'A',
-        'Â': 'A',
-        'Ä': 'A',
-        'Î': 'I',
-        'Ï': 'I',
-        'Ô': 'O',
-        'Ö': 'O',
-        'Ù': 'U',
-        'Û': 'U',
-        'Ü': 'U',
-        'Ÿ': 'Y',
-        'Ç': 'C'
+        'Æ': 'AE'
     }
     
-    # Première passe : remplacement des caractères connus problématiques
+    # Remplacer les caractères spéciaux
     for special_char, replacement in replacements.items():
         text = text.replace(special_char, replacement)
     
-    # Détection plus agressive des apostrophes typographiques qui causent souvent des problèmes
-    text = re.sub(r'[\u2018\u2019]', "'", text)
-    
-    # Deuxième passe : traitement caractère par caractère pour les cas non gérés
+    # Pour les autres caractères non compatibles avec latin-1, essayer de convertir
+    # ou supprimer si impossible
     result = ""
     for char in text:
         try:
@@ -1238,30 +1199,20 @@ def sanitize_text(text: str) -> str:
             char.encode('latin-1')
             result += char
         except UnicodeEncodeError:
-            # Si le caractère ne peut pas être encodé, essayer plusieurs stratégies
-            # 1. Vérifier dans notre dictionnaire de remplacement
+            # Si le caractère ne peut pas être encodé, le remplacer par un équivalent
+            # ou le supprimer
             if char in replacements:
                 result += replacements[char]
             else:
-                # 2. Tentative de normalisation (convertir les caractères accentués)
+                # Tentative de normalisation (supprimer les accents)
+                import unicodedata
                 normalized = unicodedata.normalize('NFKD', char).encode('ASCII', 'ignore')
                 if normalized:
                     result += normalized.decode('ASCII')
                 else:
-                    # 3. Si tout échoue, caractère sécurisé
-                    result += '_'
+                    result += '_'  # Caractère de remplacement si tout échoue
     
-    # Troisième passe : vérification finale pour assurer l'encodage complet
-    final_result = ""
-    for char in result:
-        try:
-            char.encode('latin-1')
-            final_result += char
-        except UnicodeEncodeError:
-            # Dernier recours: supprimer les caractères problématiques
-            final_result += '_'
-    
-    return final_result
+    return result
 
 def save_to_pdf(script_text: str, title: str = None, author: str = None, channel: str = None, sources: list = None) -> str:
     """Génération améliorée de PDF avec mise en page professionnelle et affichage optimisé des sources."""
