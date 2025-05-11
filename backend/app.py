@@ -2058,15 +2058,19 @@ def generate_direct_script_route():
                 import traceback
                 traceback.print_exc()
                 
-                # Essayer le niveau 2 directement ici sans passer par le flux normal
+                # Si aucun PDF valide n'a été généré, réessayer avec save_to_pdf mais avec des paramètres plus simples
+                print("Réessai de génération PDF avec le système standard...")
                 try:
-                    print("Tentative directe de génération de PDF de niveau 2...")
-                    # Définir temp_dir s'il n'est pas déjà défini
-                    if 'temp_dir' not in locals():
-                        if os.name == 'nt':  # Windows
-                            temp_dir = tempfile.gettempdir()
-                        else:  # Linux/Render
-                            temp_dir = '/tmp'
+                    from main import save_to_pdf, sanitize_text
+                    import tempfile
+                    from datetime import datetime
+                    import os
+                    
+                    # Définir temp_dir avant son utilisation
+                    if os.name == 'nt':  # Windows
+                        temp_dir = tempfile.gettempdir()
+                    else:  # Linux (Render)
+                        temp_dir = '/tmp'
                     
                     # Générer un nom de fichier unique
                     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
@@ -2075,6 +2079,14 @@ def generate_direct_script_route():
                     fallback_pdf_filename = f"fallback_script_{safe_title}_{timestamp}.pdf"
                     fallback_pdf_path = os.path.join(temp_dir, fallback_pdf_filename)
                     
+                    # Utiliser save_to_pdf pour générer le PDF
+                    fallback_pdf_path = save_to_pdf(
+                        script_text,
+                        title=title,
+                        author=youtuber_name,
+                        channel=channel_name,
+                        sources=real_sources
+                    )
                     # Fonction de sanitisation révisée
                     def sanitize_text(text):
                         if not text or not isinstance(text, str):
