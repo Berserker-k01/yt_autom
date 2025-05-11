@@ -480,30 +480,40 @@ def export_pdf_route():
         # Vérifier la structure des sources et les normaliser si nécessaire
         normalized_sources = []
         for source in sources:
-            if isinstance(source, str):
-                # Si c'est simplement une chaîne (URL), créer un dictionnaire
-                normalized_sources.append({
-                    'url': source,
-                    'title': f"Source: {source.split('/')[2] if '/' in source else source}"
-                })
-            elif isinstance(source, dict):
-                # Vérifier que les clés requises sont présentes
-                if 'url' in source:
-                    normalized_sources.append(source)
-                elif 'link' in source:
+            try:
+                if isinstance(source, str):
+                    # Si c'est simplement une chaîne (URL), créer un dictionnaire
                     normalized_sources.append({
-                        'url': source['link'],
-                        'title': source.get('title', f"Source: {source['link']}")
+                        'url': str(source),
+                        'title': f"Source: {source.split('/')[2] if '/' in source else source}[:30]...",
+                        'type': 'web'
                     })
+                elif isinstance(source, dict):
+                    # Vérifier les clés minimales nécessaires
+                    if 'url' in source:
+                        normalized_sources.append({
+                            'url': str(source.get('url', 'N/A')),
+                            'title': str(source.get('title', 'Source sans titre')),
+                            'type': str(source.get('type', 'web'))
+                        })
+                    elif 'link' in source:
+                        normalized_sources.append({
+                            'url': str(source.get('link', 'N/A')),
+                            'title': str(source.get('title', f"Source: {source['link']}")[:30]),
+                            'type': str(source.get('type', 'web'))
+                        })
+            except Exception as source_error:
+                print(f"Erreur lors de la normalisation d'une source: {source_error}")
+                # Ignorer cette source et continuer
+                continue
         
-        # Système robuste de génération PDF à plusieurs niveaux
+        # Utiliser directement save_to_pdf (comme dans main.py) avec les textes sanitarisés
         pdf_path = ""
         pdf_filename = ""
         pdf_base64 = ""
         
-        # 1. Premier niveau: Essayer la génération standard avec save_to_pdf
         try:
-            print("Génération PDF standard...")
+            print("Génération PDF avec save_to_pdf...")
             pdf_path = save_to_pdf(
                 final_script, 
                 title=final_topic, 
@@ -512,183 +522,38 @@ def export_pdf_route():
                 sources=normalized_sources
             )
             
-            if pdf_path and os.path.exists(pdf_path) and pdf_path.endswith('.pdf'):
+            if pdf_path and os.path.exists(pdf_path):
                 pdf_filename = os.path.basename(pdf_path)
                 print(f"PDF généré avec succès: {pdf_path}")
                 
-                # Vérifier que le PDF est valide
+                # Lire le contenu du PDF pour le retourner en base64
                 with open(pdf_path, 'rb') as pdf_file:
                     pdf_content = pdf_file.read()
-                    if not pdf_content.startswith(b'%PDF'):
-                        print("Le PDF généré n'est pas valide, passage au niveau 2")
-                        raise Exception("PDF invalid")
                     pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
             else:
-                print("Chemin PDF non valide ou fichier non PDF")
-                raise Exception("PDF path invalid")
+                raise Exception("Le chemin du PDF généré est invalide ou le fichier n'existe pas")
+                
         except Exception as pdf_error:
-            print(f"Erreur niveau 1 - Génération standard: {pdf_error}")
-            
-            # 2. Deuxième niveau: génération directe avec FPDF
-            try:
-                print("Tentative de génération PDF de secours avec FPDF...")
-                from fpdf import FPDF
-                
-                # Créer un nom de fichier unique avec extension .pdf
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                safe_title = "".join(c if c.isalnum() or c in [' ', '_', '-'] else '_' for c in final_topic[:30])
-                safe_title = safe_title.replace(' ', '_')
-                force_pdf_filename = f"script_{safe_title}_{timestamp}.pdf"
-                
-                # Déterminer le chemin du fichier temporaire
-                if os.name == 'nt':  # Windows
-                    temp_dir = tempfile.gettempdir()
-                else:  # Linux/Render
-                    temp_dir = '/tmp'
-                force_pdf_path = os.path.join(temp_dir, force_pdf_filename)
-                
-                # Fonction pour sanitiser les chaînes de texte contre les problèmes d'encodage
-                def sanitize_text(text):
-                    if not text:
-                        return ""
-                    # Remplacer les apostrophes typographiques par des apostrophes simples
-                    text = text.replace('\u2019', "'")
-                    # Remplacer les guillemets typographiques par des guillemets simples
-                    text = text.replace('\u201c', '"').replace('\u201d', '"')
-                    # Remplacer les tirets longs par des tirets standards
-                    text = text.replace('\u2014', '-').replace('\u2013', '-')
-                    # Remplacer les ellipses par trois points
-                    text = text.replace('\u2026', '...')
-                    # Sanitiser tous les autres caractères Unicode qui pourraient causer des problèmes
-                    text = ''.join(c if ord(c) < 128 else ' ' for c in text)
-                    return text
-                
-                # Sanitiser le texte du script et du titre
-                safe_script = sanitize_text(final_script)
-                safe_topic = sanitize_text(final_topic)
-                
-                # Créer un PDF basique
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", size=12)
-                
-                # Titre du document
-                pdf.set_font("Arial", 'B', 16)
-                pdf.cell(200, 10, txt=safe_topic, ln=True, align='C')
-                pdf.ln(5)
-                
-                # Ajouter le script
-                pdf.set_font("Arial", size=11)
-                # Découper le script en lignes
-                for line in safe_script.split('\n'):
-                    # Sanitiser chaque ligne individuellement
-                    safe_line = sanitize_text(line)
-                    pdf.multi_cell(0, 5, txt=safe_line)
-                    pdf.ln(2)
-                
-                # Ajouter les sources si disponibles
-                if normalized_sources and len(normalized_sources) > 0:
-                    pdf.add_page()
-                    pdf.set_font("Arial", 'B', 14)
-                    pdf.cell(200, 10, txt="Sources", ln=True, align='L')
-                    pdf.ln(5)
-                    
-                    pdf.set_font("Arial", size=10)
-                    for i, source in enumerate(normalized_sources):
-                        pdf.set_font("Arial", 'B', 10)
-                        if isinstance(source, dict):
-                            safe_title = sanitize_text(source.get('title', f'Source {i+1}'))
-                            safe_url = sanitize_text(source.get('url', ''))
-                            safe_summary = sanitize_text(source.get('summary', ''))
-                            
-                            pdf.cell(200, 8, txt=f"Source {i+1}: {safe_title}", ln=True, align='L')
-                            pdf.set_font("Arial", size=10)
-                            pdf.cell(200, 6, txt=safe_url, ln=True, align='L')
-                            pdf.multi_cell(0, 5, txt=safe_summary)
-                        else:
-                            pdf.cell(200, 8, txt=f"Source {i+1}", ln=True, align='L')
-                        pdf.ln(5)
-                
-                # Sauvegarder le PDF
-                pdf.output(force_pdf_path)
-                print(f"PDF de secours généré avec succès: {force_pdf_path}")
-                
-                # Vérifier que le PDF a bien été créé
-                if os.path.exists(force_pdf_path):
-                    pdf_path = force_pdf_path
-                    pdf_filename = force_pdf_filename
-                    
-                    with open(force_pdf_path, 'rb') as pdf_file:
-                        pdf_content = pdf_file.read()
-                        pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
-                else:
-                    raise Exception("PDF de secours non créé")
-            except Exception as fpdf_error:
-                print(f"Erreur niveau 2 - Génération FPDF: {fpdf_error}")
-                
-                # 3. Troisième niveau: PDF minimal
-                try:
-                    print("Tentative de création d'un PDF minimal...")
-                    from fpdf import FPDF
-                    
-                    # Utiliser la fonction de sanitisation déjà définie (ou la redéfinir)
-                    def sanitize_text(text):
-                        if not text:
-                            return ""
-                        # Remplacer les apostrophes typographiques par des apostrophes simples
-                        text = text.replace('\u2019', "'")
-                        # Remplacer les guillemets typographiques par des guillemets simples
-                        text = text.replace('\u201c', '"').replace('\u201d', '"')
-                        # Remplacer les tirets longs par des tirets standards
-                        text = text.replace('\u2014', '-').replace('\u2013', '-')
-                        # Remplacer les ellipses par trois points
-                        text = text.replace('\u2026', '...')
-                        # Sanitiser tous les autres caractères Unicode qui pourraient causer des problèmes
-                        text = ''.join(c if ord(c) < 128 else ' ' for c in text)
-                        return text
-                    
-                    # Sanitiser le texte du titre pour éviter les problèmes d'encodage
-                    safe_topic = sanitize_text(final_topic)
-                    message_safe = sanitize_text("Le script est disponible dans l'interface")
-                    
-                    minimal_pdf = FPDF()
-                    minimal_pdf.add_page()
-                    minimal_pdf.set_font("Arial", size=12)
-                    minimal_pdf.cell(200, 10, txt=safe_topic, ln=True, align='C')
-                    minimal_pdf.cell(200, 10, txt=message_safe, ln=True, align='C')
-                    
-                    minimal_pdf_filename = f"script_minimal_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-                    minimal_pdf_path = os.path.join(temp_dir, minimal_pdf_filename)
-                    minimal_pdf.output(minimal_pdf_path)
-                    
-                    if os.path.exists(minimal_pdf_path):
-                        pdf_path = minimal_pdf_path
-                        pdf_filename = minimal_pdf_filename
-                        
-                        with open(minimal_pdf_path, 'rb') as min_pdf_file:
-                            min_pdf_content = min_pdf_file.read()
-                            pdf_base64 = base64.b64encode(min_pdf_content).decode('utf-8')
-                    else:
-                        raise Exception("PDF minimal non créé")
-                except Exception as minimal_error:
-                    print(f"Erreur niveau 3 - PDF minimal: {minimal_error}")
-                    return jsonify({
-                        'error': 'Erreur lors de la génération du PDF',
-                        'file_type': 'application/pdf'  # Toujours indiquer le type PDF
-                    }), 500
+            print(f"Erreur lors de la génération du PDF: {pdf_error}")
+            import traceback
+            traceback.print_exc()
+            return jsonify({
+                'error': f'Erreur lors de la génération du PDF: {str(pdf_error)}',
+                'file_type': 'application/pdf'
+            }), 500
             
         # Vérifier que le PDF a bien été généré
         if not pdf_path or not os.path.exists(pdf_path) or not pdf_filename:
             return jsonify({
-                'error': 'Erreur lors de la génération du PDF',
-                'file_type': 'application/pdf'  # Toujours indiquer le type PDF
+                'error': 'PDF non généré',
+                'file_type': 'application/pdf'
             }), 500
         
         # Renvoyer l'URL de téléchargement du PDF
         return jsonify({
             'pdf_url': f"/download/{pdf_filename}",
             'file_data': pdf_base64 if pdf_base64 else None,
-            'file_type': 'application/pdf',  # Toujours indiquer le type PDF
+            'file_type': 'application/pdf',
             'file_name': pdf_filename
         })
         
