@@ -1457,6 +1457,70 @@ def generate_direct_script_route():
         # Si l'idée est très courte, l'utiliser comme titre de base, sinon créer un titre plus concis
         title = idea if len(idea) < 60 else idea[:57] + "..."
         
+        # Pré-traitement du script pour assurer une structure compatible avec save_to_pdf
+        def format_script_for_pdf(script):
+            """Prépare le script pour la génération PDF en assurant une structure appropriée"""
+            if not script:
+                return ""
+                
+            # Vérifier si le script contient déjà des sections
+            has_sections = any(line.strip().startswith('[') and line.strip().endswith(']') for line in script.split('\n'))
+            
+            if not has_sections:
+                print("Restructuration du script pour le PDF: ajout de sections")
+                # Découper le script en lignes
+                lines = script.split('\n')
+                formatted_script = []
+                
+                # Ajouter un HOOK s'il n'y en a pas
+                formatted_script.append("[HOOK]\n")
+                
+                # Ajouter les premières lignes comme INTRODUCTION
+                if len(lines) > 3:
+                    formatted_script.append('\n'.join(lines[:3]))
+                else:
+                    formatted_script.append('\n'.join(lines[:1]))
+                
+                # Ajouter une INTRODUCTION
+                formatted_script.append("\n\n[INTRODUCTION]\n")
+                
+                # Ajouter le corps principal
+                if len(lines) > 15:
+                    # Diviser le contenu en sections de manière intelligente
+                    body_lines = lines[3:]
+                    sections = ["CONTEXTE", "POINTS CLÉS", "ANALYSE", "EXEMPLES CONCRETS", "CONSEILS PRATIQUES"]
+                    
+                    # Distribuer les lignes dans les sections
+                    section_size = len(body_lines) // len(sections)
+                    for i, section in enumerate(sections):
+                        start_idx = i * section_size
+                        end_idx = (i + 1) * section_size if i < len(sections) - 1 else len(body_lines)
+                        formatted_script.append(f"\n\n[{section}]\n")
+                        formatted_script.append('\n'.join(body_lines[start_idx:end_idx]))
+                else:
+                    # Script plus court, utiliser moins de sections
+                    formatted_script.append("\n\n[CONTENU PRINCIPAL]\n")
+                    formatted_script.append('\n'.join(lines[3:]))
+                
+                # Ajouter une CONCLUSION
+                formatted_script.append("\n\n[CONCLUSION]\n")
+                formatted_script.append("Merci d'avoir suivi cette vidéo ! N'oubliez pas de vous abonner et d'activer les notifications pour ne manquer aucun contenu.")
+                
+                # Combiner le tout
+                return '\n'.join(formatted_script)
+            else:
+                # Le script a déjà des sections, ajouter des sauts de ligne pour améliorer la structure
+                formatted_lines = []
+                for line in script.split('\n'):
+                    if line.strip().startswith('[') and line.strip().endswith(']'):
+                        formatted_lines.append(f"\n{line}")
+                    else:
+                        formatted_lines.append(line)
+                return '\n'.join(formatted_lines)
+        
+        # Appliquer le formattage au script
+        script_text = format_script_for_pdf(script_text)
+        
         # Générer le PDF si le script a été généré avec succès
         if script_text:
             print(f"Script généré avec succès ({len(script_text)} caractères). Génération du PDF...")
