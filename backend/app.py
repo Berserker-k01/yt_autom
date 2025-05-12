@@ -11,7 +11,8 @@ import tempfile
 
 # Permet d'importer main.py depuis le dossier parent
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
-from main import generate_topics, generate_script, save_to_pdf, modify_script_with_ai, estimate_reading_time, fetch_research, extract_sources, generate_images_for_script, sanitize_text
+# Importer toutes les fonctions nécessaires de main.py, y compris les fonctions auxiliaires
+from main import generate_topics, generate_script, save_to_pdf, modify_script_with_ai, estimate_reading_time, fetch_research, extract_sources, generate_images_for_script, sanitize_text, generate_fallback_script
 
 # Import des modèles de base de données
 from models import db, User, UserProfile
@@ -1525,14 +1526,24 @@ def generate_direct_script_route():
         if script_text:
             print(f"Script généré avec succès ({len(script_text)} caractères). Génération du PDF...")
             
-            # Système robuste de génération PDF à plusieurs niveaux
-            pdf_path = ""
-            pdf_filename = ""
-            pdf_base64 = ""
-            
-            # 1. Premier niveau: Essayer la génération standard avec save_to_pdf
+            # Utiliser une approche simple et directe pour générer le PDF
+            # Pré-formater le script pour s'assurer qu'il a une structure exploitée correctement par save_to_pdf
             try:
-                print("Génération PDF standard...")
+                # Vérifier si le script a une structure en sections
+                has_sections = any(line.strip().startswith('[') and line.strip().endswith(']') for line in script_text.split('\n'))
+                
+                if not has_sections:
+                    print("Le script n'a pas de sections formatées correctement. Restructuration...")
+                    # Structure simple pour le script
+                    formatted_script = []
+                    formatted_script.append(f"[TITRE: {title}]\n\n")
+                    formatted_script.append(f"[HOOK]\n{script_text[:200]}...\n\n")
+                    formatted_script.append(f"[CONTENU PRINCIPAL]\n{script_text}\n\n")
+                    formatted_script.append("[CONCLUSION]\nMerci d'avoir suivi cette vidéo ! N'hésitez pas à vous abonner et à activer les notifications.")
+                    script_text = '\n'.join(formatted_script)
+                
+                # Génération du PDF avec la fonction standard
+                print(f"Génération du PDF pour: {title}")
                 pdf_path = save_to_pdf(
                     script_text, 
                     title=title, 
@@ -1541,418 +1552,123 @@ def generate_direct_script_route():
                     sources=real_sources
                 )
                 
-                # Initialisation des variables pour éviter les erreurs
-                pdf_filename = None
-                pdf_base64 = None
-                accessible_path = None
-                
+                # Vérification du PDF généré
                 if pdf_path and os.path.exists(pdf_path) and pdf_path.endswith('.pdf'):
                     pdf_filename = os.path.basename(pdf_path)
                     print(f"PDF généré avec succès: {pdf_path}")
                     
-                    # Vérifier que le PDF est valide
+                    # Encoder le PDF en base64 pour le téléchargement direct
                     with open(pdf_path, 'rb') as pdf_file:
                         pdf_content = pdf_file.read()
-                        if not pdf_content.startswith(b'%PDF'):
-                            print("Le PDF généré n'est pas valide, passage au niveau 2")
-                            raise Exception("PDF invalid")
                         pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
-                else:
-                    # Si aucun PDF valide n'a été généré, passer directement au niveau 2
-                    print("Aucun PDF valide n'a été généré, passage au niveau 2")
-                    raise Exception("PDF path invalid or non-existent")
-                
-                # Définir temp_dir avant son utilisation
-                if os.name == 'nt':  # Windows
-                    temp_dir = tempfile.gettempdir()
-                else:  # Linux/Render
-                    temp_dir = '/tmp'
-                
-                # Vérifier que pdf_filename est bien défini avant de l'utiliser
-                if pdf_filename:
-                    full_path = os.path.join(temp_dir, pdf_filename)
-                    if not os.path.exists(full_path) and os.path.exists(pdf_path):
-                        # Si le fichier existe à l'emplacement original mais pas dans temp_dir
-                        try:
-                            import shutil
-                            shutil.copy2(pdf_path, full_path)
-                            print(f"Fichier copié de {pdf_path} vers {full_path}")
-                            accessible_path = full_path
-                        except Exception as copy_error:
-                            print(f"Erreur lors de la copie du fichier: {copy_error}")
-                            accessible_path = pdf_path
-                    else:
-                        # Si le fichier existe déjà à l'emplacement temporaire
-                        accessible_path = full_path
-                else:
-                    # Si pdf_filename n'est pas défini, utiliser pdf_path
-                    accessible_path = pdf_path if pdf_path and os.path.exists(pdf_path) else None
-                
-                # Vérifier si le fichier est accessible
-                if accessible_path and os.path.exists(accessible_path):
-                    print(f"Fichier PDF accessible à: {accessible_path}")
                     
-                    # Encoder le PDF en base64 pour permettre le téléchargement direct
-                    try:
-                        import base64
-                        with open(accessible_path, 'rb') as pdf_file:
-                            pdf_content = pdf_file.read()
-                            pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
-                            
-                            if pdf_content.startswith(b'%PDF'):
-                                print("Le contenu du PDF est valide.")
-                                
-                                # PDF valide, utiliser la structure standard
-                                return jsonify({
-                                    'script': script_text,
-                                    'sources': real_sources,
-                                    'pdf_url': f"/download/{pdf_filename}",
-                                    'file_data': pdf_base64,
-                                    'file_type': 'application/pdf',
-                                    'file_name': pdf_filename,
-                                    'estimated_reading_time': estimate_reading_time(script_text)
-                                })
-                            else:
-                                print("Le contenu du PDF n'est pas valide. Nouvelle tentative de génération...")
-                                # Forcer la régénération d'un PDF valide
-                                try:
-                                    # Créer un nom de fichier unique avec extension .pdf
-                                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                                    safe_title = "".join(c if c.isalnum() or c in [' ', '_', '-'] else "_" for c in title[:30])
-                                    safe_title = safe_title.replace(' ', '_')
-                                    force_pdf_filename = f"script_{safe_title}_{timestamp}.pdf"
-                                    
-                                    # Déterminer le chemin du fichier temporaire
-                                    if os.name == 'nt':  # Windows
-                                        temp_dir = tempfile.gettempdir()
-                                    else:  # Linux/Render
-                                        temp_dir = '/tmp'
-                                    force_pdf_path = os.path.join(temp_dir, force_pdf_filename)
-                                    
-                                    print("Génération du PDF de secours avec save_to_pdf...")
-                                    # Utiliser la même fonction save_to_pdf pour garantir une mise en page cohérente
-                                    # entre les différentes méthodes de génération de script
-                                    # Utiliser la même fonction save_to_pdf que pour la méthode standard
-                                    force_pdf_path = save_to_pdf(
-                                        script_text, 
-                                        title=title, 
-                                        author=youtuber_name, 
-                                        channel=channel_name,
-                                        sources=real_sources
-                                    )
-                                    
-                                    # Vérifier que le PDF a bien été créé
-                                    if os.path.exists(force_pdf_path):
-                                        force_pdf_filename = os.path.basename(force_pdf_path)
-                                        print(f"PDF de secours généré avec succès: {force_pdf_path}")
-                                        
-                                        with open(force_pdf_path, 'rb') as pdf_file:
-                                            pdf_content = pdf_file.read()
-                                            pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
-                                            
-                                            return jsonify({
-                                                'script': script_text,
-                                                'sources': real_sources,
-                                                'pdf_url': f"/download/{force_pdf_filename}",
-                                                'file_data': pdf_base64,
-                                                'file_type': 'application/pdf',
-                                                'file_name': force_pdf_filename,
-                                                'estimated_reading_time': estimate_reading_time(script_text)
-                                            })
-                                except Exception as pdf_error:
-                                    print(f"Erreur lors de la création du PDF de secours: {pdf_error}")
-                                
-                                # Si tout échoue, essayer une dernière fois avec save_to_pdf
-                                new_pdf_path = save_to_pdf(
-                                    script_text,
-                                    title=title,
-                                    author=youtuber_name,
-                                    channel=channel_name,
-                                    sources=real_sources
-                                )
-                                
-                                if new_pdf_path and os.path.exists(new_pdf_path):
-                                    print(f"Nouveau PDF généré avec succès: {new_pdf_path}")
-                                    with open(new_pdf_path, 'rb') as new_pdf_file:
-                                        new_pdf_content = new_pdf_file.read()
-                                        new_pdf_base64 = base64.b64encode(new_pdf_content).decode('utf-8')
-                                        
-                                        return jsonify({
-                                            'script': script_text,
-                                            'sources': real_sources,
-                                            'pdf_url': f"/download/{os.path.basename(new_pdf_path)}",
-                                            'file_data': new_pdf_base64,
-                                            'file_type': 'application/pdf',
-                                            'file_name': os.path.basename(new_pdf_path),
-                                            'estimated_reading_time': estimate_reading_time(script_text)
-                                        })
-                                
-                                # Échec catastrophique - renvoyer un PDF de secours formaté plutôt que rien
-                                print("Dernière tentative avec création d'un PDF de secours style ")
-                                try:
-                                    from fpdf import FPDF
-                                    
-                                    # Utiliser une classe similaire à ScriptPDF pour garantir une cohérence visuelle
-                                    class EmergencyPDF(FPDF):
-                                        def __init__(self, title=None, author=None, channel=None):
-                                            super().__init__()
-                                            self.title = title or "Script YouTube"
-                                            self.author = author or "YouTuber"
-                                            self.channel = channel or "Chaîne YouTube"
-                                            
-                                        def header(self):
-                                            # En-tête avec informations
-                                            self.set_font('Arial', 'B', 10)
-                                            # Date à droite
-                                            self.cell(0, 10, f"Généré le: {datetime.now().strftime('%d/%m/%Y')}", 0, 0, 'R')
-                                            # Titre du script au centre
-                                            self.set_xy(10, 10)
-                                            self.cell(190, 10, self.title, 0, 0, 'C')
-                                            # Ligne de séparation
-                                            self.line(10, 20, 200, 20)
-                                            # Positionner après l'en-tête
-                                            self.set_y(25)
-                                            
-                                        def footer(self):
-                                            # Pied de page avec numérotation et informations de chaîne
-                                            self.set_y(-15)
-                                            self.set_font('Arial', 'I', 8)
-                                            # Numéro de page centré
-                                            self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
-                                            # Chaîne YouTube à gauche
-                                            self.set_y(-15)
-                                            self.cell(60, 10, self.channel[:30], 0, 0, 'L')
-                                            # Auteur/YouTuber à droite
-                                            self.set_x(150)
-                                            self.cell(50, 10, self.author[:20], 0, 0, 'R')
-                                    
-                                    # Créer un PDF d'urgence mais formaté avec style
-                                    safe_title = sanitize_text(title) if title else "Script de secours"
-                                    
-                                    minimal_pdf = EmergencyPDF(safe_title, youtuber_name, channel_name)
-                                    minimal_pdf.add_page()
-                                    
-                                    # Page de titre centralisée
-                                    minimal_pdf.ln(30)  # Espace pour centrer
-                                    
-                                    # Titre principal formaté
-                                    minimal_pdf.set_font('Arial', 'B', 20)
-                                    minimal_pdf.cell(0, 12, safe_title, 0, 1, 'C')
-                                    
-                                    # Informations sur l'auteur
-                                    minimal_pdf.ln(15)
-                                    minimal_pdf.set_font('Arial', 'B', 14)
-                                    minimal_pdf.cell(0, 10, f"Par: {youtuber_name or 'YouTuber'}", 0, 1, 'C')
-                                    minimal_pdf.cell(0, 10, f"Chaîne: {channel_name or 'YouTube'}", 0, 1, 'C')
-                                    
-                                    # Message d'erreur formaté
-                                    minimal_pdf.add_page()
-                                    minimal_pdf.set_font('Arial', 'B', 14)
-                                    minimal_pdf.set_fill_color(230, 230, 230)  # Gris clair
-                                    minimal_pdf.rect(10, minimal_pdf.get_y(), 190, 8, 'F')
-                                    minimal_pdf.cell(0, 8, "NOTE IMPORTANTE", 0, 1, 'C')
-                                    minimal_pdf.ln(5)
-                                    
-                                    minimal_pdf.set_font('Arial', '', 12)
-                                    minimal_pdf.multi_cell(0, 7, "Ce PDF est une version de secours générée suite à une erreur technique lors de la création du PDF complet. Le script complet est disponible dans l'interface web.")
-                                    minimal_pdf.ln(10)
-                                    
-                                    # Ajouter un extrait du script si disponible
-                                    if script_text:
-                                        lines = script_text.split('\n')[:15]  # Prendre seulement les 15 premières lignes
-                                        if lines:
-                                            minimal_pdf.set_font('Arial', 'B', 14)
-                                            minimal_pdf.set_fill_color(230, 230, 230)  # Gris clair
-                                            minimal_pdf.rect(10, minimal_pdf.get_y(), 190, 8, 'F')
-                                            minimal_pdf.cell(0, 8, "DÉBUT DU SCRIPT", 0, 1, 'C')
-                                            minimal_pdf.ln(5)
-                                            
-                                            minimal_pdf.set_font('Arial', '', 11)
-                                            for line in lines:
-                                                safe_line = sanitize_text(line)
-                                                minimal_pdf.multi_cell(0, 5, safe_line)
-                                            
-                                            minimal_pdf.ln(5)
-                                            minimal_pdf.set_font('Arial', 'I', 10)
-                                            minimal_pdf.cell(0, 5, "[Script tronqué - la version complète est disponible dans l'interface web]", 0, 1, 'C')
-                                    
-                                    minimal_pdf_filename = f"script_{sanitize_text(title).replace(' ', '_')[:20]}_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-                                    minimal_pdf_path = os.path.join(temp_dir, minimal_pdf_filename)
-                                    minimal_pdf.output(minimal_pdf_path)
-                                    
-                                    with open(minimal_pdf_path, 'rb') as min_pdf_file:
-                                        min_pdf_content = min_pdf_file.read()
-                                        min_pdf_base64 = base64.b64encode(min_pdf_content).decode('utf-8')
-                                        
-                                        return jsonify({
-                                            'script': script_text,
-                                            'sources': real_sources,
-                                            'pdf_url': f"/download/{minimal_pdf_filename}",
-                                            'file_data': min_pdf_base64,
-                                            'file_type': 'application/pdf',
-                                            'file_name': minimal_pdf_filename,
-                                            'estimated_reading_time': estimate_reading_time(script_text),
-                                            'warning': 'PDF minimal généré suite à une erreur'
-                                        })
-                                except Exception as final_error:
-                                    print(f"Échec de la génération du PDF minimal: {final_error}")
-                                
-                                # Si même ça échoue, retourner le script sans PDF mais avec un type de fichier PDF
-                                return jsonify({
-                                    'script': script_text,
-                                    'sources': real_sources,
-                                    'error': 'Impossible de générer le PDF correctement',
-                                    'file_type': 'application/pdf',  # Forcer le type PDF
-                                    'estimated_reading_time': estimate_reading_time(script_text)
-                                })
-                            
-                    except Exception as encode_error:
-                        print(f"Erreur lors de l'encodage du PDF: {encode_error}")
-                
-                print(f"URL de téléchargement générée: /download/{pdf_filename}")
-                
-                # Retourner les données comme dans la méthode traditionnelle
-                if not pdf_path or not os.path.exists(pdf_path) or not pdf_filename:
-                    return jsonify({
-                        'error': 'Erreur lors de la génération du PDF',
-                        'file_type': 'application/pdf'  # Toujours indiquer le type PDF
-                    }), 500
-                
-                # Renvoyer l'URL de téléchargement du PDF
-                return jsonify({
-                    'pdf_url': f"/download/{pdf_filename}",
-                    'file_data': pdf_base64 if pdf_base64 else None,
-                    'file_type': 'application/pdf',  # Toujours indiquer le type PDF
-                    'file_name': pdf_filename
-                })
-            except Exception as file_error:
-                print(f"Erreur lors du traitement du fichier PDF: {file_error}")
-                import traceback
-                traceback.print_exc()
-                
-                # Si aucun PDF valide n'a été généré, réessayer avec save_to_pdf mais avec des paramètres plus simples
-                print("Réessai de génération PDF avec le système standard...")
-                try:
-                    from main import save_to_pdf, sanitize_text
-                    import tempfile
-                    from datetime import datetime
-                    import os
-                    
-                    # Définir temp_dir avant son utilisation
-                    if os.name == 'nt':  # Windows
-                        temp_dir = tempfile.gettempdir()
-                    else:  # Linux (Render)
-                        temp_dir = '/tmp'
-                    
-                    # Générer un nom de fichier unique
-                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                    safe_title = "".join(c if c.isalnum() or c in [' ', '_', '-'] else '_' for c in title[:30])
-                    safe_title = safe_title.replace(' ', '_')
-                    fallback_pdf_filename = f"fallback_script_{safe_title}_{timestamp}.pdf"
-                    fallback_pdf_path = os.path.join(temp_dir, fallback_pdf_filename)
-                    
-                    # Utiliser save_to_pdf pour générer le PDF
-                    fallback_pdf_path = save_to_pdf(
-                        script_text,
-                        title=title,
-                        author=youtuber_name,
-                        channel=channel_name,
-                        sources=real_sources
-                    )
-                    # Fonction de sanitisation révisée
-                    def sanitize_text(text):
-                        if not text or not isinstance(text, str):
-                            return ""
-                        # Convertir tous les caractères spéciaux en ASCII simple
-                        result = ""
-                        for c in text:
-                            if ord(c) < 128:
-                                result += c
-                            else:
-                                # Remplacement des caractères spéciaux connus
-                                if c == '\u2019': result += "'"  # apostrophe typographique
-                                elif c == '\u201c' or c == '\u201d': result += '"'  # guillemets typographiques
-                                elif c == '\u2014' or c == '\u2013': result += '-'  # tirets longs
-                                elif c == '\u2026': result += '...'  # points de suspension
-                                elif c == '\u00e9': result += 'e'  # é
-                                elif c == '\u00e8': result += 'e'  # è
-                                elif c == '\u00e0': result += 'a'  # à
-                                elif c == '\u00e7': result += 'c'  # ç
-                                elif c == '\u00f9': result += 'u'  # ù
-                                else:
-                                    result += ' '  # tout autre caractère devient espace
-                        return result
-                    
-                    # Sanitiser le texte et le titre
-                    safe_title_text = sanitize_text(title)
-                    safe_script_text = sanitize_text(script_text)
-                    
-                    # Créer un PDF basique avec FPDF
-                    from fpdf import FPDF
-                    fallback_pdf = FPDF()
-                    fallback_pdf.add_page()
-                    
-                    # Titre
-                    fallback_pdf.set_font("Arial", "B", 16)
-                    fallback_pdf.cell(0, 10, txt=safe_title_text, ln=1, align="C")
-                    fallback_pdf.ln(5)
-                    
-                    # Contenu du script
-                    fallback_pdf.set_font("Arial", "", 12)
-                    # Découper en paragraphes courts pour éviter les problèmes
-                    paragraphs = safe_script_text.split('\n')
-                    for p in paragraphs:
-                        # Limiter la taille de chaque paragraphe pour éviter les erreurs
-                        if p.strip():
-                            # Traiter par morceaux de 100 caractères maximum
-                            for i in range(0, len(p), 100):
-                                chunk = p[i:i+100]
-                                fallback_pdf.multi_cell(0, 8, txt=chunk)
-                            fallback_pdf.ln(4)
-                    
-                    # Sauvegarder le PDF
-                    fallback_pdf.output(fallback_pdf_path)
-                    
-                    if os.path.exists(fallback_pdf_path):
-                        with open(fallback_pdf_path, 'rb') as pdf_file:
-                            pdf_content = pdf_file.read()
-                            # Import explicite de base64 dans ce bloc
-                            import base64
-                            pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
-                        
-                        return jsonify({
-                            'script': script_text,
-                            'sources': real_sources,
-                            'pdf_url': f"/download/{fallback_pdf_filename}",
-                            'file_data': pdf_base64,
-                            'file_type': 'application/pdf',
-                            'file_name': fallback_pdf_filename,
-                            'estimated_reading_time': estimate_reading_time(script_text),
-                            'message': 'PDF de secours généré avec succès'
-                        })
-                except Exception as fallback_error:
-                    print(f"Erreur lors de la génération du PDF de secours: {fallback_error}")
-                    traceback.print_exc()
-                    
-                    # Dernier recours : renvoyer uniquement le script, sans PDF
+                    # Retourner les données du PDF et du script
                     return jsonify({
                         'script': script_text,
                         'sources': real_sources,
-                        'estimated_reading_time': estimate_reading_time(script_text),
-                        'error': f'Impossible de générer le PDF: {str(fallback_error)}',
-                        'message': 'Le script a bien été généré mais le PDF n\'a pas pu être créé'
+                        'pdf_url': f"/download/{pdf_filename}",
+                        'file_data': pdf_base64,
+                        'file_type': 'application/pdf',
+                        'file_name': pdf_filename,
+                        'estimated_reading_time': estimate_reading_time(script_text)
                     })
-                
-                # Si tout échoue, renvoyer une erreur 500
-                return jsonify({'error': f'Erreur lors du traitement du PDF: {str(file_error)}'}), 500
-        else:
-            return jsonify({'error': 'Échec de la génération du script'}), 500
-            
+                else:
+                    print("Échec de la génération du PDF par save_to_pdf")
+                    # En dernier recours, retourner le script sans PDF
+                    return jsonify({
+                        'error': 'Impossible de générer le PDF',
+                        'script': script_text,
+                        'sources': real_sources
+                    }), 500
+            except Exception as e:
+                print(f"Erreur lors de la génération du PDF: {e}")
+                # Assurer une réponse même en cas d'erreur
+                return jsonify({
+                    'error': f'Erreur lors de la génération du PDF: {str(e)}',
+                    'script': script_text,
+                    'sources': real_sources
+                }), 500
+    # Exception pour l'ensemble de la fonction
     except Exception as e:
-        print(f"Erreur lors de la génération directe du script: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': f'Erreur lors de la génération directe du script: {str(e)}'}), 500
+        print(f"Erreur générale lors de la génération de script ou PDF: {e}")
+        return jsonify({
+            'error': f'Erreur générale: {str(e)}',
+            'script': idea if 'idea' in locals() else '',
+            'file_type': 'application/pdf'
+        }), 500
+
+@app.route('/api/save_script_pdf', methods=['POST'])
+def save_script_pdf():
+    """Route pour sauvegarder un script en PDF et le retourner au client."""
+    try:
+        data = request.get_json()
+        script_text = data.get('script', '')
+        title = data.get('title', 'Script YouTube')
+        author = data.get('author', 'YouTuber')
+        channel = data.get('channel', 'Chaîne YouTube')
+        sources = data.get('sources', [])
+        
+        # Utiliser la fonction save_to_pdf pour générer le PDF
+        pdf_path = save_to_pdf(
+            script_text,
+            title=title,
+            author=author,
+            channel=channel,
+            sources=sources
+        )
+        
+        # Vérifier si le PDF a bien été généré
+        if pdf_path and os.path.exists(pdf_path):
+            pdf_filename = os.path.basename(pdf_path)
+            
+            # Encoder le PDF en base64
+            with open(pdf_path, 'rb') as pdf_file:
+                pdf_content = pdf_file.read()
+                pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
+            
+            return jsonify({
+                'pdf_url': f"/download/{pdf_filename}",
+                'file_data': pdf_base64,
+                'file_type': 'application/pdf',
+                'file_name': pdf_filename,
+                'estimated_reading_time': estimate_reading_time(script_text)
+            })
+        else:
+            return jsonify({
+                'error': 'Impossible de générer le PDF',
+                'script': script_text
+            }), 500
+    except Exception as e:
+        print(f"Erreur lors de la sauvegarde du script en PDF: {e}")
+        return jsonify({
+            'error': f'Erreur: {str(e)}',
+            'script': data.get('script', '') if 'data' in locals() else ''
+        }), 500
+
+# Route pour télécharger un PDF depuis le dossier temporaire
+@app.route('/download/<filename>', methods=['GET'])
+def download_file(filename):
+    """Route pour télécharger un fichier depuis le répertoire temporaire"""
+    try:
+        # Définir le répertoire temporaire selon l'OS
+        if os.name == 'nt':  # Windows
+            temp_dir = tempfile.gettempdir()
+        else:  # Linux (Render)
+            temp_dir = '/tmp'
+            
+        # Chemin complet vers le fichier
+        file_path = os.path.join(temp_dir, filename)
+        
+        # Vérifier si le fichier existe
+        if not os.path.exists(file_path):
+            return jsonify({'error': 'Fichier introuvable'}), 404
+            
+        # Renvoyer le fichier pour téléchargement
+        return send_file(file_path, as_attachment=True, attachment_filename=filename)
+    except Exception as e:
+        print(f"Erreur lors du téléchargement du fichier: {e}")
+        return jsonify({'error': f'Erreur: {str(e)}'}), 500
+# Autres routes pourraient suivre ici
 
 # Route pour générer des images à partir d'un script avec l'approche standard
 @app.route('/api/generate-images', methods=['POST'])
