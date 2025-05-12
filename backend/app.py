@@ -1645,31 +1645,6 @@ def save_script_pdf():
             'script': data.get('script', '') if 'data' in locals() else ''
         }), 500
 
-# Route pour télécharger un PDF depuis le dossier temporaire
-@app.route('/download/<filename>', methods=['GET'])
-def download_file(filename):
-    """Route pour télécharger un fichier depuis le répertoire temporaire"""
-    try:
-        # Définir le répertoire temporaire selon l'OS
-        if os.name == 'nt':  # Windows
-            temp_dir = tempfile.gettempdir()
-        else:  # Linux (Render)
-            temp_dir = '/tmp'
-            
-        # Chemin complet vers le fichier
-        file_path = os.path.join(temp_dir, filename)
-        
-        # Vérifier si le fichier existe
-        if not os.path.exists(file_path):
-            return jsonify({'error': 'Fichier introuvable'}), 404
-            
-        # Renvoyer le fichier pour téléchargement
-        return send_file(file_path, as_attachment=True, attachment_filename=filename)
-    except Exception as e:
-        print(f"Erreur lors du téléchargement du fichier: {e}")
-        return jsonify({'error': f'Erreur: {str(e)}'}), 500
-# Autres routes pourraient suivre ici
-
 # Route pour générer des images à partir d'un script avec l'approche standard
 @app.route('/api/generate-images', methods=['POST'])
 def generate_images_route():
