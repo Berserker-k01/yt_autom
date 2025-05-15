@@ -17,6 +17,65 @@ const ScriptViewer = ({
   const [isGeneratingImages, setIsGeneratingImages] = useState(false);
   const [imageError, setImageError] = useState(null);
   
+  // États pour la modification de script
+  const [editMode, setEditMode] = useState(false);
+  const [isModifyingWithAi, setIsModifyingWithAi] = useState(false);
+  const [modifiedScript, setModifiedScript] = useState(script);
+  
+  // Fonction pour activer le mode d'édition manuelle du script
+  const handleEditScript = () => {
+    setEditMode(true);
+  };
+
+  // Fonction pour sauvegarder les modifications manuelles
+  const handleSaveEditedScript = () => {
+    setScript(modifiedScript); // Met à jour le script principal avec la version modifiée
+    setEditMode(false);
+  };
+
+  // Fonction pour annuler l'édition
+  const handleCancelEdit = () => {
+    setModifiedScript(script); // Réinitialise avec le script original
+    setEditMode(false);
+  };
+
+  // Fonction pour modifier le script avec l'IA
+  const handleAiModifyScript = async (modificationRequest) => {
+    setIsModifyingWithAi(true);
+    try {
+      const res = await fetch(`${API_BASE}/modify-script`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          script: script,
+          request: modificationRequest,
+          profile: userProfile
+        })
+      });
+      
+      if (!res.ok) {
+        throw new Error(`Erreur serveur: ${res.status}`);
+      }
+      
+      const data = await res.json();
+      
+      if (data.error) {
+        throw new Error(data.error);
+      }
+      
+      // Mettre à jour le script avec la version modifiée
+      setScript(data.modified_script);
+      setModifiedScript(data.modified_script);
+      
+      return data.modified_script;
+    } catch (e) {
+      alert(`Erreur lors de la modification du script: ${e.message}`);
+      throw e;
+    } finally {
+      setIsModifyingWithAi(false);
+    }
+  };
+  
   // Fonction pour télécharger le PDF directement sans redirection
   const handleDownloadPDF = () => {
     // Si nous avons les données base64 du PDF, utiliser un téléchargement direct
@@ -127,6 +186,92 @@ const ScriptViewer = ({
             </motion.button>
           )}
           
+          {/* Bouton pour éditer manuellement le script */}
+          <motion.button
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            onClick={handleEditScript}
+            disabled={editMode || isModifyingWithAi}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: darkMode ? 'rgba(34, 197, 94, 0.2)' : 'rgba(34, 197, 94, 0.1)',
+              color: darkMode ? '#4ade80' : '#22c55e',
+              border: `1px solid ${darkMode ? 'rgba(34, 197, 94, 0.3)' : 'rgba(34, 197, 94, 0.2)'}`,
+              padding: '10px 16px',
+              borderRadius: '8px',
+              cursor: editMode || isModifyingWithAi ? 'not-allowed' : 'pointer',
+              fontWeight: 500,
+              fontSize: '0.875rem',
+              transition: 'all 0.2s ease',
+              opacity: editMode || isModifyingWithAi ? 0.6 : 1
+            }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M17 3a2.85 2.85 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5L17 3z"/>
+            </svg>
+            Éditer manuellement
+          </motion.button>
+          
+          {/* Bouton pour modifier le script avec Claude */}
+          <motion.button
+            initial={{ opacity: 0, x: 10 }}
+            animate={{ opacity: 1, x: 0 }}
+            transition={{ delay: 0.3 }}
+            onClick={() => {
+              // Ouvrir une boîte de dialogue pour demander les instructions de modification
+              const modificationInstructions = prompt('Entrez vos instructions pour modifier le script (ex: "Rendre plus long", "Ajouter plus d\'exemples", "Ton plus conversationnel", etc.):')
+              
+              // Si l'utilisateur a fourni des instructions, appeler la fonction de modification
+              if (modificationInstructions && modificationInstructions.trim()) {
+                handleAiModifyScript(modificationInstructions)
+                  .then(() => {
+                    alert('Script modifié avec succès!')
+                  })
+                  .catch(err => {
+                    console.error('Erreur de modification:', err);
+                  })
+              }
+            }}
+            disabled={editMode || isModifyingWithAi}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+              background: darkMode ? 'rgba(99, 102, 241, 0.2)' : 'rgba(99, 102, 241, 0.1)',
+              color: darkMode ? '#a5b4fc' : '#6366f1',
+              border: `1px solid ${darkMode ? 'rgba(99, 102, 241, 0.3)' : 'rgba(99, 102, 241, 0.2)'}`,
+              padding: '10px 16px',
+              borderRadius: '8px',
+              cursor: editMode || isModifyingWithAi ? 'not-allowed' : 'pointer',
+              fontWeight: 500,
+              fontSize: '0.875rem',
+              transition: 'all 0.2s ease',
+              opacity: editMode || isModifyingWithAi ? 0.6 : 1
+            }}
+          >
+            {isModifyingWithAi ? (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <circle cx="12" cy="12" r="10"/>
+                  <path d="M12 6v6l4 2"/>
+                </svg>
+                Modification en cours...
+              </>
+            ) : (
+              <>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                  <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                  <circle cx="8.5" cy="8.5" r="1.5"/>
+                  <polyline points="21 15 16 10 5 21"/>
+                </svg>
+                Modifier avec Claude
+              </>
+            )}
+          </motion.button>
+            
           {/* Bouton de génération d'images standard */}
           <motion.button
             initial={{ opacity: 0, x: 10 }}
@@ -268,19 +413,71 @@ const ScriptViewer = ({
           marginBottom: '30px'
         }}
       >
-        <pre 
-          style={{
-            whiteSpace: 'pre-wrap',
-            wordBreak: 'break-word',
-            fontFamily: 'inherit',
-            margin: 0,
-            lineHeight: 1.6,
-            color: darkMode ? '#e5e7eb' : '#374151',
-            fontSize: '1rem'
-          }}
-        >
-          {script}
-        </pre>
+        {editMode ? (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+            <textarea
+              value={modifiedScript}
+              onChange={(e) => setModifiedScript(e.target.value)}
+              style={{ 
+                width: '100%', 
+                minHeight: '400px',
+                padding: '12px',
+                lineHeight: 1.6,
+                border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.2)' : '#d1d5db'}`,
+                borderRadius: '8px',
+                fontFamily: 'inherit',
+                fontSize: '1rem',
+                color: darkMode ? '#e5e7eb' : '#374151',
+                background: darkMode ? 'rgba(17, 24, 39, 0.8)' : '#fff',
+                resize: 'vertical'
+              }}
+            />
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+              <button
+                onClick={handleCancelEdit}
+                style={{
+                  padding: '8px 16px',
+                  background: darkMode ? 'rgba(75, 85, 99, 0.2)' : '#f3f4f6',
+                  border: `1px solid ${darkMode ? 'rgba(255, 255, 255, 0.1)' : '#d1d5db'}`,
+                  borderRadius: '8px',
+                  color: darkMode ? '#9ca3af' : '#4b5563',
+                  fontWeight: 500,
+                  cursor: 'pointer'
+                }}
+              >
+                Annuler
+              </button>
+              <button
+                onClick={handleSaveEditedScript}
+                style={{
+                  padding: '8px 16px',
+                  background: darkMode ? 'rgba(34, 197, 94, 0.2)' : '#22c55e',
+                  border: 'none',
+                  borderRadius: '8px',
+                  color: darkMode ? '#4ade80' : 'white',
+                  fontWeight: 500,
+                  cursor: 'pointer'
+                }}
+              >
+                Sauvegarder
+              </button>
+            </div>
+          </div>
+        ) : (
+          <pre 
+            style={{
+              whiteSpace: 'pre-wrap',
+              wordBreak: 'break-word',
+              fontFamily: 'inherit',
+              margin: 0,
+              lineHeight: 1.6,
+              color: darkMode ? '#e5e7eb' : '#374151',
+              fontSize: '1rem'
+            }}
+          >
+            {script}
+          </pre>
+        )}
       </motion.div>
       
       {/* Images générées */}
