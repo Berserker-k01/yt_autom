@@ -257,7 +257,7 @@ def extract_sources(research_text: str) -> list:
     
     # Formats reconnus pour les sources structurées
     source_patterns = [
-        # Format DeepSeek (Source: url \n Titre: titre)
+        # Format Claude (Source: url \n Titre: titre)
         {"source_prefix": "Source:", "title_prefix": "Titre:", "summary_prefix": "Résumé:"},
         # Format Gemini (URL: url \n Titre: titre)
         {"source_prefix": "URL:", "title_prefix": "Titre:", "summary_prefix": "Description:"},
@@ -498,11 +498,11 @@ def extract_sources(research_text: str) -> list:
     return source_data  # Retourner les données complètes des sources
 
 def analyze_topic_potential(topic: str) -> dict:
-    """Analyse le potentiel d'un sujet en utilisant DeepSeek + Gemini."""
+    """Analyse le potentiel d'un sujet en utilisant Claude + Gemini."""
     print(f"\nAnalyse du potentiel pour: {topic}")
     
     # Recherche de données sur le sujet
-    search_data = deepseek_search(f"{topic} youtube tendances vues engagement", num_results=3)
+    search_data = claude_search(f"{topic} youtube tendances vues engagement", num_results=3)
     if not search_data:
         print("Aucune donnée trouvée pour l'analyse")
         return {}
@@ -604,11 +604,11 @@ Ne génère RIEN d'autre que ce JSON. Pas d'explications, pas de texte avant ou 
     else:
         print("Erreur: Aucune réponse valide de Gemini, tentative de fallback...")
     
-    # Fallback sur DeepSeek si Gemini échoue
-    print("\nFallback: Génération des sujets avec DeepSeek...")
+    # Fallback sur Claude si Gemini échoue
+    print("\nFallback: Génération des sujets avec Claude...")
     
-    # Reformater le prompt pour DeepSeek
-    deepseek_prompt = f"""Tu es un expert en création de contenu YouTube francophone, spécialiste de la viralité et de l'actualité.
+    # Reformater le prompt pour Claude
+    claude_prompt = f"""Tu es un expert en création de contenu YouTube francophone, spécialiste de la viralité et de l'actualité.
 
 Pour le thème "{sanitize_text(theme)}", génère {num_topics} idées de vidéos YouTube avec les caractéristiques suivantes :
 - Sujets basés sur les tendances récentes
@@ -631,12 +631,12 @@ Réponds UNIQUEMENT avec un JSON valide ayant cette structure précise :
 
 IMPORTANT: Assure-toi que le JSON est parfaitement formaté sans texte avant ou après."""
     
-    deepseek_response = deepseek_generate(deepseek_prompt)
+    claude_response = claude_generate(claude_prompt)
     
-    if deepseek_response:
-        # Extraction du JSON de la réponse DeepSeek
+    if claude_response:
+        # Extraction du JSON de la réponse Claude
         import re
-        json_match = re.search(r'\{.*\}', deepseek_response, re.DOTALL)
+        json_match = re.search(r'\{.*\}', claude_response, re.DOTALL)
         if json_match:
             try:
                 json_str = json_match.group(0)
@@ -655,10 +655,10 @@ IMPORTANT: Assure-toi que le JSON est parfaitement formaté sans texte avant ou 
                         topic["sources"] = ["Recherches actuelles"]
                 
                 if topics:
-                    print(f"\n{len(topics)} sujets générés avec succès via DeepSeek (fallback)")
+                    print(f"\n{len(topics)} sujets générés avec succès via Claude (fallback)")
                     return topics[:num_topics]
             except json.JSONDecodeError as e:
-                print(f"Erreur: Réponse JSON invalide de DeepSeek - {str(e)}")
+                print(f"Erreur: Réponse JSON invalide de Claude - {str(e)}")
     
     # En dernier recours: générer des sujets par défaut
     print("\nGénération de sujets par défaut...")
@@ -707,7 +707,7 @@ IMPORTANT: Assure-toi que le JSON est parfaitement formaté sans texte avant ou 
     return default_topics
 
 def generate_script(topic: str, research: str, user_context: dict = None) -> str:
-    """Génère un script détaillé avec DeepSeek + Gemini et retourne le texte intégral."""
+    """Génère un script détaillé avec Claude + Gemini et retourne le texte intégral."""
     # Gestion robuste des erreurs pour éviter les crashs
     try:
         # Définir des variables de secours au cas où
@@ -756,8 +756,8 @@ def generate_script(topic: str, research: str, user_context: dict = None) -> str
         if not research or len(research.strip()) < 100:
             print("Recherche fournie insuffisante, tentative de récupération de nouvelles données...")
             try:
-                # Essayer d'abord avec DeepSeek
-                research_attempt = deepseek_search(f"{topic} données complètes informations récentes", num_results=3)
+                # Essayer d'abord avec Claude
+                research_attempt = claude_search(f"{topic} données complètes informations récentes", num_results=3)
                 if research_attempt and len(research_attempt.strip()) > 200:
                     research = research_attempt
                     print("Nouvelles données récupérées avec succès")
@@ -768,7 +768,7 @@ def generate_script(topic: str, research: str, user_context: dict = None) -> str
         # Dans tous les cas, essayer de récupérer des informations supplémentaires
         additional_research = ""
         try:
-            # Utiliser Gemini directement comme source de recherche secondaire si DeepSeek a échoué
+            # Utiliser Gemini directement comme source de recherche secondaire si Claude a échoué
             if not research or len(research.strip()) < 100:
                 simple_research_prompt = f"Donne-moi des informations factuelles sur '{topic}'. Inclus des faits, statistiques et tendances récentes."
                 research = gemini_generate(simple_research_prompt)
@@ -867,30 +867,37 @@ Recherches complémentaires (à intégrer dans le script pour l'enrichir):
 {additional_research}
 """
         
-        # Prompt avec instructions pour la génération du script
+        # Prompt avec instructions pour la génération du script ultra complet
         script_prompt = f"""Tu es un rédacteur professionnel YouTube francophone, expert en storytelling et pédagogie.
-Rédige un script vidéo complet sur : "{topic}"
+Rédige un script vidéo ULTRA COMPLET et DÉTAILLÉ sur : "{topic}"
 
 Contexte créateur:
 {user_context_str}
 
-Contraintes :
-- Structure le texte en sections titrées (ex : [HOOK], [INTRODUCTION], etc.)
-- Dans chaque section, rédige tout ce qui doit être dit, phrase par phrase, comme si tu écrivais le texte exact à prononcer dans la vidéo.
-- Le texte doit être fluide, captivant, sans fautes, et donner envie d'écouter jusqu'au bout.
-- Utilise des exemples concrets, des chiffres, des anecdotes, des transitions naturelles.
-- Inclus des statistiques et données récentes issues des recherches.
-- Cite les sources pertinentes dans le contenu.
+CONTRAINTES IMPORTANTES (SCRIPT DÉBRIDÉ ET EXHAUSTIF) :
+- Crée un script LONG et APPROFONDI (minimum 3000 mots) avec plusieurs sections détaillées
+- Structure le texte en sections clairement titrées (ex : [HOOK], [INTRODUCTION], [PARTIE 1], [PARTIE 2], [ANALYSE APPROFONDIE], [CONTROVERSES], [CAS D'ÉTUDE], [CONCLUSION])
+- Dans chaque section, rédige TOUT ce qui doit être dit, phrase par phrase, de manière exhaustive et détaillée, comme si tu écrivais le texte EXACT à prononcer dans la vidéo.
+- N'hésite pas à développer chaque point en profondeur avec tous les détails nécessaires.
+- Le texte doit être extrêmement fluide, captivant, sans fautes, et donner envie d'écouter jusqu'au bout malgré sa longueur.
+- Explore TOUS les aspects du sujet sans exception, y compris les aspects complexes, controverses, évolutions historiques, projections futures, etc.
+- Utilise de nombreux exemples concrets, chiffres précis, anecdotes détaillées, comparaisons pertinentes et transitions naturelles.
+- Inclus un maximum de statistiques et données récentes issues des recherches, avec des détails précis.
+- Cite systématiquement les sources pertinentes dans le contenu pour renforcer la crédibilité.
+- Développe des analyses approfondies sur les implications du sujet et toutes ses facettes.
 - {branding_guidance}
 - {style_guidance}
 - {audience_guidance}
-- Termine par un call-to-action adapté à la chaîne: invite à s'abonner, liker et partager.
+- Inclus plusieurs call-to-action stratégiquement placés dans le script, puis termine par un call-to-action final adapté à la chaîne.
+- N'hésite pas à être totalement débridé dans la longueur et le niveau de détail.
 
 Contexte et recherches primaires :
-{research if research else "Le sujet de la vidéo est " + topic + ". Utilise tes connaissances générales sur ce sujet."}
+{research if research else "Le sujet de la vidéo est " + topic + ". Utilise TOUTES tes connaissances détaillées sur ce sujet et développe chaque aspect en profondeur."}
 {additional_research_section}
 
-Commence directement par le [HOOK] puis enchaîne les sections.
+Commence directement par un [HOOK] puissant et accrocheur, puis enchaîne avec toutes les sections nécessaires pour un script ultra complet.
+
+IMPORTANT: Assure-toi que le script final soit substantiel, détaillé et suffisamment long pour couvrir tous les aspects du sujet en profondeur.
 """
         # Mesure et limitation de la taille du prompt final
         if len(script_prompt) > 12000:
@@ -898,7 +905,8 @@ Commence directement par le [HOOK] puis enchaîne les sections.
             # Simplifier le prompt en réduisant les parties moins essentielles
             additional_research_section = ""
             script_prompt = f"""Tu es un rédacteur professionnel YouTube.
-Rédige un script vidéo complet sur : "{topic}"
+Rédige un script vidéo ULTRA COMPLET et DÉTAILLÉ (minimum 3000 mots) sur : "{topic}"
+Crée un script long et approfondi qui explore tous les aspects du sujet.
 
 Contexte créateur: {youtuber_name} sur {channel_name}, style {video_style}, pour {target_audience}.
 
@@ -1814,7 +1822,7 @@ un prompt optimisé pour Grok qui va générer une image basée sur le script Yo
 TITRE: {title}
 
 CONTENU DU SCRIPT:
-{script_text[:1500]}  # Limiter à 1500 caractères pour éviter de surcharger DeepSeek
+{script_text[:1500]}  # Limiter à 1500 caractères pour éviter de surcharger Claude
 
 Crée un prompt détaillé pour Grok qui:
 1. Capture l'essence visuelle principale du script
@@ -1826,11 +1834,11 @@ Crée un prompt détaillé pour Grok qui:
 Répondre UNIQUEMENT avec le prompt final, rien d'autre.
 """
         
-        # Utiliser DeepSeek pour générer le prompt optimisé
-        response = deepseek_generate(prompt)
+        # Utiliser Claude pour générer le prompt optimisé
+        response = claude_generate(prompt)
         
         if not response:
-            # Fallback si DeepSeek échoue
+            # Fallback si Claude échoue
             return f"Créer une image représentative pour une vidéo YouTube intitulée '{title}' dans un style moderne et professionnel."
             
         # Nettoyer et formater le prompt
