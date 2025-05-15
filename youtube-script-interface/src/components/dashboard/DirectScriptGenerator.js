@@ -97,6 +97,10 @@ const DirectScriptGenerator = ({
           setPdfFileName(null);
           setSources([]);
         }}
+        onScriptUpdated={(updatedScript) => {
+          // Mettre à jour le script lorsqu'il est modifié dans le ScriptViewer
+          setScript(updatedScript);
+        }}
       />
     );
   }

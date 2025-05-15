@@ -11,7 +11,8 @@ const ScriptViewer = ({
   userProfile,
   API_BASE,
   darkMode,
-  onBack
+  onBack,
+  onScriptUpdated // Callback pour informer le parent des modifications
 }) => {
   const [generatedImages, setGeneratedImages] = useState([]);
   const [isGeneratingImages, setIsGeneratingImages] = useState(false);
@@ -29,7 +30,10 @@ const ScriptViewer = ({
 
   // Fonction pour sauvegarder les modifications manuelles
   const handleSaveEditedScript = () => {
-    setScript(modifiedScript); // Met à jour le script principal avec la version modifiée
+    // Informer le parent des modifications au lieu d'utiliser setScript directement
+    if (onScriptUpdated) {
+      onScriptUpdated(modifiedScript);
+    }
     setEditMode(false);
   };
 
@@ -64,7 +68,9 @@ const ScriptViewer = ({
       }
       
       // Mettre à jour le script avec la version modifiée
-      setScript(data.modified_script);
+      if (onScriptUpdated) {
+        onScriptUpdated(data.modified_script);
+      }
       setModifiedScript(data.modified_script);
       
       return data.modified_script;
