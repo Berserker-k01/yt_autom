@@ -254,64 +254,28 @@ function Dashboard() {
       // Récupérer les données au format JSON
       const data = await res.json();
       
-      if (data.error) {
-        throw new Error(data.error);
-      }
-      
-      // Utiliser le base64 pour créer un blob
-      const base64Data = data.file_data;
-      const fileType = data.file_type || 'application/pdf';
-      const fileName = data.file_name || `script_${new Date().toISOString().slice(0, 10)}.pdf`;
-      
-      // Convertir base64 en blob
-      const byteCharacters = atob(base64Data);
-      const byteArrays = [];
-      
-      for (let offset = 0; offset < byteCharacters.length; offset += 512) {
-        const slice = byteCharacters.slice(offset, offset + 512);
+      // Mettre à jour l'URL du PDF pour le téléchargement
+      if (data.pdfPath) {
+        const pdfUrl = `${API_BASE}/download-file?path=${encodeURIComponent(data.pdfPath)}`;
+        console.log('URL du PDF généré:', pdfUrl);
         
-        const byteNumbers = new Array(slice.length);
-        for (let i = 0; i < slice.length; i++) {
-          byteNumbers[i] = slice.charCodeAt(i);
-        }
+        // Ouvrir le PDF dans un nouvel onglet
+        window.open(pdfUrl, '_blank');
         
-        const byteArray = new Uint8Array(byteNumbers);
-        byteArrays.push(byteArray);
-      }
-      
-      const blob = new Blob(byteArrays, { type: fileType });
-      const url = window.URL.createObjectURL(blob);
-      setPdfUrl(url);
-      
-      // Téléchargement automatique
-      try {
-        // Créer un élément <a> invisible et cliquer dessus pour déclencher le téléchargement
-        const a = document.createElement('a');
-        a.style.display = 'none';
-        a.href = url;
-        a.download = fileName;
-        document.body.appendChild(a);
-        
-        // Petit délai avant de cliquer
-        setTimeout(() => {
-          a.click();
-          // Nettoyage après un court délai
-          setTimeout(() => {
-            document.body.removeChild(a);
-            window.URL.revokeObjectURL(url); // Libérer la mémoire
-          }, 200);
-        }, 100);
-      } catch (downloadError) {
-        console.error('Erreur lors du téléchargement:', downloadError);
-        // L'URL est toujours disponible dans pdfUrl pour un téléchargement manuel
+        // Mettre à jour l'état avec l'URL du PDF
+        setPdfUrl(pdfUrl);
+      } else {
+        throw new Error('Aucun chemin PDF reçu du serveur');
       }
     } catch (e) {
-      console.error('Erreur complète:', e);
-      setError('Erreur lors du téléchargement du PDF: ' + e.message);
+      console.error('Erreur lors de la génération du PDF:', e);
+      setError(`Erreur lors de la génération du PDF: ${e.message}`);
     } finally {
       setLoadingScript(false);
     }
   };
+
+  // Note: La fonction handleAiModifyScript est définie un peu plus loin dans le code.
 
   // Permet de sélectionner un sujet depuis l'historique
   const selectTopicFromHistory = (topic) => {
@@ -331,7 +295,7 @@ function Dashboard() {
     step = 0; // On montre juste l'historique
   }
 
-  // Fonction pour entrer en mode édition
+  // Fonction pour activer le mode d'édition manuelle du script
   const handleEditScript = () => {
     setEditMode(true);
   };
@@ -942,32 +906,81 @@ function Dashboard() {
               <span style={{ marginRight: 8 }}>💬</span> Script détaillé
             </h3>
             
-            {/* Script comme texte préformaté avec sections */}
-            <div className="script-preview" style={{ 
-              maxHeight: '400px', 
-              overflowY: 'auto', 
-              padding: 18,
-              lineHeight: 1.6
-            }}>
-              {typeof script === 'string' ? 
-                // Format le script texte en paragraphes lisibles avec mise en forme des titres
-                script.split('\n').map((line, i) => {
-                  // Détecter les titres de section [TITRE]
-                  if (line.trim().startsWith('[') && line.trim().includes(']')) {
-                    return (
-                      <div key={i} className="script-section-title">
-                        {line}
-                      </div>
-                    );
-                  } else {
-                    return <div key={i} style={{ marginBottom: 10 }}>{line}</div>;
-                  }
-                })
-              : 
-                // Fallback pour les anciens scripts en JSON
-                JSON.stringify(script, null, 2)
-              }
-            </div>
+            {/* Script comme texte préformaté ou éditable selon le mode */}
+            {editMode ? (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 15 }}>
+                <textarea
+                  className="script-editor"
+                  value={script}
+                  onChange={(e) => setScript(e.target.value)}
+                  style={{ 
+                    width: '100%', 
+                    minHeight: '400px',
+                    padding: 18,
+                    lineHeight: 1.6,
+                    border: '2px solid #3b82f6',
+                    borderRadius: 8,
+                    fontFamily: 'inherit',
+                    fontSize: 'inherit',
+                    resize: 'vertical'
+                  }}
+                />
+                <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 10 }}>
+                  <button
+                    onClick={handleCancelEdit}
+                    style={{
+                      padding: '8px 16px',
+                      background: '#f1f5f9',
+                      border: '1px solid #cbd5e1',
+                      borderRadius: 8,
+                      color: '#475569',
+                      fontWeight: 600
+                    }}
+                  >
+                    Annuler
+                  </button>
+                  <button
+                    onClick={() => handleSaveEditedScript(script)}
+                    style={{
+                      padding: '8px 16px',
+                      background: '#22c55e',
+                      border: 'none',
+                      borderRadius: 8,
+                      color: 'white',
+                      fontWeight: 600
+                    }}
+                  >
+                    Sauvegarder
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="script-preview" style={{ 
+                maxHeight: '400px', 
+                overflowY: 'auto', 
+                padding: 18,
+                lineHeight: 1.6
+              }}>
+                {typeof script === 'string' ? 
+                  // Format le script texte en paragraphes lisibles avec mise en forme des titres
+                  script.split('\n').map((line, i) => {
+                    // Détecter les titres de section [TITRE]
+                    if (line.trim().startsWith('[') && line.trim().includes(']')) {
+                      return (
+                        <div key={i} className="script-section-title" style={{ fontWeight: 'bold', color: '#1e40af', marginTop: 16 }}>
+                          {line}
+                        </div>
+                      );
+                    } else {
+                      return <div key={i} style={{ marginBottom: 10 }}>{line}</div>;
+                    }
+                  })
+                : 
+                  // Fallback pour les anciens scripts en JSON
+                  JSON.stringify(script, null, 2)
+                }
+              </div>
+            )}
             
             <div style={{ marginTop: 20, borderTop: '1px solid #e2e8f0', paddingTop: 16 }}>
               <h3 style={{ color: '#1e40af', marginBottom: 12, fontSize: 16 }}>
@@ -990,7 +1003,82 @@ function Dashboard() {
               </div>
             </div>
           </div>
-          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 25 }}>
+          <div style={{ display: 'flex', justifyContent: 'center', marginTop: 25, gap: 15 }}>
+            {/* Bouton pour éditer manuellement le script */}
+            <button 
+              onClick={handleEditScript} 
+              className="btn btn-secondary"
+              style={{ 
+                fontSize: 18, 
+                padding: '14px 38px', 
+                borderRadius: 12, 
+                fontWeight: 700, 
+                background: '#22c55e',
+                boxShadow: '0 4px 14px rgba(34, 197, 94, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                overflow: 'hidden',
+                opacity: editMode ? 0.6 : 1,
+                cursor: editMode ? 'not-allowed' : 'pointer'
+              }}
+              disabled={editMode}
+            >
+              <span style={{ marginRight: 10, fontSize: 22 }}>✏️</span> Éditer manuellement
+            </button>
+            
+            {/* Bouton pour modifier le script avec l'IA */}
+            <button 
+              onClick={() => {
+                // Ouvrir une boîte de dialogue pour demander les instructions de modification
+                const modificationInstructions = prompt('Entrez vos instructions pour modifier le script (ex: "Rendre plus long", "Ajouter plus d\'exemples", "Ton plus conversationnel", etc.):')
+                
+                // Si l'utilisateur a fourni des instructions, appeler la fonction de modification
+                if (modificationInstructions && modificationInstructions.trim()) {
+                  setIsModifyingWithAi(true)
+                  handleAiModifyScript(modificationInstructions, script)
+                    .then(() => {
+                      alert('Script modifié avec succès!')
+                    })
+                    .catch(err => {
+                      alert(`Erreur lors de la modification: ${err.message}`)
+                    })
+                    .finally(() => {
+                      setIsModifyingWithAi(false)
+                    })
+                }
+              }} 
+              className="btn btn-secondary"
+              style={{ 
+                fontSize: 18, 
+                padding: '14px 38px', 
+                borderRadius: 12, 
+                fontWeight: 700, 
+                background: '#6366f1',
+                boxShadow: '0 4px 14px rgba(99, 102, 241, 0.3)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                position: 'relative',
+                overflow: 'hidden',
+                cursor: isModifyingWithAi || editMode ? 'not-allowed' : 'pointer',
+                opacity: isModifyingWithAi || editMode ? 0.7 : 1
+              }}
+              disabled={isModifyingWithAi || editMode}
+            >
+              {isModifyingWithAi ? (
+                <>
+                  <span style={{ marginRight: 10, fontSize: 22 }}>⏳</span> Modification en cours...
+                </>
+              ) : (
+                <>
+                  <span style={{ marginRight: 10, fontSize: 22 }}>🤖</span> Modifier avec Claude
+                </>
+              )}
+            </button>
+            
+            {/* Bouton pour télécharger le PDF */}
             <button 
               onClick={handleDownloadPDF} 
               className="btn btn-primary"
