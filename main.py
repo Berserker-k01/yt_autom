@@ -6,13 +6,14 @@ import requests
 from fpdf import FPDF
 import google.generativeai as genai
 import re
+from claude_function import claude_search, claude_generate, generate_claude_image_prompt
 
 # Charge les variables d'environnement
 load_dotenv()
 
 # Configuration des APIs
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
-DEEPSEEK_API_KEY = "sk-c53f5831d24a444584d5afff2f8d0d0d"  # Clé API DeepSeek corrigée
+CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")  # Utilisation de la variable d'environnement
 
 # Configuration de Gemini
 genai.configure(api_key=GEMINI_API_KEY)
@@ -103,131 +104,10 @@ def gemini_generate(prompt: str) -> str:
             print("Échec après plusieurs tentatives")
             return ""
 
-def deepseek_search(query: str, num_results: int = 5) -> str:
-    """Effectue une recherche via l'API DeepSeek en priorité sur Tavily et SerpAPI."""
-    try:
-        print(f"Recherche DeepSeek pour: {query}")
-        
-        # Vérification de la clé API
-        if not DEEPSEEK_API_KEY:
-            print("Erreur: Clé API DeepSeek manquante ou invalide")
-            return ""
-        
-        # Construction du prompt pour demander à DeepSeek de rechercher des informations
-        search_prompt = f"""
-Tu es un moteur de recherche internet avancé. J'ai besoin que tu me fournisses des informations factuelles sur le sujet suivant: 
-"{query}"
+# Note: Les fonctions claude_search, claude_generate et generate_claude_image_prompt
+# sont maintenant importées depuis le module claude_function.py
 
-Réponds-moi avec les informations suivantes:
-1. Un résumé synthétique des informations principales (environ 100-150 mots)
-2. Les {num_results} meilleures sources d'information sur ce sujet avec pour chaque source:
-   - Le titre de la source
-   - L'URL (fictive mais réaliste si nécessaire)
-   - Un résumé du contenu pertinent (environ 50-100 mots)
 
-Formatage pour chaque source:
-Source: [URL]
-Titre: [Titre]
-Résumé: [Résumé du contenu]
-
-Les sources doivent être variées et refléter différentes perspectives sur le sujet. Si certaines informations ne sont pas disponibles, génère des sources plausibles et note-le discrètement dans ton résumé.
-"""
-
-        try:
-            response = requests.post(
-                "https://api.deepseek.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": "deepseek-chat",
-                    "messages": [{"role": "user", "content": search_prompt}],
-                    "max_tokens": 4096,
-                    "temperature": 0.5
-                },
-                timeout=30  # Timeout de 30 secondes
-            )
-            response.raise_for_status()
-            result = response.json()
-            
-            if "choices" not in result or not result["choices"]:
-                print("Erreur: Réponse DeepSeek vide")
-                return ""
-                
-            text = result["choices"][0]["message"]["content"]
-            
-            if not text or len(text.strip()) < 100:
-                print(f"Réponse DeepSeek trop courte ({len(text) if text else 0} caractères)")
-                return ""
-            
-            print(f"Recherche DeepSeek terminée avec succès ({len(text)} caractères)")
-            return text
-            
-        except requests.exceptions.ConnectionError as conn_err:
-            print(f"Erreur de connexion DeepSeek: {conn_err}")
-            return ""
-        except requests.exceptions.Timeout as timeout_err:
-            print(f"Timeout lors de la connexion à DeepSeek: {timeout_err}")
-            return ""
-        except requests.exceptions.RequestException as req_err:
-            print(f"Erreur de requête DeepSeek: {req_err}")
-            return ""
-    except Exception as e:
-        print(f"Erreur DeepSeek: {e}")
-        return ""
-
-def deepseek_generate(prompt: str) -> str:
-    """Génère du texte avec DeepSeek."""
-    try:
-        # Vérification de la clé API
-        if not DEEPSEEK_API_KEY:
-            print("Erreur: Clé API DeepSeek manquante ou invalide")
-            raise ValueError("Clé API DeepSeek manquante ou invalide")
-        
-        try:
-            response = requests.post(
-                "https://api.deepseek.com/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {DEEPSEEK_API_KEY}",
-                    "Content-Type": "application/json"
-                },
-                json={
-                    "model": "deepseek-chat",
-                    "messages": [{"role": "user", "content": prompt}],
-                    "max_tokens": 4096,
-                    "temperature": 0.5
-                },
-                timeout=30  # Timeout de 30 secondes
-            )
-            response.raise_for_status()
-            result = response.json()
-            
-            if "choices" not in result or not result["choices"]:
-                print("Erreur: Réponse DeepSeek vide")
-                return ""
-                
-            text = result["choices"][0]["message"]["content"]
-            
-            if not text or len(text.strip()) < 100:
-                print(f"Réponse DeepSeek trop courte ({len(text) if text else 0} caractères)")
-                return ""
-            
-            print(f"Génération DeepSeek terminée avec succès ({len(text)} caractères)")
-            return text
-            
-        except requests.exceptions.ConnectionError as conn_err:
-            print(f"Erreur de connexion DeepSeek: {conn_err}")
-            raise ValueError(f"Failed to fetch - Problème de connexion: {conn_err}")
-        except requests.exceptions.Timeout as timeout_err:
-            print(f"Timeout lors de la connexion à DeepSeek: {timeout_err}")
-            raise ValueError(f"Failed to fetch - Timeout: {timeout_err}")
-        except requests.exceptions.RequestException as req_err:
-            print(f"Erreur de requête DeepSeek: {req_err}")
-            raise ValueError(f"Failed to fetch - Erreur de requête: {req_err}")
-    except Exception as e:
-        print(f"Erreur DeepSeek: {e}")
-        return ""
 
 def fetch_research(topic: str, max_results: int = 5) -> str:
     """
@@ -881,8 +761,8 @@ def generate_script(topic: str, research: str, user_context: dict = None) -> str
                 if research_attempt and len(research_attempt.strip()) > 200:
                     research = research_attempt
                     print("Nouvelles données récupérées avec succès")
-            except Exception as deepseek_err:
-                print(f"Erreur DeepSeek: {deepseek_err}")
+            except Exception as claude_err:
+                print(f"Erreur Claude: {claude_err}")
                 # Ne pas lever d'exception ici, continuer avec ce qu'on a
 
         # Dans tous les cas, essayer de récupérer des informations supplémentaires
@@ -1915,7 +1795,7 @@ def modify_script_with_ai(script_text: str, instructions: str, profile: dict = N
         # Retourner le script original en cas d'erreur
         return script_text
 
-def generate_deepseek_image_prompt(script_text: str, title: str = "") -> str:
+def generate_claude_image_prompt(script_text: str, title: str = "") -> str:
     """
     Génère un prompt optimisé via DeepSeek pour créer des images avec Grok.
     
@@ -2015,14 +1895,14 @@ def generate_images_for_script(script_text: str, title: str = "", num_images: in
         
         progress_messages.append(f"Dossier d'images créé: {images_dir}")
         
-        # Si l'option Grok est activée, générer un prompt optimisé avec DeepSeek
+        # Si l'option Grok est activée, générer un prompt optimisé avec Claude
         if use_grok:
-            prompt = generate_deepseek_image_prompt(script_text, title)
+            prompt = generate_claude_image_prompt(script_text, title)
             progress_messages.append(f"Prompt optimisé pour Grok généré ({len(prompt)} caractères)")
             progress_messages.append("Utilisation de la méthode interne en attendant l'intégration Grok...")
             # À implémenter: appel à l'API Grok
         
-        # Fonction améliorée : créer des images plus attrayantes et personnalisées
+        # ... (rest of the code remains the same)
         # basées sur les paramètres et le contenu du script
         
         try:
