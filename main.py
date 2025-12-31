@@ -7,6 +7,7 @@ from fpdf import FPDF
 import google.generativeai as genai
 import re
 from claude_function import claude_search, claude_generate, generate_claude_image_prompt
+from github_models_function import github_models_generate, github_models_generate_json
 
 # Charge les variables d'environnement
 load_dotenv()
@@ -542,447 +543,180 @@ IMPORTANT: Réponds UNIQUEMENT avec un JSON valide de cette forme:
         print(f"Erreur: Analyse invalide - {str(e)}")
         return {}
 
-def generate_topics(theme: str, num_topics: int = 5, user_context: dict = None) -> list:
-    """Génère des sujets d'actualité en utilisant exclusivement Gemini avec fallback sur DeepSeek si nécessaire."""
-    print(f"\nRecherche d'informations sur: {theme}")
+
+def generate_topics(theme: str, platform: str = "youtube", num_topics: int = 5, user_context: dict = None) -> list:
+    """Génère des sujets optimisés pour la plateforme spécifiée (YouTube, TikTok, Instagram)."""
+    print(f"\nRecherche de sujets pour {platform.upper()} sur le thème: {theme}")
     
     # Construction du contexte utilisateur
     user_context_str = ""
     if user_context and any(user_context.values()):
         user_context_str = f"""
 Informations sur le créateur:
-- Nom de la chaîne: {user_context.get('channel_name', 'Non spécifié')}
-- Nom du YouTubeur: {user_context.get('youtuber_name', 'Non spécifié')}
-- Style vidéo préféré: {user_context.get('video_style', 'Non spécifié')}
-- Approche habituelle: {user_context.get('approach_style', 'Non spécifié')}
-- Public cible: {user_context.get('target_audience', 'Non spécifié')}
-- Durée vidéo préférée: {user_context.get('video_length', 'Non spécifié')}
+- Nom: {user_context.get('youtuber_name', 'Non spécifié')}
+- Style: {user_context.get('video_style', 'Non spécifié')}
+- Approche: {user_context.get('approach_style', 'Non spécifié')}
+- Public: {user_context.get('target_audience', 'Non spécifié')}
 """
+
+    platform_specs = {
+        "youtube": {
+            "duration": "8-15 minutes",
+            "focus": "rétention, storytelling, profondeur",
+            "structure": "Titre Pute-à-clic mais honnête, Miniature mentale"
+        },
+        "tiktok": {
+            "duration": "30-60 secondes",
+            "focus": "hook visuel immédiat, rythme effréné, tendance virale",
+            "structure": "Hook choquant, Twist rapide"
+        },
+        "instagram": {
+            "duration": "Reel (15-90s) ou Carrousel",
+            "focus": "esthétique, valeur ajoutée rapide, save-able content",
+            "structure": "Accroche visuelle, Call to Action clair (Sauvegarde)"
+        }
+    }
     
-    print("\nGénération des sujets avec Gemini...")
-    prompt = f"""Tu es un expert en création de contenu YouTube francophone, spécialiste de la viralité et de l'actualité.
-Pour le thème "{theme}", propose-moi {num_topics} sujets de vidéos YouTube qui sont :
-- Basés sur les tendances et actualités du moment (actualité très récente, sujets chauds, viraux)
-- Optimisés pour générer un fort engagement sur YouTube (taux de clics, watchtime, partages)
-- Rédigés sans aucune faute d'orthographe ou de grammaire
-- Avec un titre digne des plus grands youtubeurs (accrocheur, original, viral)
-- Avec un angle unique et une justification sur l'intérêt du sujet
+    specs = platform_specs.get(platform.lower(), platform_specs["youtube"])
+    
+    print(f"Génération avec GitHub Models pour {platform}...")
+    prompt = f"""Tu es un expert mondial en stratégie de contenu pour {platform}.
+Ton objectif est de trouver des idées virales pour le thème "{theme}".
+
+Spécificités {platform}:
+- Durée cible: {specs['duration']}
+- Focus: {specs['focus']}
+- Structure titraille: {specs['structure']}
+
 {user_context_str}
 
-IMPORTANT: Ta réponse doit être UNIQUEMENT un objet JSON valide avec cette structure:
+Génère {num_topics} idées concrètes, ultra-pertinentes et actuelles.
+
+IMPORTANT: Ta réponse doit être UNIQUEMENT un objet JSON valide avec cette structure précise:
 {{
     "topics": [
         {{
-            "title": "Titre accrocheur format podcast",
-            "angle": "Angle de discussion unique",
-            "why_interesting": "Pourquoi c'est pertinent maintenant",
-            "key_points": ["Points clés à aborder"],
-            "target_audience": "Public cible",
-            "estimated_duration": "Durée estimée en minutes",
-            "potential_guests": ["Experts ou invités potentiels"],
-            "factual_accuracy": "high",
-            "timeliness": "very_recent",
-            "sources": ["sources fiables à citer"]
+            "title": "Le titre exact (optimisé SEO/Viralité)",
+            "angle": "L'angle d'attaque unique",
+            "why_interesting": "Pourquoi ça va marcher maintenant",
+            "key_points": ["Point clé 1", "Point clé 2"],
+            "target_audience": "Qui on vise",
+            "estimated_duration": "Durée estimée",
+            "visual_style": "Style visuel suggéré (ex: Facecam rapide, B-roll cinématique)"
         }}
     ]
 }}
 
-Ne génère RIEN d'autre que ce JSON. Pas d'explications, pas de texte avant ou après."""
+Ne génère RIEN d'autre que ce JSON."""
 
-    # Tentative avec Gemini
-    response = gemini_generate(prompt)
+    # Appel GitHub Models unique et optimisé
+    response = github_models_generate(prompt)
     if response:
         try:
             result = json.loads(response)
             topics = result.get("topics", [])
             if topics:
-                print(f"\n{len(topics)} sujets générés avec succès via Gemini")
+                print(f"\n{len(topics)} sujets {platform} générés avec succès")
                 return topics[:num_topics]
         except json.JSONDecodeError as e:
-            print(f"Erreur: Réponse JSON invalide de Gemini - {str(e)}")
-            print(f"Tentative de fallback...")
-    else:
-        print("Erreur: Aucune réponse valide de Gemini, tentative de fallback...")
+            print(f"Erreur JSON GitHub Models: {e}")
     
-    # Fallback sur Claude si Gemini échoue
-    print("\nFallback: Génération des sujets avec Claude...")
-    
-    # Reformater le prompt pour Claude
-    claude_prompt = f"""Tu es un expert en création de contenu YouTube francophone, spécialiste de la viralité et de l'actualité.
-
-Pour le thème "{sanitize_text(theme)}", génère {num_topics} idées de vidéos YouTube avec les caractéristiques suivantes :
-- Sujets basés sur les tendances récentes
-- Titres accrocheurs et viraux
-- Optimisés pour l'engagement (clics, watchtime)
-- Angles uniques et innovants
-
-{sanitize_text(user_context_str) if user_context_str else ''}
-
-Réponds UNIQUEMENT avec un JSON valide ayant cette structure précise :
-
-{{"topics": [
-  {{"title": "Titre accrocheur", 
-   "angle": "Angle unique", 
-   "why_interesting": "Pertinence actuelle", 
-   "key_points": ["Point 1", "Point 2"], 
-   "target_audience": "Public cible", 
-   "estimated_duration": "Durée (minutes)"}}
-]}}
-
-IMPORTANT: Assure-toi que le JSON est parfaitement formaté sans texte avant ou après."""
-    
-    claude_response = claude_generate(claude_prompt)
-    
-    if claude_response:
-        # Extraction du JSON de la réponse Claude
-        import re
-        json_match = re.search(r'\{.*\}', claude_response, re.DOTALL)
-        if json_match:
-            try:
-                json_str = json_match.group(0)
-                result = json.loads(json_str)
-                topics = result.get("topics", [])
-                
-                # Ajouter des champs manquants si nécessaire
-                for topic in topics:
-                    if "potential_guests" not in topic:
-                        topic["potential_guests"] = ["Expert du domaine"]
-                    if "factual_accuracy" not in topic:
-                        topic["factual_accuracy"] = "high"
-                    if "timeliness" not in topic:
-                        topic["timeliness"] = "recent"
-                    if "sources" not in topic:
-                        topic["sources"] = ["Recherches actuelles"]
-                
-                if topics:
-                    print(f"\n{len(topics)} sujets générés avec succès via Claude (fallback)")
-                    return topics[:num_topics]
-            except json.JSONDecodeError as e:
-                print(f"Erreur: Réponse JSON invalide de Claude - {str(e)}")
-    
-    # En dernier recours: générer des sujets par défaut
-    print("\nGénération de sujets par défaut...")
-    
-    # Créer quelques sujets génériques basés sur le thème
-    default_topics = [
+    # Fallback silencieux simple si Gemini échoue totalement
+    print("Utilisation des sujets de secours.")
+    return [
         {
-            "title": f"Ce que personne ne vous dit sur {theme} en 2024",
-            "angle": "Analyse critique des idées reçues",
-            "why_interesting": "Démystification d'un sujet populaire",
-            "key_points": ["Idées reçues courantes", "Faits réels", "Conseils pratiques"],
-            "target_audience": "Grand public intéressé par le sujet",
-            "estimated_duration": "12-15 minutes",
-            "potential_guests": ["Expert en la matière"],
-            "factual_accuracy": "high",
-            "timeliness": "evergreen",
-            "sources": ["Sources générales sur le sujet"]
+            "title": f"Pourquoi {theme} est indispensable en 2024",
+            "angle": "Éducatif et inspirant",
+            "why_interesting": "Sujet Evergreen",
+            "visual_style": "Facecam + Texte"
         },
         {
-            "title": f"Les 5 secrets du/de la {theme} que les experts utilisent",
-            "angle": "Partage de connaissances exclusives",
-            "why_interesting": "Accès à des informations privilégiées",
-            "key_points": ["Secret 1", "Secret 2", "Secret 3", "Secret 4", "Secret 5"],
-            "target_audience": "Personnes cherchant à approfondir leurs connaissances",
-            "estimated_duration": "10-12 minutes",
-            "potential_guests": ["Professionnel du domaine"],
-            "factual_accuracy": "high",
-            "timeliness": "evergreen",
-            "sources": ["Expérience professionnelle", "Études récentes"]
+            "title": f"3 secrets sur {theme}",
+            "angle": "Liste rapide",
+            "why_interesting": "Format snackable",
+            "visual_style": "Montage dynamique"
         },
         {
-            "title": f"J'ai essayé {theme} pendant 30 jours, voici ce qui s'est passé",
-            "angle": "Expérience personnelle documentée",
-            "why_interesting": "Résultats réels et concrets",
-            "key_points": ["Jour 1", "Première semaine", "Défis rencontrés", "Résultats finaux"],
-            "target_audience": "Curieux et personnes intéressées par des retours d'expérience",
-            "estimated_duration": "15-18 minutes",
-            "potential_guests": ["Autres personnes ayant tenté l'expérience"],
-            "factual_accuracy": "high",
-            "timeliness": "evergreen",
-            "sources": ["Expérience personnelle", "Témoignages similaires"]
+            "title": f"Stop : Ne faites plus ça avec {theme}",
+            "angle": "Controversé / Correction d'erreur",
+            "why_interesting": "Attire l'attention par la négative",
+            "visual_style": "Facecam sérieux"
         }
     ]
+
+def generate_script(topic: str, research: str, platform: str = "youtube", user_context: dict = None) -> str:
+    """Génère un script complet optimisé pour la plateforme choisie."""
+    print(f"Génération de script pour {platform.upper()}: {topic}")
     
-    print(f"\n{len(default_topics)} sujets générés par défaut")
-    return default_topics
+    # Récupération de recherche si vide (GitHub Models-driven)
+    if not research or len(research) < 50:
+        print("Recherche automatique d'informations...")
+        research = github_models_generate(f"Donne-moi 5 faits surprenants, 3 statistiques récentes et 2 anecdotes sur : {topic}. Sois concis et factuel.")
 
-def generate_script(topic: str, research: str, user_context: dict = None) -> str:
-    """Génère un script détaillé avec Claude + Gemini et retourne le texte intégral."""
-    # Gestion robuste des erreurs pour éviter les crashs
-    try:
-        # Définir des variables de secours au cas où
-        youtuber_name = "YouTubeur"
-        channel_name = "Chaîne YouTube"
-        try:
-            if user_context:
-                youtuber_name = str(user_context.get('youtuber_name', 'YouTubeur'))
-                channel_name = str(user_context.get('channel_name', 'Chaîne YouTube'))
-        except Exception:
-            pass
+    # Contextualisation
+    creativity_level = "standard"
+    tone = "professionnel"
+    if user_context:
+        tone = user_context.get('approach_style', 'professionnel')
         
-        # Vérification de la disponibilité de Gemini avec une robustesse accrue
-        print("Vérification de la connexion à l'API Gemini...")
-        gemini_available = False
-        retry_count = 0
-        max_retries = 2
-        
-        while not gemini_available and retry_count < max_retries:
-            try:
-                # Test avec timeout et retry
-                import time
-                time.sleep(1)  # Petit délai entre les tentatives
-                
-                # Test le plus simple possible
-                test_response = model.generate_content("Test").text
-                if test_response and len(test_response) > 0:
-                    print("Connexion à Gemini établie avec succès")
-                    gemini_available = True
-                else:
-                    retry_count += 1
-                    print(f"Tentative {retry_count}/{max_retries} échouée : réponse vide")
-            except Exception as check_error:
-                retry_count += 1
-                print(f"Tentative {retry_count}/{max_retries} échouée : {check_error}")
-                
-        # Si Gemini n'est pas disponible après les tentatives, utiliser le plan B
-        if not gemini_available:
-            print("ÉCHEC d'accès à Gemini - utilisation du script de secours")
-            return generate_fallback_script(topic, youtuber_name, channel_name)
-        
-        # Récupérer des informations : essayer d'abord avec la recherche fournie
-        print(f"Traitement des informations pour: {topic}")
-        
-        # Si la recherche fournie est vide ou invalide, en chercher une nouvelle
-        if not research or len(research.strip()) < 100:
-            print("Recherche fournie insuffisante, tentative de récupération de nouvelles données...")
-            try:
-                # Essayer d'abord avec Claude
-                research_attempt = claude_search(f"{topic} données complètes informations récentes", num_results=3)
-                if research_attempt and len(research_attempt.strip()) > 200:
-                    research = research_attempt
-                    print("Nouvelles données récupérées avec succès")
-            except Exception as claude_err:
-                print(f"Erreur Claude: {claude_err}")
-                # Ne pas lever d'exception ici, continuer avec ce qu'on a
+    # Prompts spécifiques par plateforme
+    prompts = {
+        "youtube": f"""
+Tu es un scénariste YouTube d'élite (façon MrBeast ou grands documentaires).
+Sujet: {topic}
+Ton: {tone}
+Infos: {research}
 
-        # Dans tous les cas, essayer de récupérer des informations supplémentaires
-        additional_research = ""
-        try:
-            # Utiliser Gemini directement comme source de recherche secondaire si Claude a échoué
-            if not research or len(research.strip()) < 100:
-                simple_research_prompt = f"Donne-moi des informations factuelles sur '{topic}'. Inclus des faits, statistiques et tendances récentes."
-                research = gemini_generate(simple_research_prompt)
-                if research and len(research.strip()) > 100:
-                    print("Informations de base récupérées via Gemini")
+Structure le script ainsi:
+1. **HOOK (0-30s)**: Accroche visuelle et verbale immédiate. Pose une question ou un enjeu fort.
+2. **INTRO GÉNÉRIQUE (optionnel)**: Très court.
+3. **CORPS (The Meat)**: 3 à 5 parties distinctes. Pour chaque partie, suggère ce qu'on voit (VISUEL) et ce qu'on dit (AUDIO).
+4. **MID-ROLL**: Placement naturel si pertinent.
+5. **CONCLUSION**: Résumé rapide + Call to Action émotionnel.
 
-            # Essayer d'enrichir avec des données supplémentaires
-            try:
-                additional_prompt = f"Quelles sont les statistiques, faits intéressants et études récentes sur '{topic}'?"
-                additional_research = gemini_generate(additional_prompt)
-                if additional_research and len(additional_research.strip()) > 100:
-                    print("Informations supplémentaires récupérées avec succès")
-            except Exception as add_research_err:
-                print(f"Erreur lors de la recherche d'informations supplémentaires: {add_research_err}")
-        except Exception as research_err:
-            print(f"Erreur lors de la recherche d'informations: {research_err}")
-            # Continuer avec les informations disponibles
-        
-        # Construction du prompt avec le contexte utilisateur si disponible
-        user_context_str = ""
-        youtuber_name = "Non spécifié"
-        channel_name = "Non spécifié"
-        video_style = "Non spécifié"
-        approach_style = "Non spécifié"
-        target_audience = "Non spécifié"
-        language = "français"
-        content_type = "général"
-        custom_options = {}
-        
-        # Construction du prompt avec le contexte utilisateur si disponible
-        user_context_str = ""
-        if user_context:
-            youtuber_name = str(user_context.get('youtuber_name', 'Non spécifié'))
-            channel_name = str(user_context.get('channel_name', 'Non spécifié'))
-            video_style = str(user_context.get('video_style', user_context.get('content_style', 'Non spécifié')))
-            approach_style = str(user_context.get('approach_style', user_context.get('tone', 'professionnel')))
-            target_audience = str(user_context.get('target_audience', user_context.get('audience_age', 'adultes')))
-            language = str(user_context.get('language', 'français'))
-            content_type = str(user_context.get('content_type', 'général'))
-            custom_options = user_context.get('custom_options', {})
-            
-            user_context_str = f"""
-Informations sur le créateur:
-- Nom de la chaîne: {channel_name}
-- Nom du YouTubeur: {youtuber_name}
-- Langue principale: {language}
-- Type de contenu: {content_type}
-- Style vidéo préféré: {video_style}
-- Approche habituelle: {approach_style}
-- Public cible: {target_audience}
+Format de sortie: Markdown propre. Utilise [VISUEL] pour les descriptions d'image et [AUDIO] pour la voix off.
+""",
+        "tiktok": f"""
+Tu es un expert TikTok. Tu dois écrire un script pour une vidéo virale courte (30-60s).
+Sujet: {topic}
+Ton: {tone}
+
+Structure IMPÉRATIVE:
+1. **THE HOOK (0-3s)**: Une phrase choc visuelle ou sonore. Doit arrêter le scroll.
+2. **THE VALUE (3-45s)**: Délivre l'info/l'histoire à un rythme effréné. Pas de bla-bla.
+3. **THE TWIST/CTA (45-60s)**: Une fin surprenante ou une question pour générer des commentaires.
+
+Format: Très visuel. Utilise [TEXTE ECRAN] pour ce qui apparaît en incrustation et [VOIX] pour le parlé.
+""",
+        "instagram": f"""
+Tu rédiges un script pour un Reel Instagram ou une série de Slides (Carrousel).
+Sujet: {topic}
+Ton: {tone} / Esthétique
+
+Si c'est un Reel:
+- Mime une conversation ou une voix off douce "Aesthetic".
+- Fais ressortir le côté "Lifestyle" ou "Expert".
+
+Structure:
+1. **Accroche** (Visuelle + Sonore)
+2. **Développement** (3 points clés max)
+3. **CTA** (Enregistre ce post pour plus tard)
+
+Format: Markdown. Indique clairement les plans visuels suggestion de musique/ambiance.
 """
-            
-            # Ajouter les options personnalisées si présentes
-            if custom_options and len(custom_options) > 0:
-                user_context_str += "\nPréférences personnalisées du créateur:\n"
-                for key, value in custom_options.items():
-                    user_context_str += f"- {key}: {value}\n"
+    }
+
+    selected_prompt = prompts.get(platform.lower(), prompts["youtube"])
+    
+    # Génération avec GitHub Models
+    script = github_models_generate(selected_prompt)
+    
+    if not script:
+        return f"Erreur de génération pour le sujet {topic}. Veuillez réessayer."
         
-        # Personnalisation supplémentaire basée sur le profil
-        style_guidance = ""
-        if video_style and video_style.lower() != "non spécifié":
-            if "informatif" in video_style.lower():
-                style_guidance = "Adopte un ton informatif et éducatif, en expliquant clairement les concepts."
-            elif "divertissant" in video_style.lower():
-                style_guidance = "Utilise de l'humour et un ton dynamique pour capter l'attention."
-            elif "tutoriel" in video_style.lower():
-                style_guidance = "Explique étape par étape avec des instructions claires et précises."
-            elif "vlog" in video_style.lower():
-                style_guidance = "Adopte un ton conversationnel et partage des anecdotes personnelles."
-                
-        # Personnalisation pour l'audience
-        audience_guidance = ""
-        if target_audience and target_audience.lower() != "non spécifié":
-            if "enfant" in target_audience.lower() or "jeune" in target_audience.lower():
-                audience_guidance = "Utilise un langage simple et des explications accessibles pour un jeune public."
-            elif "professionnel" in target_audience.lower() or "business" in target_audience.lower():
-                audience_guidance = "Emploie un vocabulaire professionnel et des exemples pertinents pour un public d'affaires."
-            elif "expert" in target_audience.lower():
-                audience_guidance = "Aborde des concepts avancés sans simplifier excessivement."
-        
-        # Assurer les mentions de marque
-        branding_guidance = ""
-        if youtuber_name and youtuber_name.lower() != "non spécifié" and channel_name and channel_name.lower() != "non spécifié":
-            branding_guidance = f"Assure-toi que les références au créateur ('{youtuber_name}') et à la chaîne ('{channel_name}') sont correctement maintenues dans le script."
-        
-        # Adapter le prompt en fonction de la disponibilité des informations supplémentaires
-        additional_research_section = ""
-        if additional_research:
-            # Tronquer les recherches supplémentaires si elles sont trop longues
-            max_research_length = 4000
-            if len(additional_research) > max_research_length:
-                additional_research = additional_research[:max_research_length] + "... [tronqué pour longueur]"
-                
-            additional_research_section = f"""
-Recherches complémentaires (à intégrer dans le script pour l'enrichir):
-{additional_research}
-"""
-        
-        # Prompt avec instructions pour la génération du script ultra complet
-        script_prompt = f"""Tu es un rédacteur professionnel YouTube francophone, expert en storytelling et pédagogie.
-Rédige un script vidéo ULTRA COMPLET et DÉTAILLÉ sur : "{topic}"
+    return script
 
-Contexte créateur:
-{user_context_str}
 
-CONTRAINTES IMPORTANTES (SCRIPT DÉBRIDÉ ET EXHAUSTIF) :
-- Crée un script LONG et APPROFONDI (minimum 3000 mots) avec plusieurs sections détaillées
-- Structure le texte en sections clairement titrées (ex : [HOOK], [INTRODUCTION], [PARTIE 1], [PARTIE 2], [ANALYSE APPROFONDIE], [CONTROVERSES], [CAS D'ÉTUDE], [CONCLUSION])
-- Dans chaque section, rédige TOUT ce qui doit être dit, phrase par phrase, de manière exhaustive et détaillée, comme si tu écrivais le texte EXACT à prononcer dans la vidéo.
-- N'hésite pas à développer chaque point en profondeur avec tous les détails nécessaires.
-- Le texte doit être extrêmement fluide, captivant, sans fautes, et donner envie d'écouter jusqu'au bout malgré sa longueur.
-- Explore TOUS les aspects du sujet sans exception, y compris les aspects complexes, controverses, évolutions historiques, projections futures, etc.
-- Utilise de nombreux exemples concrets, chiffres précis, anecdotes détaillées, comparaisons pertinentes et transitions naturelles.
-- Inclus un maximum de statistiques et données récentes issues des recherches, avec des détails précis.
-- Cite systématiquement les sources pertinentes dans le contenu pour renforcer la crédibilité.
-- Développe des analyses approfondies sur les implications du sujet et toutes ses facettes.
-- {branding_guidance}
-- {style_guidance}
-- {audience_guidance}
-- Inclus plusieurs call-to-action stratégiquement placés dans le script, puis termine par un call-to-action final adapté à la chaîne.
-- N'hésite pas à être totalement débridé dans la longueur et le niveau de détail.
-
-Contexte et recherches primaires :
-{research if research else "Le sujet de la vidéo est " + topic + ". Utilise TOUTES tes connaissances détaillées sur ce sujet et développe chaque aspect en profondeur."}
-{additional_research_section}
-
-Commence directement par un [HOOK] puissant et accrocheur, puis enchaîne avec toutes les sections nécessaires pour un script ultra complet.
-
-IMPORTANT: Assure-toi que le script final soit substantiel, détaillé et suffisamment long pour couvrir tous les aspects du sujet en profondeur.
-"""
-        # Mesure et limitation de la taille du prompt final
-        if len(script_prompt) > 12000:
-            print(f"Le prompt est trop long ({len(script_prompt)} caractères), réduction pour respecter les limites...")
-            # Simplifier le prompt en réduisant les parties moins essentielles
-            additional_research_section = ""
-            script_prompt = f"""Tu es un rédacteur professionnel YouTube.
-Rédige un script vidéo ULTRA COMPLET et DÉTAILLÉ (minimum 3000 mots) sur : "{topic}"
-Crée un script long et approfondi qui explore tous les aspects du sujet.
-
-Contexte créateur: {youtuber_name} sur {channel_name}, style {video_style}, pour {target_audience}.
-
-Contraintes :
-- Structure le texte en sections ([HOOK], [INTRODUCTION], etc.)
-- Ce doit être le texte exact à prononcer dans la vidéo.
-- Texte fluide, captivant, sans fautes.
-- {style_guidance}
-- {audience_guidance}
-- Termine par un call-to-action adapté à la chaîne.
-
-Contexte: Le sujet de la vidéo est {topic}.
-{research[:1000] if research else ""}
-
-Commence directement par le [HOOK] puis enchaîne les sections.
-"""
-            print(f"Prompt réduit à {len(script_prompt)} caractères")
-
-        # Implémentation de retry avec backoff exponentiel et limitation du nombre de tentatives
-        max_attempts = 3
-        base_wait_time = 2  # secondes
-        
-        for attempt in range(1, max_attempts + 1):
-            try:
-                print(f"Tentative {attempt}/{max_attempts} de génération de script avec Gemini...")
-                
-                # Ajouter une gestion explicite des erreurs réseau
-                try:
-                    response = gemini_generate(script_prompt)
-                except ValueError as ve:
-                    if "Failed to fetch" in str(ve):
-                        print(f"Erreur réseau détectée: {ve}")
-                        # Si c'est la dernière tentative, lever l'erreur pour passer au fallback
-                        if attempt == max_attempts:
-                            raise ve
-                        continue  # Sinon, essayer à nouveau
-                    else:
-                        # Pour les autres erreurs de valeur, les propager
-                        raise ve
-                
-                # Vérification basique de la qualité de la réponse
-                if response and len(response.strip()) >= 200:
-                    print(f"Script généré avec succès ({len(response)} caractères)")
-                    return response.strip()
-                
-                print(f"Réponse trop courte ou vide ({len(response) if response else 0} caractères)")
-                
-                if attempt < max_attempts:
-                    wait_time = base_wait_time * (2 ** (attempt - 1))  # Backoff exponentiel
-                    print(f"Attente de {wait_time} secondes avant la prochaine tentative...")
-                    import time
-                    time.sleep(wait_time)
-            except Exception as e:
-                print(f"Erreur Gemini à la tentative {attempt}/{max_attempts}: {e}")
-                if "Failed to fetch" in str(e) and attempt == max_attempts:
-                    # Si c'est une erreur "Failed to fetch" à la dernière tentative, on passe directement au fallback
-                    print("Détection d'une erreur 'Failed to fetch' persistante, passage au script de secours...")
-                    break
-                
-                if attempt < max_attempts:
-                    wait_time = base_wait_time * (2 ** (attempt - 1))
-                    print(f"Attente de {wait_time} secondes avant la prochaine tentative...")
-                    import time
-                    time.sleep(wait_time)
-        
-        # Toutes les tentatives ont échoué, utilisation du plan de secours
-        print("Toutes les tentatives de génération ont échoué, utilisation du script de secours...")
-        return generate_fallback_script(topic, youtuber_name, channel_name)
-        
-    except Exception as e:
-        print(f"Erreur globale lors de la génération du script: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # Script de secours en cas d'échec total
-        return generate_fallback_script(topic, "YouTubeur", "Chaîne YouTube")
 
 
 def generate_fallback_script(topic: str, youtuber_name: str = "YouTubeur", channel_name: str = "Chaîne") -> str:

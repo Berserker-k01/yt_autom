@@ -1,0 +1,154 @@
+/* Scripty Premium UI Theme */
+:root {
+  --primary-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+  --surface-glass: rgba(255, 255, 255, 0.05);
+  --surface-glass-border: rgba(255, 255, 255, 0.1);
+  --text-primary: #ffffff;
+  --text-secondary: #94a3b8;
+  --bg-dark: #0f172a;
+  --accent-blue: #3b82f6;
+  --accent-pink: #ec4899;
+  --accent-purple: #8b5cf6;
+}
+
+body {
+  background-color: var(--bg-dark);
+  color: var(--text-primary);
+  font-family: 'Inter', sans-serif;
+  margin: 0;
+  min-height: 100vh;
+}
+
+.scripty-app {
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+}
+
+/* Modern Dark Cards with Colored Accents */
+.glass-card {
+  background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.8) 100%);
+  border: 1px solid rgba(102, 126, 234, 0.2);
+  border-radius: 20px;
+  padding: 24px;
+  box-shadow: 
+    0 4px 20px rgba(0, 0, 0, 0.4),
+    inset 0 1px 0 rgba(102, 126, 234, 0.1);
+  transition: all 0.3s ease;
+}
+
+.glass-card:hover {
+  transform: translateY(-5px);
+  box-shadow: 
+    0 10px 40px rgba(102, 126, 234, 0.3),
+    inset 0 1px 0 rgba(102, 126, 234, 0.2);
+  border-color: rgba(102, 126, 234, 0.4);
+}
+
+/* Platform Selectors */
+.platform-selector {
+  display: flex;
+  gap: 20px;
+  justify-content: center;
+  margin-bottom: 40px;
+}
+
+.platform-btn {
+  background: rgba(30, 41, 59, 0.6);
+  border: 2px solid transparent;
+  padding: 20px;
+  border-radius: 16px;
+  cursor: pointer;
+  width: 140px;
+  text-align: center;
+  transition: all 0.3s;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.platform-btn.active {
+  background: rgba(30, 41, 59, 0.9);
+  border-color: #6366f1;
+  box-shadow: 0 0 20px rgba(99, 102, 241, 0.3);
+}
+
+.platform-btn .icon {
+  font-size: 32px;
+}
+
+.platform-btn.tiktok.active { border-color: #00f2ea; box-shadow: 0 0 20px rgba(0, 242, 234, 0.3); }
+.platform-btn.instagram.active { border-color: #d62976; box-shadow: 0 0 20px rgba(214, 41, 118, 0.3); }
+.platform-btn.youtube.active { border-color: #ff0000; box-shadow: 0 0 20px rgba(255, 0, 0, 0.3); }
+
+/* Dashboard Grid */
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 20px;
+  margin-bottom: 30px;
+}
+
+.stat-item {
+  text-align: center;
+}
+
+.stat-value {
+  font-size: 2.5rem;
+  font-weight: 700;
+  background: var(--primary-gradient);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.stat-label {
+  color: var(--text-secondary);
+  font-size: 0.9rem;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+
+/* Modern Inputs */
+.modern-input {
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: white;
+  padding: 16px;
+  border-radius: 12px;
+  width: 100%;
+  font-size: 1.1rem;
+  transition: all 0.3s;
+  box-sizing: border-box;
+}
+
+.modern-input:focus {
+  outline: none;
+  border-color: var(--accent-blue);
+  box-shadow: 0 0 0 4px rgba(59, 130, 246, 0.1);
+}
+
+/* Gradient Button */
+.gradient-btn {
+  background: var(--primary-gradient);
+  border: none;
+  color: white;
+  padding: 16px 32px;
+  border-radius: 12px;
+  font-weight: 600;
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: all 0.3s;
+  width: 100%;
+  margin-top: 20px;
+}
+
+.gradient-btn:hover {
+  filter: brightness(1.1);
+  transform: scale(1.02);
+}
+
+.gradient-btn:disabled {
+  opacity: 0.7;
+  cursor: wait;
+}

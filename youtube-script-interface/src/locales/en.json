@@ -1,0 +1,33 @@
+{
+    "common": {
+        "start_free": "Start Free Trial",
+        "sign_in": "Sign In",
+        "get_started": "Get Started",
+        "contact_sales": "Contact Sales"
+    },
+    "hero": {
+        "title_part1": "Create ",
+        "title_gradient": "Viral Scripts",
+        "title_part2": " for Every Platform",
+        "subtitle": "AI-powered script generation for YouTube, TikTok & Instagram. Build content that converts in minutes, not hours."
+    },
+    "features": {
+        "title": "Why Creators Choose Scripty",
+        "multi_platform": "Multi-Platform Optimization",
+        "multi_platform_desc": "Scripts tailored for YouTube, TikTok, and Instagram algorithms",
+        "ai_powered": "AI-Powered Generation",
+        "ai_powered_desc": "GPT-4o creates engaging, viral-ready content in seconds",
+        "analytics": "Analytics & Tracking",
+        "analytics_desc": "Track performance and optimize your content strategy"
+    },
+    "pricing": {
+        "title": "Simple, Transparent Pricing",
+        "free_plan": "Free",
+        "pro_plan": "Pro",
+        "enterprise_plan": "Enterprise",
+        "scripts_per_month": "{{count}} scripts/month",
+        "unlimited": "Unlimited scripts",
+        "priority_support": "Priority support",
+        "most_popular": "Most Popular"
+    }
+}

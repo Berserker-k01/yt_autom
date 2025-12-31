@@ -118,322 +118,97 @@ def generate_topics_route():
     try:
         data = request.get_json()
         theme = data.get('theme', '')
+        platform = data.get('platform', 'youtube')  # Récupération de la plateforme
         profile = data.get('profile', {})
-        generate_images = data.get('generate_images', False)  # Nouveau paramètre pour générer des images
+        generate_images = data.get('generate_images', False)
         
         if not theme:
             return jsonify({'error': 'Un thème est requis'}), 400
         
-        # Extraire les informations du profil
-        youtuber_name = profile.get('youtuber_name', '')
-        channel_name = profile.get('channel_name', '')
-        content_type = profile.get('content_type', 'tech')
-        
-        # Générer les sujets avec les informations du profil
-        result = generate_topics(theme, user_context={
-            'youtuber_name': youtuber_name,
-            'channel_name': channel_name,
-            'content_type': content_type,
+        # Générer les sujets avec la plateforme
+        result = generate_topics(theme, platform=platform, user_context={
+            'youtuber_name': profile.get('youtuber_name', ''),
+            'channel_name': profile.get('channel_name', ''),
+            'content_type': profile.get('content_type', 'tech'),
             'video_style': profile.get('content_style', 'informative'),
             'approach_style': profile.get('tone', 'professionnel'),
-            'target_audience': profile.get('target_audience', 'adultes'),
-            'video_length': profile.get('video_length', '10-15 minutes')
+            'target_audience': profile.get('target_audience', 'adultes')
         })
         
-        # Sauvegarder dans l'historique avec l'utilisateur si disponible
-        save_theme_to_history(theme, youtuber_name)
+        save_theme_to_history(theme, profile.get('youtuber_name', ''))
         
-        # Si demandé, générer une image d'aperçu pour chaque sujet
-        if generate_images and result:
-            base_url = request.url_root.rstrip('/')
-            for topic in result:
-                try:
-                    # Générer une image pour ce sujet (une seule image par sujet)
-                    title = topic.get('title', '')
-                    if title:
-                        # Utiliser les points clés comme contexte pour l'image
-                        key_points = topic.get('key_points', [])
-                        context_text = "\n".join(key_points) if key_points else title
-                        
-                        # Générer une image avec style approprié au contenu
-                        style = 'moderne'  # par défaut
-                        if 'interview' in title.lower() or 'podcast' in title.lower():
-                            style = 'minimaliste'
-                        elif 'guide' in title.lower() or 'tutoriel' in title.lower():
-                            style = 'coloré'
-                        elif 'analyse' in title.lower() or 'étude' in title.lower():
-                            style = 'sombre'
-                        
-                        # Générer l'image
-                        image_paths = generate_images_for_script(
-                            script_text=context_text,
-                            title=title,
-                            num_images=1,
-                            style=style
-                        )
-                        
-                        # Ajouter l'URL de l'image au résultat
-                        if image_paths and len(image_paths) > 0:
-                            # Utiliser l'API de téléchargement existante
-                            filename = os.path.basename(image_paths[0])
-                            image_url = f"{base_url}/download/{filename}"
-                            topic['preview_image'] = image_url
-                except Exception as img_err:
-                    print(f"Erreur lors de la génération d'image pour le sujet '{title}': {img_err}")
-                    # Continuer même en cas d'erreur
+        # Logique d'image simplifiée pour le moment
         
         return jsonify({"topics": result})
     except Exception as e:
-        print(f"Erreur lors de la génération des sujets: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        return jsonify({'error': f'Erreur lors de la génération des sujets: {str(e)}'}), 500
+        print(f"Erreur generation topics: {e}")
+        return jsonify({'error': str(e)}), 500
 
-# Route pour générer un script
 @app.route('/generate-script', methods=['POST'])
 def generate_script_route():
     try:
         data = request.get_json()
         topic = data.get('topic', '')
         research = data.get('research', '')
+        platform = data.get('platform', 'youtube') # Récupération de la plateforme
         profile = data.get('profile', {})
-        sources = data.get('sources', [])
         
         if not topic:
             return jsonify({'error': 'Un sujet est requis'}), 400
-        
-        # Vérifier et nettoyer les données entrantes
-        try:
-            # S'assurer que le sujet est une chaîne valide
-            topic = str(topic).strip()
-            if not topic:
-                return jsonify({'error': 'Sujet invalide'}), 400
-                
-            # Vérifier la longueur du sujet
-            if len(topic) > 500:
-                topic = topic[:500] + "..."  # Tronquer pour éviter les erreurs
-                
-            # S'assurer que la recherche est une chaîne valide
-            if research and not isinstance(research, str):
-                research = str(research)
             
-            # Vérifier que le profil est un dictionnaire valide
-            if not isinstance(profile, dict):
-                profile = {}
-                
-            # Vérifier que les sources sont une liste valide
-            if not isinstance(sources, list):
-                sources = []
-        except Exception as data_error:
-            print(f"Erreur lors de la validation des données: {data_error}")
-            # Continuer avec des valeurs par défaut
+        script_text = generate_script(topic, research, platform=platform, user_context={
+            'youtuber_name': profile.get('youtuber_name', ''),
+            'approach_style': profile.get('tone', 'professionnel')
+        })
+        # Pour l'instant, pas de PDF pour TikTok/Insta (ou PDF simplifié)
         
-        # Générer le script avec les informations du profil
-        print(f"Début de génération du script pour: {topic}")
-        try:
-            script_text = generate_script(topic, research, user_context={
-                'youtuber_name': profile.get('youtuber_name', ''),
-                'channel_name': profile.get('channel_name', ''),
-                'content_style': profile.get('content_style', 'informative'),
-                'video_style': profile.get('content_style', 'informative'),
-                'approach_style': profile.get('tone', 'professionnel'),
-                'target_audience': profile.get('target_audience', 'adultes'),
-                'video_length': profile.get('video_length', '10-15 minutes')
-            })
-        except Exception as script_error:
-            print(f"Erreur lors de la génération du script: {script_error}")
-            import traceback
-            traceback.print_exc()
-            
-            # Utiliser le script de secours en cas d'erreur
-            try:
-                print("Génération du script de secours...")
-                script_text = generate_fallback_script(
-                    topic, 
-                    profile.get('youtuber_name', 'YouTubeur'),
-                    profile.get('channel_name', 'Chaîne YouTube')
-                )
-            except Exception as fallback_error:
-                print(f"Erreur même avec le script de secours: {fallback_error}")
-                script_text = f"""[HOOK]
-Bienvenue sur cette vidéo à propos de {topic}.
-
-[CONTENU]
-Ce sujet est vraiment intéressant et nous allons l'explorer ensemble.
-
-[CONCLUSION]
-Merci d'avoir regardé. N'oubliez pas de vous abonner !
-"""
-        
-        # Vérifier le script généré
-        if not script_text or not isinstance(script_text, str) or len(script_text.strip()) < 50:
-            print("Script généré invalide ou trop court, utilisation d'un script minimal")
-            script_text = f"""[HOOK]
-Bienvenue sur cette vidéo à propos de {topic}.
-
-[CONTENU]
-Ce sujet est vraiment intéressant et nous allons l'explorer ensemble.
-
-[CONCLUSION]
-Merci d'avoir regardé. N'oubliez pas de vous abonner !
-"""
-        
-        # Générer le PDF avec système robuste à plusieurs niveaux
-        pdf_path = ""
-        pdf_filename = ""
-        pdf_base64 = ""
-        
-        # 1. Premier niveau: Essayer la génération standard avec save_to_pdf
-        try:
-            print("Génération PDF standard...")
-            pdf_path = save_to_pdf(
-                script_text, 
-                title=topic,
-                author=profile.get('youtuber_name', ''),
-                channel=profile.get('channel_name', ''),
-                sources=sources
-            )
-            if pdf_path and os.path.exists(pdf_path) and pdf_path.endswith('.pdf'):
-                pdf_filename = os.path.basename(pdf_path)
-                print(f"PDF généré avec succès: {pdf_path}")
-                
-                # Vérifier que le PDF est valide
-                with open(pdf_path, 'rb') as pdf_file:
-                    pdf_content = pdf_file.read()
-                    if not pdf_content.startswith(b'%PDF'):
-                        print("Le PDF généré n'est pas valide, passage au niveau 2")
-                        raise Exception("PDF invalid")
-                    pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
-            else:
-                print("Chemin PDF non valide ou fichier non PDF")
-                raise Exception("PDF path invalid")
-        except Exception as pdf_error:
-            print(f"Erreur niveau 1 - Génération standard: {pdf_error}")
-            
-            # 2. Deuxième niveau: génération directe avec FPDF
-            try:
-                print("Tentative de génération PDF de secours avec FPDF...")
-                from fpdf import FPDF
-                
-                # Créer un nom de fichier unique avec extension .pdf
-                timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
-                safe_title = "".join(c if c.isalnum() or c in [' ', '_', '-'] else '_' for c in topic[:30])
-                safe_title = safe_title.replace(' ', '_')
-                force_pdf_filename = f"script_{safe_title}_{timestamp}.pdf"
-                
-                # Déterminer le chemin du fichier temporaire
-                if os.name == 'nt':  # Windows
-                    temp_dir = tempfile.gettempdir()
-                else:  # Linux/Render
-                    temp_dir = '/tmp'
-                force_pdf_path = os.path.join(temp_dir, force_pdf_filename)
-                
-                # Créer un PDF basique
-                pdf = FPDF()
-                pdf.add_page()
-                pdf.set_font("Arial", size=12)
-                
-                # Titre du document
-                pdf.set_font("Arial", 'B', 16)
-                pdf.cell(200, 10, txt=topic, ln=True, align='C')
-                pdf.ln(5)
-                
-                # Ajouter le script
-                pdf.set_font("Arial", size=11)
-                # Découper le script en lignes
-                for line in script_text.split('\n'):
-                    pdf.multi_cell(0, 5, txt=line)
-                    pdf.ln(2)
-                
-                # Ajouter les sources si disponibles
-                if sources and len(sources) > 0:
-                    pdf.add_page()
-                    pdf.set_font("Arial", 'B', 14)
-                    pdf.cell(200, 10, txt="Sources", ln=True, align='L')
-                    pdf.ln(5)
-                    
-                    pdf.set_font("Arial", size=10)
-                    for i, source in enumerate(sources):
-                        pdf.set_font("Arial", 'B', 10)
-                        pdf.cell(200, 8, txt=f"Source {i+1}: {source.get('title', 'Source sans titre')}", ln=True, align='L')
-                        pdf.set_font("Arial", size=10)
-                        pdf.cell(200, 6, txt=source.get('url', ''), ln=True, align='L')
-                        pdf.multi_cell(0, 5, txt=source.get('summary', ''))
-                        pdf.ln(5)
-                
-                # Sauvegarder le PDF
-                pdf.output(force_pdf_path)
-                print(f"PDF de secours généré avec succès: {force_pdf_path}")
-                
-                # Vérifier que le PDF a bien été créé
-                if os.path.exists(force_pdf_path):
-                    pdf_path = force_pdf_path
-                    pdf_filename = force_pdf_filename
-                    
-                    with open(force_pdf_path, 'rb') as pdf_file:
-                        pdf_content = pdf_file.read()
-                        pdf_base64 = base64.b64encode(pdf_content).decode('utf-8')
-                else:
-                    raise Exception("PDF de secours non créé")
-            except Exception as fpdf_error:
-                print(f"Erreur niveau 2 - Génération FPDF: {fpdf_error}")
-                
-                # 3. Troisième niveau: PDF minimal
-                try:
-                    print("Tentative de création d'un PDF minimal...")
-                    from fpdf import FPDF
-                    minimal_pdf = FPDF()
-                    minimal_pdf.add_page()
-                    minimal_pdf.set_font("Arial", size=12)
-                    minimal_pdf.cell(200, 10, txt=topic, ln=True, align='C')
-                    minimal_pdf.cell(200, 10, txt="Le script est disponible dans l'interface", ln=True, align='C')
-                    
-                    minimal_pdf_filename = f"script_minimal_{datetime.now().strftime('%Y%m%d_%H%M%S')}.pdf"
-                    minimal_pdf_path = os.path.join(temp_dir, minimal_pdf_filename)
-                    minimal_pdf.output(minimal_pdf_path)
-                    
-                    if os.path.exists(minimal_pdf_path):
-                        pdf_path = minimal_pdf_path
-                        pdf_filename = minimal_pdf_filename
-                        
-                        with open(minimal_pdf_path, 'rb') as min_pdf_file:
-                            min_pdf_content = min_pdf_file.read()
-                            pdf_base64 = base64.b64encode(min_pdf_content).decode('utf-8')
-                except Exception as minimal_error:
-                    print(f"Erreur niveau 3 - PDF minimal: {minimal_error}")
-        
-        # Construction de la réponse
-        result = {
+        return jsonify({
             'script': script_text,
-            'sources': sources,
-            'file_type': 'application/pdf'  # Toujours indiquer le type PDF
-        }
-        
-        # Ajouter les informations du PDF si disponible
-        if pdf_path and os.path.exists(pdf_path) and pdf_filename:
-            result['pdf_url'] = f"/download/{pdf_filename}"
-            if pdf_base64:
-                result['file_data'] = pdf_base64
-                result['file_name'] = pdf_filename
-        
-        return jsonify(result)
+            'platform': platform
+        })
             
     except Exception as e:
-        print(f"Erreur globale lors de la génération du script: {str(e)}")
-        import traceback
-        traceback.print_exc()
-        
-        # Créer une réponse d'erreur plus utile
-        error_response = {
-            'error': f'Erreur lors de la génération du script: {str(e)}',
-            'fallback_script': f"""[ERREUR]
-Une erreur s'est produite lors de la génération du script pour "{data.get('topic', 'sujet non spécifié')}"
+        print(f"Erreur generation script: {e}")
+        return jsonify({'error': str(e)}), 500
 
-[CONTENT]
-Merci de réessayer ultérieurement ou de choisir un autre sujet.
-"""
+# --- NOUVELLES ROUTES TRACKING (MOCK) ---
+
+@app.route('/api/social/connect', methods=['POST'])
+def connect_social_account():
+    """Simule la connexion à un compte social."""
+    data = request.json
+    platform = data.get('platform')
+    # Simulation d'un délai réseau
+    import time
+    time.sleep(1)
+    
+    return jsonify({
+        "success": True, 
+        "message": f"Connecté à {platform} avec succès",
+        "account": {
+            "username": "@scripty_user",
+            "platform": platform,
+            "connected_at": datetime.now().isoformat()
         }
-        return jsonify(error_response), 500
+    })
+
+@app.route('/api/social/metrics', methods=['GET'])
+def get_social_metrics():
+    """Retourne des métriques factices pour le dashboard."""
+    return jsonify({
+        "overview": {
+            "total_followers": 12500,
+            "total_views": 450000,
+            "engagement_rate": "12.5%"
+        },
+        "platforms": {
+            "tiktok": {"followers": 8500, "views": 320000, "trend": "+15%"},
+            "instagram": {"followers": 2000, "views": 50000, "trend": "+5%"},
+            "youtube": {"followers": 2000, "views": 80000, "trend": "+8%"}
+        }
+    })
+        
+
 
 # Route pour exporter en PDF
 @app.route('/export-pdf', methods=['POST'])
@@ -1782,7 +1557,13 @@ def generate_grok_images_route():
 
 # Initialiser la base de données et démarrer l'application
 with app.app_context():
-    db.create_all()
+    try:
+        db.create_all()
+    except Exception as e:
+        # Ignore l'erreur si les tables existent déjà (race condition avec gunicorn workers)
+        if "already exists" not in str(e):
+            print(f"Erreur lors de la création des tables: {e}")
+            raise
 
 if __name__ == '__main__':
     # Configuration pour un serveur de développement léger

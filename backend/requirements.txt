@@ -1,10 +1,41 @@
-Flask==2.2.3
+Flask==3.0.0
 flask-cors==4.0.0
-flask-login==0.6.2
-flask-sqlalchemy==3.0.3
-Werkzeug==2.2.3
-python-dotenv==1.0.1
-SQLAlchemy==2.0.9
+flask-login==0.6.3
+flask-sqlalchemy==3.1.1
+flask-jwt-extended==4.6.0
+flask-limiter==3.5.0
+flask-mail==0.9.1
+Werkzeug==3.0.1
+python-dotenv==1.0.0
+SQLAlchemy==2.0.23
 requests==2.31.0
 gunicorn==21.2.0
-psycopg2-binary==2.9.6
+
+# PostgreSQL
+psycopg2-binary==2.9.9
+
+# Password hashing
+bcrypt==4.1.2
+
+# Flutterwave Mobile Money (via requests)
+# No additional package needed - using requests library
+
+# Email verification
+itsdangerous==2.1.2
+
+# Redis cache
+redis==5.0.1
+flask-caching==2.1.0
+
+# Celery (async tasks)
+celery==5.3.4
+
+# AI APIs
+google-generativeai==0.3.2
+anthropic==0.8.1
+
+# PDF generation
+fpdf==1.7.2
+
+# Social OAuth
+authlib==1.3.0
