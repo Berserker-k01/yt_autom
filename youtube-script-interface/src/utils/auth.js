@@ -1,22 +1,23 @@
 import axios from 'axios';
 
-// Detect API URL based on environment and hostname
+// Detect API URL based on environment
 export const getApiUrl = () => {
+    // If explicitly set via environment variable
     if (process.env.REACT_APP_API_URL) {
         return process.env.REACT_APP_API_URL;
     }
 
-    // Default to port 5001 on the same host
-    const protocol = window.location.protocol;
     const hostname = window.location.hostname;
+    const protocol = window.location.protocol;
 
-    // If we're in development or local network, use the current host but port 5001
+    // For local development directly on the machine or local network
+    // This allows 'npm run dev' to work even without the Nginx proxy
     if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.')) {
         return `${protocol}//${hostname}:5001`;
     }
 
-    // Fallback for known production/dev environments
-    return 'http://localhost:5001';
+    // Default to relative path for Docker/Nginx proxy in production-like containers
+    return '';
 };
 
 const API_URL = getApiUrl();
