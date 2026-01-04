@@ -2,13 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import { API_URL } from '../utils/auth';
 import './Login.css';
-
-// Détecter l'environnement
-const isProduction = window.location.hostname !== 'localhost';
-const API_URL = isProduction 
-    ? (process.env.REACT_APP_API_URL || 'https://yt-autom.onrender.com')
-    : (process.env.REACT_APP_API_URL || 'http://localhost:5000');
 
 function Register() {
     const [formData, setFormData] = useState({
@@ -43,7 +38,7 @@ function Register() {
 
         try {
             console.log('Tentative d\'inscription avec:', { email: formData.email, name: formData.name });
-            
+
             const response = await axios.post(
                 `${API_URL}/api/auth/register`,
                 {
@@ -69,7 +64,7 @@ function Register() {
                 localStorage.setItem('user', JSON.stringify(response.data.user));
 
                 console.log('Compte créé avec succès, redirection...');
-                
+
                 // Redirect to dashboard
                 navigate('/dashboard');
             } else {
@@ -77,7 +72,7 @@ function Register() {
             }
         } catch (err) {
             console.error('Erreur lors de l\'inscription:', err);
-            
+
             if (err.code === 'ECONNABORTED') {
                 setError('La requête a pris trop de temps. Vérifiez votre connexion internet.');
             } else if (err.response) {

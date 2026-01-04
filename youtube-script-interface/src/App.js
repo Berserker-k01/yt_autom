@@ -4,8 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { FaYoutube, FaTiktok, FaInstagram, FaMagic, FaChartLine, FaRobot, FaDownload, FaHistory } from 'react-icons/fa';
 import './Scripty.css';
 
-// Configuration de l'API
-const API_URL = 'http://localhost:5000';
+import { API_URL } from './utils/auth';
 
 function App() {
   const [platform, setPlatform] = useState('youtube');

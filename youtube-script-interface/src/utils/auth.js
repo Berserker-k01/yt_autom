@@ -1,6 +1,26 @@
 import axios from 'axios';
 
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000';
+// Detect API URL based on environment and hostname
+export const getApiUrl = () => {
+    if (process.env.REACT_APP_API_URL) {
+        return process.env.REACT_APP_API_URL;
+    }
+
+    // Default to port 5001 on the same host
+    const protocol = window.location.protocol;
+    const hostname = window.location.hostname;
+
+    // If we're in development or local network, use the current host but port 5001
+    if (hostname === 'localhost' || hostname === '127.0.0.1' || hostname.startsWith('192.168.') || hostname.startsWith('10.') || hostname.startsWith('172.')) {
+        return `${protocol}//${hostname}:5001`;
+    }
+
+    // Fallback for known production/dev environments
+    return 'http://localhost:5001';
+};
+
+const API_URL = getApiUrl();
+export { API_URL };
 
 export const getAuthHeaders = () => {
     const token = localStorage.getItem('access_token');

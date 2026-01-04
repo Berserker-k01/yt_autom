@@ -99,7 +99,7 @@ def missing_token_callback(error):
     }), 401
 
 if __name__ == '__main__':
-    port = int(os.getenv('PORT', 5000))
+    port = int(os.getenv('PORT', 5001))
     debug = os.getenv('FLASK_DEBUG', '0') == '1'
     
     print(f"""

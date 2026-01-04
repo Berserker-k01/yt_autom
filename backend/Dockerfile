@@ -23,7 +23,6 @@ COPY *.py ./
 COPY backend/ ./backend/
 
 # Expose port
-EXPOSE 5000
+EXPOSE 5001
 
-# Command to run the application from /app directory
-CMD ["gunicorn", "--bind", "0.0.0.0:5000", "--workers", "2", "--timeout", "120", "backend.app_saas:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--timeout", "120", "backend.app_saas:app"]

@@ -2,13 +2,8 @@ import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import axios from 'axios';
+import { API_URL } from '../utils/auth';
 import './Login.css';
-
-// Détecter l'environnement
-const isProduction = window.location.hostname !== 'localhost';
-const API_URL = isProduction 
-    ? (process.env.REACT_APP_API_URL || 'https://yt-autom.onrender.com')
-    : (process.env.REACT_APP_API_URL || 'http://localhost:5000');
 
 function Login() {
     const [email, setEmail] = useState('');
