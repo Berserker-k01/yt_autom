@@ -1,33 +1,81 @@
 {
     "common": {
-        "start_free": "Démarrer l'essai gratuit",
-        "sign_in": "Se connecter",
+        "start_free": "Essai Gratuit",
+        "sign_in": "Connexion",
         "get_started": "Commencer",
-        "contact_sales": "Contacter la vente"
+        "contact_sales": "Contacter la vente",
+        "pricing": "Tarifs",
+        "features": "Fonctionnalités",
+        "try_free": "Essayer gratuitement",
+        "view_pricing": "Voir les tarifs",
+        "new": "Nouveau",
+        "mobile_money": "Paiement Mobile Money disponible",
+        "all_rights_reserved": "Tous droits réservés. Construit pour les créateurs, par les créateurs."
     },
     "hero": {
         "title_part1": "Créez des ",
         "title_gradient": "Scripts Viraux",
-        "title_part2": " pour chaque plateforme",
-        "subtitle": "Génération de scripts par IA pour YouTube, TikTok & Instagram. Créez du contenu qui convertit en quelques minutes."
+        "title_part2": " pour toutes vos plateformes",
+        "subtitle": "L'IA la plus avancée pour générer des scripts YouTube, TikTok & Instagram. Gagnez des heures de travail et multipliez vos vues par 3."
+    },
+    "stats": {
+        "generated": "Scripts générés",
+        "active_creators": "Créateurs actifs",
+        "satisfaction": "Satisfaction",
+        "support": "Support"
     },
     "features": {
         "title": "Pourquoi les créateurs choisissent Scripty",
-        "multi_platform": "Optimisation Multi-Plateforme",
-        "multi_platform_desc": "Des scripts adaptés aux algorithmes YouTube, TikTok et Instagram",
-        "ai_powered": "Génération par IA",
-        "ai_powered_desc": "GPT-4o crée du contenu engageant et viral en quelques secondes",
-        "analytics": "Analyses & Suivi",
-        "analytics_desc": "Suivez vos performances et optimisez votre stratégie de contenu"
+        "subtitle": "Tout ce dont vous avez besoin pour créer du contenu qui convertit",
+        "fast_gen": "Génération Ultra-Rapide",
+        "fast_gen_desc": "Créez des scripts viraux en moins de 2 minutes grâce à l'IA de pointe",
+        "multi_platform": "Multi-Plateformes",
+        "multi_platform_desc": "Optimisé pour YouTube, TikTok, Instagram avec des formats adaptés à chaque algorithme",
+        "advanced_analytics": "Analytics Avancés",
+        "advanced_analytics_desc": "Analysez le potentiel viral de vos scripts avant même de les publier",
+        "total_customization": "Personnalisation Totale",
+        "total_customization_desc": "Adaptez le style, le ton et la longueur selon votre audience et votre niche"
+    },
+    "testimonials": {
+        "title": "Ce que disent nos utilisateurs",
+        "subtitle": "Rejoignez des centaines de créateurs qui font confiance à Scripty"
     },
     "pricing": {
-        "title": "Tarification Simple et Transparente",
-        "free_plan": "Gratuit",
-        "pro_plan": "Pro",
-        "enterprise_plan": "Entreprise",
-        "scripts_per_month": "{{count}} scripts/mois",
+        "title": "Tarifs simples et transparents",
+        "subtitle": "Choisissez le plan qui correspond à vos besoins. Paiement Mobile Money disponible.",
+        "free": "Gratuit",
+        "pro": "Pro",
+        "enterprise": "Entreprise",
+        "per_month": "/mois",
+        "scripts5": "5 scripts/mois",
+        "scripts100": "100 scripts/mois",
         "unlimited": "Scripts illimités",
+        "youtube_only": "YouTube uniquement",
+        "all_platforms": "Toutes les plateformes",
+        "basic_exports": "Exports basiques",
+        "premium_templates": "Templates premium",
+        "api_access": "Accès API complet",
         "priority_support": "Support prioritaire",
-        "most_popular": "Plus Populaire"
+        "dedicated_support": "Support dédié 24/7",
+        "advanced_pdf": "Export PDF avancé",
+        "custom_workflows": "Workflows personnalisés",
+        "advanced_analytics": "Analytics avancés",
+        "most_popular": "Le Plus Populaire",
+        "subscribe_now": "S'abonner maintenant",
+        "contact": "Contacter"
+    },
+    "cta": {
+        "ready": "Prêt à multiplier vos vues ?",
+        "join": "Rejoignez des centaines de créateurs qui utilisent Scripty pour créer du contenu viral"
+    },
+    "footer": {
+        "description": "L'outil d'IA pour créer des scripts viraux sur toutes les plateformes.",
+        "product": "Produit",
+        "support": "Support",
+        "legal": "Légal",
+        "help": "Aide",
+        "contact": "Contact",
+        "privacy": "Confidentialité",
+        "terms": "Conditions"
     }
 }

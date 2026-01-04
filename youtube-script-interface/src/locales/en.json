@@ -3,31 +3,79 @@
         "start_free": "Start Free Trial",
         "sign_in": "Sign In",
         "get_started": "Get Started",
-        "contact_sales": "Contact Sales"
+        "contact_sales": "Contact Sales",
+        "pricing": "Pricing",
+        "features": "Features",
+        "try_free": "Try for free",
+        "view_pricing": "See pricing",
+        "new": "New",
+        "mobile_money": "Mobile Money payments available",
+        "all_rights_reserved": "All rights reserved. Built for creators, by creators."
     },
     "hero": {
         "title_part1": "Create ",
         "title_gradient": "Viral Scripts",
-        "title_part2": " for Every Platform",
-        "subtitle": "AI-powered script generation for YouTube, TikTok & Instagram. Build content that converts in minutes, not hours."
+        "title_part2": " for every platform",
+        "subtitle": "The most advanced AI to generate YouTube, TikTok & Instagram scripts. Save hours of work and multiply your views by 3."
+    },
+    "stats": {
+        "generated": "Scripts generated",
+        "active_creators": "Active creators",
+        "satisfaction": "Satisfaction",
+        "support": "Support"
     },
     "features": {
         "title": "Why Creators Choose Scripty",
-        "multi_platform": "Multi-Platform Optimization",
-        "multi_platform_desc": "Scripts tailored for YouTube, TikTok, and Instagram algorithms",
-        "ai_powered": "AI-Powered Generation",
-        "ai_powered_desc": "GPT-4o creates engaging, viral-ready content in seconds",
-        "analytics": "Analytics & Tracking",
-        "analytics_desc": "Track performance and optimize your content strategy"
+        "subtitle": "Everything you need to create content that converts",
+        "fast_gen": "Ultra-Fast Generation",
+        "fast_gen_desc": "Create viral scripts in less than 2 minutes thanks to cutting-edge AI",
+        "multi_platform": "Multi-Platform",
+        "multi_platform_desc": "Optimized for YouTube, TikTok, Instagram with formats adapted to each algorithm",
+        "advanced_analytics": "Advanced Analytics",
+        "advanced_analytics_desc": "Analyze the viral potential of your scripts even before publishing them",
+        "total_customization": "Total Customization",
+        "total_customization_desc": "Adapt the style, tone and length according to your audience and niche"
+    },
+    "testimonials": {
+        "title": "What our users say",
+        "subtitle": "Join hundreds of creators who trust Scripty"
     },
     "pricing": {
-        "title": "Simple, Transparent Pricing",
-        "free_plan": "Free",
-        "pro_plan": "Pro",
-        "enterprise_plan": "Enterprise",
-        "scripts_per_month": "{{count}} scripts/month",
+        "title": "Simple and transparent pricing",
+        "subtitle": "Choose the plan that suits your needs. Mobile Money payment available.",
+        "free": "Free",
+        "pro": "Pro",
+        "enterprise": "Enterprise",
+        "per_month": "/month",
+        "scripts5": "5 scripts/month",
+        "scripts100": "100 scripts/month",
         "unlimited": "Unlimited scripts",
+        "youtube_only": "YouTube only",
+        "all_platforms": "All platforms",
+        "basic_exports": "Basic exports",
+        "premium_templates": "Premium templates",
+        "api_access": "Full API access",
         "priority_support": "Priority support",
-        "most_popular": "Most Popular"
+        "dedicated_support": "Dedicated 24/7 support",
+        "advanced_pdf": "Advanced PDF export",
+        "custom_workflows": "Custom workflows",
+        "advanced_analytics": "Advanced Analytics",
+        "most_popular": "Most Popular",
+        "subscribe_now": "Subscribe now",
+        "contact": "Contact"
+    },
+    "cta": {
+        "ready": "Ready to multiply your views?",
+        "join": "Join hundreds of creators using Scripty to create viral content"
+    },
+    "footer": {
+        "description": "The AI tool to create viral scripts on all platforms.",
+        "product": "Product",
+        "support": "Support",
+        "legal": "Legal",
+        "help": "Help",
+        "contact": "Contact",
+        "privacy": "Privacy",
+        "terms": "Terms"
     }
 }

@@ -61,7 +61,7 @@ class Script(db.Model):
     platform = db.Column(db.String(20), nullable=False)
     title = db.Column(db.String(500), nullable=False)
     content = db.Column(db.Text, nullable=False)
-    metadata = db.Column(db.JSON)
+    extra_metadata = db.Column(db.JSON)
     created_at = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     updated_at = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
@@ -71,6 +71,7 @@ class Script(db.Model):
             'platform': self.platform,
             'title': self.title,
             'content': self.content,
+            'extra_metadata': self.extra_metadata,
             'created_at': self.created_at.isoformat()
         }
 
@@ -99,12 +100,12 @@ class UsageMetric(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     user_id = db.Column(db.Integer, db.ForeignKey('users.id'), nullable=False, index=True)
     action_type = db.Column(db.String(50), nullable=False)
-    metadata = db.Column(db.JSON)
+    extra_metadata = db.Column(db.JSON)
     timestamp = db.Column(db.DateTime, default=datetime.utcnow, index=True)
     
     @staticmethod
-    def log_action(user_id, action_type, metadata=None):
-        metric = UsageMetric(user_id=user_id, action_type=action_type, metadata=metadata or {})
+    def log_action(user_id, action_type, extra_metadata=None):
+        metric = UsageMetric(user_id=user_id, action_type=action_type, extra_metadata=extra_metadata or {})
         db.session.add(metric)
         db.session.commit()
 

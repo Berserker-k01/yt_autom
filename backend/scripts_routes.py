@@ -103,7 +103,7 @@ def create_script():
             platform=platform,
             title=topic,
             content=script_content,
-            metadata=data.get('metadata', {})
+            extra_metadata=data.get('metadata', {})
         )
         
         db.session.add(script)
@@ -112,7 +112,7 @@ def create_script():
         UsageMetric.log_action(
             user_id=user.id,
             action_type='script_generated',
-            metadata={'platform': platform, 'topic': topic}
+            extra_metadata={'platform': platform, 'topic': topic}
         )
         
         db.session.commit()
@@ -145,7 +145,7 @@ def update_script(script_id):
         if 'content' in data:
             script.content = data['content']
         if 'metadata' in data:
-            script.metadata = data['metadata']
+            script.extra_metadata = data['metadata']
         
         script.updated_at = datetime.utcnow()
         db.session.commit()

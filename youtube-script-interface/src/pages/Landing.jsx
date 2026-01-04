@@ -1,37 +1,37 @@
 import React from 'react';
 import { Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { FaCheck, FaStar, FaArrowRight, FaYoutube, FaTiktok, FaInstagram, FaRocket, FaUsers, FaChartLine } from 'react-icons/fa';
+import { useTranslation } from 'react-i18next';
+import { FaCheck, FaStar, FaArrowRight, FaYoutube, FaTiktok, FaInstagram, FaRocket, FaUsers, FaChartLine, FaGlobe } from 'react-icons/fa';
 import './Landing.css';
 
 function Landing() {
+    const { t, i18n } = useTranslation();
+
+    const changeLanguage = (lng) => {
+        i18n.changeLanguage(lng);
+    };
+
     const stats = [
-        { value: '10K+', label: 'Scripts générés' },
-        { value: '500+', label: 'Créateurs actifs' },
-        { value: '95%', label: 'Satisfaction' },
-        { value: '24/7', label: 'Support' }
+        { value: '10K+', label: t('stats.generated') },
+        { value: '500+', label: t('stats.active_creators') },
+        { value: '95%', label: t('stats.satisfaction') },
+        { value: '24/7', label: t('stats.support') }
     ];
 
     const testimonials = [
         {
             name: 'Amadou Diallo',
-            role: 'Créateur YouTube',
+            role: t('testimonials.role_yt', 'YouTube Creator'),
             image: '👨‍💼',
-            text: 'Scripty a transformé ma façon de créer du contenu. Je génère maintenant 3 scripts par jour au lieu d\'un par semaine !',
+            text: t('testimonials.amadou', "Scripty transformed my content creation. I now generate 3 scripts a day instead of one a week!"),
             rating: 5
         },
         {
             name: 'Fatou Sarr',
-            role: 'Influenceuse TikTok',
+            role: t('testimonials.role_tiktok', 'TikTok Influencer'),
             image: '👩‍💼',
-            text: 'Les scripts sont parfaitement optimisés pour TikTok. Mes vues ont augmenté de 300% depuis que j\'utilise Scripty.',
-            rating: 5
-        },
-        {
-            name: 'Ibrahim Traoré',
-            role: 'Podcasteur',
-            image: '👨‍🎤',
-            text: 'L\'IA comprend vraiment mon style. Les scripts sont engageants et me font gagner des heures de travail.',
+            text: t('testimonials.fatou', "The scripts are perfectly optimized for TikTok. My views increased by 300% since I started using Scripty."),
             rating: 5
         }
     ];
@@ -39,23 +39,23 @@ function Landing() {
     const features = [
         {
             icon: <FaRocket />,
-            title: 'Génération Ultra-Rapide',
-            description: 'Créez des scripts viraux en moins de 2 minutes grâce à l\'IA de pointe'
+            title: t('features.fast_gen'),
+            description: t('features.fast_gen_desc')
         },
         {
             icon: <FaYoutube />,
-            title: 'Multi-Plateformes',
-            description: 'Optimisé pour YouTube, TikTok, Instagram avec des formats adaptés à chaque algorithme'
+            title: t('features.multi_platform'),
+            description: t('features.multi_platform_desc')
         },
         {
             icon: <FaChartLine />,
-            title: 'Analytics Avancés',
-            description: 'Analysez le potentiel viral de vos scripts avant même de les publier'
+            title: t('features.advanced_analytics'),
+            description: t('features.advanced_analytics_desc')
         },
         {
             icon: <FaUsers />,
-            title: 'Personnalisation Totale',
-            description: 'Adaptez le style, le ton et la longueur selon votre audience et votre niche'
+            title: t('features.total_customization'),
+            description: t('features.total_customization_desc')
         }
     ];
 
@@ -69,9 +69,20 @@ function Landing() {
                         <span className="logo-text">Scripty</span>
                     </div>
                     <div className="nav-links">
-                        <Link to="/pricing">Tarifs</Link>
-                        <Link to="/login" className="nav-login">Connexion</Link>
-                        <Link to="/register" className="nav-cta">Commencer gratuitement</Link>
+                        <div className="lang-switcher">
+                            <FaGlobe className="lang-icon" />
+                            <select
+                                onChange={(e) => changeLanguage(e.target.value)}
+                                value={i18n.language}
+                                className="lang-select"
+                            >
+                                <option value="fr">FR</option>
+                                <option value="en">EN</option>
+                            </select>
+                        </div>
+                        <Link to="/pricing">{t('common.pricing')}</Link>
+                        <Link to="/login" className="nav-login">{t('common.sign_in')}</Link>
+                        <Link to="/register" className="nav-cta">{t('common.try_free')}</Link>
                     </div>
                 </div>
             </nav>
@@ -90,23 +101,22 @@ function Landing() {
                         animate={{ opacity: 1, scale: 1 }}
                         transition={{ delay: 0.2 }}
                     >
-                        ✨ Nouveau : Paiement Mobile Money disponible
+                        ✨ {t('common.new')} : {t('common.mobile_money')}
                     </motion.div>
                     <h1 className="hero-title">
-                        Créez des <span className="gradient-text">Scripts Viraux</span><br />
-                        pour toutes vos plateformes
+                        {t('hero.title_part1')}<span className="gradient-text">{t('hero.title_gradient')}</span><br />
+                        {t('hero.title_part2')}
                     </h1>
                     <p className="hero-subtitle">
-                        L'IA la plus avancée pour générer des scripts YouTube, TikTok & Instagram.<br />
-                        <strong>Gagnez des heures</strong> de travail et <strong>multipliez vos vues</strong> par 3.
+                        {t('hero.subtitle')}
                     </p>
                     <div className="hero-cta">
                         <Link to="/register" className="btn-primary btn-large">
-                            Essayer gratuitement
+                            {t('common.try_free')}
                             <FaArrowRight className="btn-icon" />
                         </Link>
                         <Link to="/pricing" className="btn-secondary btn-large">
-                            Voir les tarifs
+                            {t('common.view_pricing')}
                         </Link>
                     </div>
                     <div className="hero-stats">
@@ -134,8 +144,8 @@ function Landing() {
                     viewport={{ once: true }}
                     transition={{ duration: 0.6 }}
                 >
-                    <h2 className="section-title">Pourquoi les créateurs choisissent Scripty</h2>
-                    <p className="section-subtitle">Tout ce dont vous avez besoin pour créer du contenu qui convertit</p>
+                    <h2 className="section-title">{t('features.title')}</h2>
+                    <p className="section-subtitle">{t('features.subtitle')}</p>
                 </motion.div>
                 <div className="features-grid">
                     {features.map((feature, index) => (
@@ -163,7 +173,7 @@ function Landing() {
                     whileInView={{ opacity: 1 }}
                     viewport={{ once: true }}
                 >
-                    <h3>Optimisé pour toutes les plateformes</h3>
+                    <h3>{t('platforms.optimized', 'Optimized for all platforms')}</h3>
                     <div className="platforms">
                         <div className="platform-item">
                             <FaYoutube className="platform-icon youtube" />
@@ -188,8 +198,8 @@ function Landing() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                 >
-                    <h2 className="section-title">Ce que disent nos utilisateurs</h2>
-                    <p className="section-subtitle">Rejoignez des centaines de créateurs qui font confiance à Scripty</p>
+                    <h2 className="section-title">{t('testimonials.title')}</h2>
+                    <p className="section-subtitle">{t('testimonials.subtitle')}</p>
                 </motion.div>
                 <div className="testimonials-grid">
                     {testimonials.map((testimonial, index) => (
@@ -226,8 +236,8 @@ function Landing() {
                     whileInView={{ opacity: 1, y: 0 }}
                     viewport={{ once: true }}
                 >
-                    <h2 className="section-title">Tarifs simples et transparents</h2>
-                    <p className="section-subtitle">Choisissez le plan qui correspond à vos besoins. Paiement Mobile Money disponible.</p>
+                    <h2 className="section-title">{t('pricing.title')}</h2>
+                    <p className="section-subtitle">{t('pricing.subtitle')}</p>
                 </motion.div>
                 <div className="pricing-grid">
                     <motion.div
@@ -236,15 +246,15 @@ function Landing() {
                         whileInView={{ opacity: 1, x: 0 }}
                         viewport={{ once: true }}
                     >
-                        <h3>Gratuit</h3>
-                        <div className="price">0 FCFA<span>/mois</span></div>
+                        <h3>{t('pricing.free')}</h3>
+                        <div className="price">0 FCFA<span>{t('pricing.per_month')}</span></div>
                         <ul>
-                            <li><FaCheck /> 5 scripts/mois</li>
-                            <li><FaCheck /> YouTube uniquement</li>
-                            <li><FaCheck /> Exports basiques</li>
-                            <li><FaCheck /> Support communautaire</li>
+                            <li><FaCheck /> {t('pricing.scripts5')}</li>
+                            <li><FaCheck /> {t('pricing.youtube_only')}</li>
+                            <li><FaCheck /> {t('pricing.basic_exports')}</li>
+                            <li><FaCheck /> {t('pricing.support_comm', 'Community support')}</li>
                         </ul>
-                        <Link to="/register" className="btn-secondary">Commencer</Link>
+                        <Link to="/register" className="btn-secondary">{t('common.get_started')}</Link>
                     </motion.div>
 
                     <motion.div
@@ -253,17 +263,17 @@ function Landing() {
                         whileInView={{ opacity: 1, y: 0 }}
                         viewport={{ once: true }}
                     >
-                        <div className="badge">Le Plus Populaire</div>
-                        <h3>Pro</h3>
-                        <div className="price">12 000 FCFA<span>/mois</span></div>
+                        <div className="badge">{t('pricing.most_popular')}</div>
+                        <h3>{t('pricing.pro')}</h3>
+                        <div className="price">12 000 FCFA<span>{t('pricing.per_month')}</span></div>
                         <ul>
-                            <li><FaCheck /> 100 scripts/mois</li>
-                            <li><FaCheck /> Toutes les plateformes</li>
-                            <li><FaCheck /> Templates premium</li>
-                            <li><FaCheck /> Support prioritaire</li>
-                            <li><FaCheck /> Export PDF avancé</li>
+                            <li><FaCheck /> {t('pricing.scripts100')}</li>
+                            <li><FaCheck /> {t('pricing.all_platforms')}</li>
+                            <li><FaCheck /> {t('pricing.premium_templates')}</li>
+                            <li><FaCheck /> {t('pricing.priority_support')}</li>
+                            <li><FaCheck /> {t('pricing.advanced_pdf')}</li>
                         </ul>
-                        <Link to="/register" className="btn-primary">S'abonner maintenant</Link>
+                        <Link to="/register" className="btn-primary">{t('pricing.subscribe_now')}</Link>
                     </motion.div>
 
                     <motion.div
@@ -272,16 +282,16 @@ function Landing() {
                         whileInView={{ opacity: 1, x: 0 }}
                         viewport={{ once: true }}
                     >
-                        <h3>Enterprise</h3>
-                        <div className="price">60 000 FCFA<span>/mois</span></div>
+                        <h3>{t('pricing.enterprise')}</h3>
+                        <div className="price">60 000 FCFA<span>{t('pricing.per_month')}</span></div>
                         <ul>
-                            <li><FaCheck /> Scripts illimités</li>
-                            <li><FaCheck /> Accès API complet</li>
-                            <li><FaCheck /> Workflows personnalisés</li>
-                            <li><FaCheck /> Support dédié 24/7</li>
-                            <li><FaCheck /> Analytics avancés</li>
+                            <li><FaCheck /> {t('pricing.unlimited')}</li>
+                            <li><FaCheck /> {t('pricing.api_access')}</li>
+                            <li><FaCheck /> {t('pricing.custom_workflows')}</li>
+                            <li><FaCheck /> {t('pricing.dedicated_support')}</li>
+                            <li><FaCheck /> {t('pricing.advanced_analytics')}</li>
                         </ul>
-                        <Link to="/register" className="btn-secondary">Contacter</Link>
+                        <Link to="/register" className="btn-secondary">{t('pricing.contact')}</Link>
                     </motion.div>
                 </div>
             </section>
@@ -294,10 +304,10 @@ function Landing() {
                     whileInView={{ opacity: 1, scale: 1 }}
                     viewport={{ once: true }}
                 >
-                    <h2>Prêt à multiplier vos vues ?</h2>
-                    <p>Rejoignez des centaines de créateurs qui utilisent Scripty pour créer du contenu viral</p>
+                    <h2>{t('cta.ready')}</h2>
+                    <p>{t('cta.join')}</p>
                     <Link to="/register" className="btn-primary btn-large">
-                        Commencer gratuitement
+                        {t('common.try_free')}
                         <FaArrowRight className="btn-icon" />
                     </Link>
                 </motion.div>
@@ -311,26 +321,26 @@ function Landing() {
                             <span className="logo-icon">🎬</span>
                             <span className="logo-text">Scripty</span>
                         </div>
-                        <p>L'outil d'IA pour créer des scripts viraux sur toutes les plateformes.</p>
+                        <p>{t('footer.description')}</p>
                     </div>
                     <div className="footer-section">
-                        <h4>Produit</h4>
-                        <Link to="/pricing">Tarifs</Link>
-                        <Link to="/features">Fonctionnalités</Link>
+                        <h4>{t('footer.product')}</h4>
+                        <Link to="/pricing">{t('footer.pricing', 'Pricing')}</Link>
+                        <Link to="/features">{t('footer.features', 'Features')}</Link>
                     </div>
                     <div className="footer-section">
-                        <h4>Support</h4>
-                        <Link to="/help">Aide</Link>
-                        <Link to="/contact">Contact</Link>
+                        <h4>{t('footer.support')}</h4>
+                        <Link to="/help">{t('footer.help')}</Link>
+                        <Link to="/contact">{t('footer.contact')}</Link>
                     </div>
                     <div className="footer-section">
-                        <h4>Légal</h4>
-                        <Link to="/privacy">Confidentialité</Link>
-                        <Link to="/terms">Conditions</Link>
+                        <h4>{t('footer.legal')}</h4>
+                        <Link to="/privacy">{t('footer.privacy')}</Link>
+                        <Link to="/terms">{t('footer.terms')}</Link>
                     </div>
                 </div>
                 <div className="footer-bottom">
-                    <p>© 2024 Scripty. Tous droits réservés. Construit pour les créateurs, par les créateurs.</p>
+                    <p>© 2024 Scripty. {t('common.all_rights_reserved')}</p>
                 </div>
             </footer>
         </div>
