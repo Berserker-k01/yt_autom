@@ -20,7 +20,7 @@ app.config['JWT_REFRESH_TOKEN_EXPIRES'] = timedelta(days=7)
 # CORS configuration
 frontend_url = os.getenv('FRONTEND_URL', 'http://localhost:3000')
 CORS(app, 
-     resources={r"/api/*": {"origins": [frontend_url, "*"]}},
+     resources={r"/*": {"origins": [frontend_url, "*"]}},
      supports_credentials=True,
      allow_headers=["Content-Type", "Authorization"],
      expose_headers=["Content-Type"])
@@ -40,11 +40,14 @@ from backend.auth_routes import auth_bp
 from backend.scripts_routes import scripts_bp
 from backend.mobile_money_routes import mobile_money_bp
 from backend.admin_routes import admin_bp
+from backend.legacy_routes import legacy_bp # Import legacy blueprint
 
 app.register_blueprint(auth_bp)
 app.register_blueprint(scripts_bp)
 app.register_blueprint(mobile_money_bp)
 app.register_blueprint(admin_bp)
+# Register legacy blueprint without prefix to match old frontend routes
+app.register_blueprint(legacy_bp)
 
 # Health check
 @app.route('/health', methods=['GET'])
@@ -109,5 +112,7 @@ if __name__ == '__main__':
     🗄️  Database: PostgreSQL
     🔐 Auth: JWT
     """)
+    print("Registered Routes:")
+    print(app.url_map)
     
     app.run(host='0.0.0.0', port=port, debug=debug)

@@ -25,7 +25,8 @@ function App() {
 
   const handlePlatformSelect = (p) => {
     setPlatform(p);
-    setStep(2);
+    // Keep step 1 active to show input
+    if (step !== 1) setStep(1);
   };
 
   const generateTopics = async () => {

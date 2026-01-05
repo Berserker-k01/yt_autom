@@ -544,7 +544,7 @@ IMPORTANT: Réponds UNIQUEMENT avec un JSON valide de cette forme:
         return {}
 
 
-def generate_topics(theme: str, platform: str = "youtube", num_topics: int = 5, user_context: dict = None) -> list:
+def generate_topics(theme: str, platform: str = "youtube", num_topics: int = 6, user_context: dict = None) -> list:
     """Génère des sujets optimisés pour la plateforme spécifiée (YouTube, TikTok, Instagram)."""
     print(f"\nRecherche de sujets pour {platform.upper()} sur le thème: {theme}")
     
@@ -590,7 +590,8 @@ Spécificités {platform}:
 
 {user_context_str}
 
-Génère {num_topics} idées concrètes, ultra-pertinentes et actuelles.
+Génère {num_topics} idées concrètes, ultra-pertinentes et actuelles (basées sur les tendances récentes).
+Chaque sujet doit être inédit, pas de banalités. Mise sur l'actualité ou une approche nouvelle.
 
 IMPORTANT: Ta réponse doit être UNIQUEMENT un objet JSON valide avec cette structure précise:
 {{
@@ -687,22 +688,24 @@ Structure IMPÉRATIVE:
 3. **THE TWIST/CTA (45-60s)**: Une fin surprenante ou une question pour générer des commentaires.
 
 Format: Très visuel. Utilise [TEXTE ECRAN] pour ce qui apparaît en incrustation et [VOIX] pour le parlé.
+Rythme: Très rapide (un plan toutes les 1.5s).
 """,
         "instagram": f"""
 Tu rédiges un script pour un Reel Instagram ou une série de Slides (Carrousel).
 Sujet: {topic}
-Ton: {tone} / Esthétique
+Ton: {tone} / Esthétique / Premium
 
 Si c'est un Reel:
 - Mime une conversation ou une voix off douce "Aesthetic".
 - Fais ressortir le côté "Lifestyle" ou "Expert".
+- Visuels: Haute qualité, filtre lumineux.
 
 Structure:
-1. **Accroche** (Visuelle + Sonore)
-2. **Développement** (3 points clés max)
-3. **CTA** (Enregistre ce post pour plus tard)
+1. **Accroche** (Visuelle + Sonore) - Doit être "Satisfying" ou intrigant
+2. **Développement** (3 points clés max, valeur immédiate)
+3. **CTA** (Enregistre ce post pour plus tard / Partage en story)
 
-Format: Markdown. Indique clairement les plans visuels suggestion de musique/ambiance.
+Format: Markdown. Indique clairement les plans visuels et suggestion de musique/ambiance.
 """
     }
 
@@ -711,8 +714,16 @@ Format: Markdown. Indique clairement les plans visuels suggestion de musique/amb
     # Génération avec GitHub Models
     script = github_models_generate(selected_prompt)
     
+    # Fallback robuste si l'API échoue
     if not script:
-        return f"Erreur de génération pour le sujet {topic}. Veuillez réessayer."
+        print(f"⚠️ Échec de génération API pour '{topic}'. Utilisation du générateur de secours.")
+        youtuber_name = "Toi"
+        channel_name = "Ta chaîne"
+        if user_context:
+            youtuber_name = user_context.get('youtuber_name', youtuber_name)
+            channel_name = user_context.get('channel_name', channel_name)
+            
+        return generate_fallback_script(topic, youtuber_name, channel_name)
         
     return script
 
