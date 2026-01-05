@@ -79,3 +79,4 @@ curl -X POST http://localhost:5000/api/auth/register \
 3. Vérifiez que la base de données est bien configurée
 4. Vérifiez les variables d'environnement dans `.env`
 
+

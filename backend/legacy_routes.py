@@ -73,6 +73,8 @@ def generate_script_route():
         platform = data.get('platform', 'youtube')
         research = data.get('research', '')
         
+        custom_options = data.get('custom_options', {})
+
         if not topic:
             return jsonify({'error': 'Topic is required'}), 400
 
@@ -80,7 +82,8 @@ def generate_script_route():
             topic=topic,
             research=research,
             platform=platform,
-            user_context=user_context
+            user_context=user_context,
+            custom_options=custom_options
         )
         
         if not script_content:

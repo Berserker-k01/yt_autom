@@ -645,67 +645,69 @@ Ne génère RIEN d'autre que ce JSON."""
         }
     ]
 
-def generate_script(topic: str, research: str, platform: str = "youtube", user_context: dict = None) -> str:
-    """Génère un script complet optimisé pour la plateforme choisie."""
+def generate_script(topic: str, research: str, platform: str = "youtube", user_context: dict = None, custom_options: dict = None) -> str:
+    """Génère un script complet optimisé pour la plateforme choisie avec options personnalisées."""
     print(f"Génération de script pour {platform.upper()}: {topic}")
     
+    # Options par défaut si non fournies
+    if custom_options is None:
+        custom_options = {}
+
     # Récupération de recherche si vide (GitHub Models-driven)
     if not research or len(research) < 50:
         print("Recherche automatique d'informations...")
         research = github_models_generate(f"Donne-moi 5 faits surprenants, 3 statistiques récentes et 2 anecdotes sur : {topic}. Sois concis et factuel.")
 
     # Contextualisation
-    creativity_level = "standard"
-    tone = "professionnel"
-    if user_context:
-        tone = user_context.get('approach_style', 'professionnel')
+    tone = custom_options.get('tone', user_context.get('approach_style', 'professionnel') if user_context else 'professionnel')
+    duration = custom_options.get('duration', '')
+    cta = custom_options.get('cta', 'Abonne-toi !')
+    visual_style = custom_options.get('style', '') # Hook style for TikTok, Format for Insta
         
     # Prompts spécifiques par plateforme
     prompts = {
         "youtube": f"""
-Tu es un scénariste YouTube d'élite (façon MrBeast ou grands documentaires).
+Tu es un scénariste YouTube d'élite.
 Sujet: {topic}
 Ton: {tone}
 Infos: {research}
+{f"Durée cible: {duration}" if duration else ""}
+{f"Call to Action spécifique: {cta}" if cta else ""}
 
 Structure le script ainsi:
-1. **HOOK (0-30s)**: Accroche visuelle et verbale immédiate. Pose une question ou un enjeu fort.
-2. **INTRO GÉNÉRIQUE (optionnel)**: Très court.
-3. **CORPS (The Meat)**: 3 à 5 parties distinctes. Pour chaque partie, suggère ce qu'on voit (VISUEL) et ce qu'on dit (AUDIO).
-4. **MID-ROLL**: Placement naturel si pertinent.
-5. **CONCLUSION**: Résumé rapide + Call to Action émotionnel.
+1. **HOOK (0-30s)**: Accroche visuelle et verbale immédiate.
+2. **INTRO**: Rapide.
+3. **CORPS**: 3 à 5 parties.
+4. **CONCLUSION**: Résumé + CTA ({cta}).
 
-Format de sortie: Markdown propre. Utilise [VISUEL] pour les descriptions d'image et [AUDIO] pour la voix off.
+Format: Markdown. Utilise [VISUEL] et [AUDIO].
 """,
         "tiktok": f"""
-Tu es un expert TikTok. Tu dois écrire un script pour une vidéo virale courte (30-60s).
+Tu es un expert TikTok.
 Sujet: {topic}
-Ton: {tone}
+Ton/Tendance: {tone}
+{f"Style de Hook: {visual_style}" if visual_style else ""}
+{f"Call to Action: {cta}" if cta else ""}
 
 Structure IMPÉRATIVE:
-1. **THE HOOK (0-3s)**: Une phrase choc visuelle ou sonore. Doit arrêter le scroll.
-2. **THE VALUE (3-45s)**: Délivre l'info/l'histoire à un rythme effréné. Pas de bla-bla.
-3. **THE TWIST/CTA (45-60s)**: Une fin surprenante ou une question pour générer des commentaires.
+1. **THE HOOK** ({visual_style if visual_style else "Choc visuel"}): 3s pour convaincre.
+2. **THE VALUE**: Rythme effréné.
+3. **THE CTA**: {cta}.
 
-Format: Très visuel. Utilise [TEXTE ECRAN] pour ce qui apparaît en incrustation et [VOIX] pour le parlé.
-Rythme: Très rapide (un plan toutes les 1.5s).
+Format: Très visuel [TEXTE ECRAN]. Rythme rapide.
 """,
         "instagram": f"""
-Tu rédiges un script pour un Reel Instagram ou une série de Slides (Carrousel).
+Script pour Instagram ({visual_style if visual_style else "Reel"}).
 Sujet: {topic}
-Ton: {tone} / Esthétique / Premium
-
-Si c'est un Reel:
-- Mime une conversation ou une voix off douce "Aesthetic".
-- Fais ressortir le côté "Lifestyle" ou "Expert".
-- Visuels: Haute qualité, filtre lumineux.
+Ton: {tone} / Esthétique
+{f"Call to Action: {cta}" if cta else ""}
 
 Structure:
-1. **Accroche** (Visuelle + Sonore) - Doit être "Satisfying" ou intrigant
-2. **Développement** (3 points clés max, valeur immédiate)
-3. **CTA** (Enregistre ce post pour plus tard / Partage en story)
+1. **Accroche** (Visuelle + Sonore)
+2. **Développement**
+3. **CTA** ({cta})
 
-Format: Markdown. Indique clairement les plans visuels et suggestion de musique/ambiance.
+Format: Markdown. Focus sur l'esthétique visuelle.
 """
     }
 

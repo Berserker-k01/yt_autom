@@ -45,6 +45,86 @@ function App() {
     setLoading(false);
   };
 
+  // Platform specific options
+  const [customOptions, setCustomOptions] = useState({
+    duration: '',
+    tone: 'Professionnel',
+    cta: '', // Call to Action
+    style: '' // Visual style
+  });
+
+  const handleCustomOptionChange = (field, value) => {
+    setCustomOptions(prev => ({
+      ...prev,
+      [field]: value
+    }));
+  };
+
+  const getPlatformFields = () => {
+    switch (platform) {
+      case 'youtube':
+        return (
+          <div className="custom-options" style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <select className="modern-input" value={customOptions.tone} onChange={(e) => handleCustomOptionChange('tone', e.target.value)}>
+              <option value="Professionnel">Ton: Professionnel</option>
+              <option value="Divertissant">Ton: Divertissant</option>
+              <option value="Éducatif">Ton: Éducatif</option>
+              <option value="Storytelling">Ton: Storytelling</option>
+            </select>
+            <input
+              type="text"
+              className="modern-input"
+              placeholder="Durée (ex: 10min)"
+              value={customOptions.duration}
+              onChange={(e) => handleCustomOptionChange('duration', e.target.value)}
+            />
+            <input
+              type="text"
+              className="modern-input"
+              style={{ gridColumn: 'span 2' }}
+              placeholder="Call to Action (ex: Abonnez-vous)"
+              value={customOptions.cta}
+              onChange={(e) => handleCustomOptionChange('cta', e.target.value)}
+            />
+          </div>
+        );
+      case 'tiktok':
+        return (
+          <div className="custom-options" style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <select className="modern-input" value={customOptions.style} onChange={(e) => handleCustomOptionChange('style', e.target.value)}>
+              <option value="">Style de Hook</option>
+              <option value="Visuel choc">Visuel Choc</option>
+              <option value="Question polémique">Question Polémique</option>
+              <option value="Avant/Après">Avant / Après</option>
+            </select>
+            <input
+              type="text"
+              className="modern-input"
+              placeholder="Musique / Tendance"
+              value={customOptions.tone} // Reusing tone field for trend
+              onChange={(e) => handleCustomOptionChange('tone', e.target.value)}
+            />
+          </div>
+        );
+      case 'instagram':
+        return (
+          <div className="custom-options" style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <select className="modern-input" value={customOptions.style} onChange={(e) => handleCustomOptionChange('style', e.target.value)}>
+              <option value="Reel">Format: Reel</option>
+              <option value="Carrousel">Format: Carrousel</option>
+              <option value="Story">Format: Story</option>
+            </select>
+            <select className="modern-input" value={customOptions.tone} onChange={(e) => handleCustomOptionChange('tone', e.target.value)}>
+              <option value="Esthétique">Esthétique / Clean</option>
+              <option value="Inspirant">Inspirant</option>
+              <option value="Éducatif">Éducatif</option>
+            </select>
+          </div>
+        );
+      default: return null;
+    }
+  };
+
   const generateScript = async (topic) => {
     setSelectedTopic(topic);
     setLoading(true);
@@ -52,7 +132,9 @@ function App() {
       const res = await axios.post(`${API_URL}/generate-script`, {
         topic: topic.title,
         platform,
-        research: topic.key_points ? topic.key_points.join('\n') : ''
+        research: topic.key_points ? topic.key_points.join('\n') : '',
+        // Send custom options
+        custom_options: customOptions
       });
       setScript(res.data.script);
       setStep(3);
@@ -74,6 +156,31 @@ function App() {
       console.error(error);
     }
     setLoading(false);
+  };
+
+  const exportScript = async () => {
+    if (!script) return;
+    try {
+      const response = await axios.post(`${API_URL}/export-pdf`, {
+        script,
+        title: selectedTopic ? selectedTopic.title : 'Script',
+        platform
+      }, {
+        responseType: 'blob' // Important for file download
+      });
+
+      // Create download link
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement('a');
+      link.href = url;
+      link.setAttribute('download', `script_${platform}_${Date.now()}.pdf`);
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+    } catch (error) {
+      console.error("Export error:", error);
+      alert("Erreur lors de l'exportation du PDF");
+    }
   };
 
   return (
@@ -122,10 +229,15 @@ function App() {
                   value={theme}
                   onChange={(e) => setTheme(e.target.value)}
                 />
+
+                {/* Dynamic Fields */}
+                {getPlatformFields()}
+
                 <button
                   className="gradient-btn"
                   onClick={generateTopics}
                   disabled={!theme || loading}
+                  style={{ marginTop: '20px' }}
                 >
                   {loading ? 'Recherche en cours...' : <><FaMagic /> Générer des idées</>}
                 </button>
@@ -166,13 +278,29 @@ function App() {
               <div className="glass-card">
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                   <h2 style={{ margin: 0 }}>Script {platform === 'youtube' ? 'Vidéo' : 'Viral'}</h2>
-                  <button className="gradient-btn" style={{ width: 'auto', margin: 0, padding: '8px 16px', fontSize: '0.9rem' }}>
+                  <button className="gradient-btn" onClick={exportScript} style={{ width: 'auto', margin: 0, padding: '8px 16px', fontSize: '0.9rem' }}>
                     <FaDownload /> Exporter
                   </button>
                 </div>
-                <div style={{ background: 'rgba(0,0,0,0.3)', padding: '20px', borderRadius: '10px', whiteSpace: 'pre-wrap', lineHeight: '1.6', fontFamily: 'monospace', maxHeight: '600px', overflowY: 'auto' }}>
-                  {script}
-                </div>
+                {/* Editable Text Area */}
+                <textarea
+                  value={script}
+                  onChange={(e) => setScript(e.target.value)}
+                  style={{
+                    width: '100%',
+                    background: 'rgba(0,0,0,0.3)',
+                    padding: '20px',
+                    borderRadius: '10px',
+                    whiteSpace: 'pre-wrap',
+                    lineHeight: '1.6',
+                    fontFamily: 'monospace',
+                    minHeight: '400px',
+                    maxHeight: '600px',
+                    color: 'white',
+                    border: '1px solid rgba(255,255,255,0.1)',
+                    resize: 'vertical'
+                  }}
+                />
               </div>
             </motion.div>
           )}
