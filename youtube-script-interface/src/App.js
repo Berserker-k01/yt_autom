@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaYoutube, FaTiktok, FaInstagram, FaMagic, FaChartLine, FaRobot, FaDownload, FaHistory } from 'react-icons/fa';
+import { FaYoutube, FaTiktok, FaInstagram, FaFacebook, FaMagic, FaChartLine, FaRobot, FaDownload, FaHistory } from 'react-icons/fa';
 import './Scripty.css';
 
-import { API_URL } from './utils/auth';
+import { API_URL, getAuthHeaders } from './utils/auth';
 
 function App() {
   const [platform, setPlatform] = useState('youtube');
@@ -22,6 +22,12 @@ function App() {
     in: { opacity: 1, y: 0 },
     out: { opacity: 0, y: -20 }
   };
+
+  const LoadingSpinner = () => (
+    <div className="loader-container">
+      <div className="spinner"></div>
+    </div>
+  );
 
   const handlePlatformSelect = (p) => {
     setPlatform(p);
@@ -44,6 +50,14 @@ function App() {
     }
     setLoading(false);
   };
+
+  // Video Analysis State
+  const [videoUrl, setVideoUrl] = useState('');
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const [analysisSummary, setAnalysisSummary] = useState('');
+  const [chatHistory, setChatHistory] = useState([]);
+  const [chatQuery, setChatQuery] = useState('');
+  const [fileName, setFileName] = useState('');
 
   // Platform specific options
   const [customOptions, setCustomOptions] = useState({
@@ -121,6 +135,21 @@ function App() {
             </select>
           </div>
         );
+      case 'facebook':
+        return (
+          <div className="custom-options" style={{ marginTop: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '10px' }}>
+            <select className="modern-input" value={customOptions.style} onChange={(e) => handleCustomOptionChange('style', e.target.value)}>
+              <option value="Reel">Format: Reel (Court)</option>
+              <option value="Long">Format: Vidéo (Longue)</option>
+              <option value="Post">Format: Post Écrit</option>
+            </select>
+            <select className="modern-input" value={customOptions.tone} onChange={(e) => handleCustomOptionChange('tone', e.target.value)}>
+              <option value="Communautaire">Communautaire / Engagement</option>
+              <option value="Viral">Viral / Choc</option>
+              <option value="Éducatif">Éducatif / Autorité</option>
+            </select>
+          </div>
+        );
       default: return null;
     }
   };
@@ -183,6 +212,42 @@ function App() {
     }
   };
 
+  const analyzeVideo = async () => {
+    if (!videoUrl) return;
+    setAnalysisLoading(true);
+    try {
+      const res = await axios.post(`${API_URL}/api/analyze/process`, { url: videoUrl }, {
+        headers: getAuthHeaders()
+      });
+      setAnalysisSummary(res.data.summary);
+      setFileName(res.data.gemini_file_name);
+      setChatHistory([{ role: 'ai', text: res.data.summary }]);
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de l'analyse vidéo");
+    }
+    setAnalysisLoading(false);
+  };
+
+  const sendChatMessage = async () => {
+    if (!chatQuery) return;
+    const userMsg = { role: 'user', text: chatQuery };
+    setChatHistory(prev => [...prev, userMsg]);
+    setChatQuery('');
+
+    try {
+      const res = await axios.post(`${API_URL}/api/analyze/chat`, {
+        query: chatQuery,
+        file_name: fileName
+      }, {
+        headers: getAuthHeaders()
+      });
+      setChatHistory(prev => [...prev, { role: 'ai', text: res.data.response }]);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
   return (
     <div className="scripty-app">
       <header style={{ textAlign: 'center', marginBottom: '40px' }}>
@@ -193,7 +258,10 @@ function App() {
       </header>
 
       <nav style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '40px' }}>
-        <button className={`gradient-btn ${step !== 4 ? '' : 'outline'}`} style={{ width: 'auto' }} onClick={() => setStep(1)}>Création</button>
+        <button className={`gradient-btn ${step !== 4 && step !== 5 ? '' : 'outline'}`} style={{ width: 'auto' }} onClick={() => setStep(1)}>Création</button>
+        <button className={`gradient-btn ${step === 5 ? '' : 'outline'}`} style={{ width: 'auto' }} onClick={() => setStep(5)}>
+          <FaRobot style={{ marginRight: '8px' }} /> Video IQ
+        </button>
         <button className={`gradient-btn ${step === 4 ? '' : 'outline'}`} style={{ width: 'auto', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)' }} onClick={fetchStats}>
           <FaChartLine style={{ marginRight: '8px' }} /> Social Tracker
         </button>
@@ -218,6 +286,10 @@ function App() {
                   <FaInstagram className="icon" color="#d62976" />
                   <span>Instagram</span>
                 </div>
+                <div className={`platform-btn facebook ${platform === 'facebook' ? 'active' : ''}`} onClick={() => handlePlatformSelect('facebook')}>
+                  <FaFacebook className="icon" color="#1877F2" />
+                  <span>Facebook</span>
+                </div>
               </div>
 
               <div className="glass-card" style={{ maxWidth: '600px', margin: '0 auto' }}>
@@ -239,7 +311,7 @@ function App() {
                   disabled={!theme || loading}
                   style={{ marginTop: '20px' }}
                 >
-                  {loading ? 'Recherche en cours...' : <><FaMagic /> Générer des idées</>}
+                  {loading ? <LoadingSpinner /> : <><FaMagic /> Générer des idées</>}
                 </button>
               </div>
 
@@ -305,6 +377,7 @@ function App() {
             </motion.div>
           )}
 
+
           {step === 4 && socialStats && (
             <motion.div key="step4" initial="initial" animate="in" exit="out" variants={pageVariants}>
               <h2 style={{ textAlign: 'center' }}>Tableau de Bord</h2>
@@ -339,6 +412,65 @@ function App() {
                     <div style={{ color: '#4ade80', fontSize: '0.9rem', textAlign: 'right' }}>{data.trend} cette semaine</div>
                   </div>
                 ))}
+              </div>
+            </motion.div>
+          )}
+
+          {step === 5 && (
+            <motion.div key="step5" initial="initial" animate="in" exit="out" variants={pageVariants}>
+              <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>Analyse Vidéo (Video IQ)</h2>
+
+              <div className="glass-card" style={{ maxWidth: '800px', margin: '0 auto' }}>
+                <div style={{ display: 'flex', gap: '10px', marginBottom: '20px' }}>
+                  <input
+                    type="text"
+                    className="modern-input"
+                    placeholder="Collez le lien de la vidéo (YouTube, TikTok, FB, Insta...)"
+                    value={videoUrl}
+                    onChange={(e) => setVideoUrl(e.target.value)}
+                  />
+                  <button className="gradient-btn" style={{ width: 'auto' }} onClick={analyzeVideo} disabled={analysisLoading || !videoUrl}>
+                    {analysisLoading ? <LoadingSpinner /> : 'Analyser'}
+                  </button>
+                </div>
+
+                {analysisSummary && (
+                  <div style={{ marginTop: '30px', animation: 'fadeIn 0.5s' }}>
+                    <div style={{ background: 'rgba(0,0,0,0.3)', padding: '20px', borderRadius: '10px', marginBottom: '20px', whiteSpace: 'pre-wrap' }}>
+                      <h4 style={{ marginTop: 0, color: '#4ade80' }}>⚡ Résumé de l'IA</h4>
+                      {analysisSummary}
+                    </div>
+
+                    {/* Chat Interface */}
+                    <div className="chat-box" style={{ background: 'rgba(0,0,0,0.2)', borderRadius: '10px', padding: '15px', height: '400px', display: 'flex', flexDirection: 'column' }}>
+                      <div style={{ flex: 1, overflowY: 'auto', marginBottom: '15px', display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                        {chatHistory.map((msg, idx) => (
+                          <div key={idx} style={{
+                            alignSelf: msg.role === 'user' ? 'flex-end' : 'flex-start',
+                            background: msg.role === 'user' ? 'var(--primary-color)' : 'rgba(255,255,255,0.1)',
+                            padding: '10px 15px',
+                            borderRadius: '15px',
+                            maxWidth: '80%',
+                            fontSize: '0.9rem'
+                          }}>
+                            <strong>{msg.role === 'user' ? 'Vous' : 'Gemini'}:</strong> {msg.text}
+                          </div>
+                        ))}
+                      </div>
+                      <div style={{ display: 'flex', gap: '10px' }}>
+                        <input
+                          type="text"
+                          className="modern-input"
+                          placeholder="Posez une question sur la vidéo..."
+                          value={chatQuery}
+                          onChange={(e) => setChatQuery(e.target.value)}
+                          onKeyPress={(e) => e.key === 'Enter' && sendChatMessage()}
+                        />
+                        <button className="gradient-btn" style={{ width: 'auto', padding: '0 20px' }} onClick={sendChatMessage}>Envoyer</button>
+                      </div>
+                    </div>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

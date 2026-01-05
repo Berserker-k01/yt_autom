@@ -31,8 +31,10 @@ flask-caching==2.1.0
 celery==5.3.4
 
 # AI APIs
-google-generativeai==0.3.2
+google-generativeai>=0.5.0
 anthropic==0.8.1
+yt-dlp>=2024.4.9
+ffmpeg-python==0.2.0
 
 # PDF generation
 fpdf==1.7.2

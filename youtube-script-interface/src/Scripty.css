@@ -31,7 +31,7 @@ body {
   border: 1px solid rgba(102, 126, 234, 0.2);
   border-radius: 20px;
   padding: 24px;
-  box-shadow: 
+  box-shadow:
     0 4px 20px rgba(0, 0, 0, 0.4),
     inset 0 1px 0 rgba(102, 126, 234, 0.1);
   transition: all 0.3s ease;
@@ -39,7 +39,7 @@ body {
 
 .glass-card:hover {
   transform: translateY(-5px);
-  box-shadow: 
+  box-shadow:
     0 10px 40px rgba(102, 126, 234, 0.3),
     inset 0 1px 0 rgba(102, 126, 234, 0.2);
   border-color: rgba(102, 126, 234, 0.4);
@@ -78,9 +78,20 @@ body {
   font-size: 32px;
 }
 
-.platform-btn.tiktok.active { border-color: #00f2ea; box-shadow: 0 0 20px rgba(0, 242, 234, 0.3); }
-.platform-btn.instagram.active { border-color: #d62976; box-shadow: 0 0 20px rgba(214, 41, 118, 0.3); }
-.platform-btn.youtube.active { border-color: #ff0000; box-shadow: 0 0 20px rgba(255, 0, 0, 0.3); }
+.platform-btn.tiktok.active {
+  border-color: #00f2ea;
+  box-shadow: 0 0 20px rgba(0, 242, 234, 0.3);
+}
+
+.platform-btn.instagram.active {
+  border-color: #d62976;
+  box-shadow: 0 0 20px rgba(214, 41, 118, 0.3);
+}
+
+.platform-btn.youtube.active {
+  border-color: #ff0000;
+  box-shadow: 0 0 20px rgba(255, 0, 0, 0.3);
+}
 
 /* Dashboard Grid */
 .stats-grid {
@@ -151,4 +162,31 @@ body {
 .gradient-btn:disabled {
   opacity: 0.7;
   cursor: wait;
+}
+
+/* Loading Spinner */
+.loader-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 20px 0;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  border: 4px solid rgba(255, 255, 255, 0.1);
+  border-left-color: #4ade80;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  0% {
+    transform: rotate(0deg);
+  }
+
+  100% {
+    transform: rotate(360deg);
+  }
 }

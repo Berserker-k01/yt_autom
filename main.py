@@ -665,49 +665,113 @@ def generate_script(topic: str, research: str, platform: str = "youtube", user_c
     visual_style = custom_options.get('style', '') # Hook style for TikTok, Format for Insta
         
     # Prompts spécifiques par plateforme
+    # Prompts spécifiques par plateforme (Mode AUTORITÉ V2.0)
     prompts = {
         "youtube": f"""
-Tu es un scénariste YouTube d'élite.
-Sujet: {topic}
-Ton: {tone}
-Infos: {research}
-{f"Durée cible: {duration}" if duration else ""}
-{f"Call to Action spécifique: {cta}" if cta else ""}
+ROLE: Tu es un Scénariste Expert pour une chaîne d'Autorité Publique ou d'Expertise de Haut Niveau.
+TACHE: Rédiger un script vidéo YouTube complet, structuré et engageant sur le sujet : "{topic}".
+TON: {tone} (Crédible, Clair, Pédagogue).
+INFOS COMPLÉMENTAIRES: {research}
+{f"DURÉE CIBLE: {duration}" if duration else ""}
+{f"APPEL À L'ACTION: {cta}" if cta else ""}
 
-Structure le script ainsi:
-1. **HOOK (0-30s)**: Accroche visuelle et verbale immédiate.
-2. **INTRO**: Rapide.
-3. **CORPS**: 3 à 5 parties.
-4. **CONCLUSION**: Résumé + CTA ({cta}).
+INSTRUCTIONS STRATÉGIQUES :
+- Si le sujet est vague, développe-le en une problématique complète et pertinente pour l'audience.
+- Si le sujet est détaillé, respecte scrupuleusement les points clés (Durée, Ton, Style).
+- Adopte une structure narrative "Documentaire" ou "Masterclass".
+- IMPORTANT : Ne propose PAS de choix multiples pour le titre ou le hook. Choisis la meilleure option toi-même.
+- Tout ce qui est demandé doit être dans un SEUL script cohérent.
 
-Format: Markdown. Utilise [VISUEL] et [AUDIO].
+STRUCTURE DU SCRIPT :
+1. **TITRE ET MINIATURE SUGGÉRÉE** : Amorce forte.
+2. **HOOK (0-45s)** :
+   - [VISUEL] : Scène d'ouverture impactante.
+   - [AUDIO] : Accroche verbale qui pose l'enjeu dramatique ou l'utilité directe.
+3. **INTRODUCTION** : Contextualisation rapide. Qui es-tu ? Pourquoi ce sujet maintenant ?
+4. **DÉVELOPPEMENT (Le Cœur du Réacteur)** :
+   - Divisé en chapitres clairs (Chapitre 1, 2, 3...).
+   - Alterne [FACE CAM] pour l'explication et [B-ROLL / VISUEL] pour l'illustration.
+   - Utilise des anecdotes ou des datas précises (voir Infos).
+5. **CONCLUSION IMPACTANTE** : Résumé des points clés + Ouverture.
+6. **OUTRO & CTA** : Phrase de fin mémorable + Incitation à l'action ({cta}).
+
+FORMAT DE SORTIE : Markdown soigné. Indique clairement les changements de plan visuel.
 """,
         "tiktok": f"""
-Tu es un expert TikTok.
-Sujet: {topic}
-Ton/Tendance: {tone}
-{f"Style de Hook: {visual_style}" if visual_style else ""}
-{f"Call to Action: {cta}" if cta else ""}
+ROLE: Expert en Viralité pour Contenus Éducatifs/Institutionnels.
+SUJET: {topic}
+TON: {tone} (Dynamique mais sérieux/fiable).
+STYLE: {visual_style if visual_style else "Hook Visuel Fort"}
+CTA: {cta if cta else "Abonne-toi pour comprendre le monde."}
 
-Structure IMPÉRATIVE:
-1. **THE HOOK** ({visual_style if visual_style else "Choc visuel"}): 3s pour convaincre.
-2. **THE VALUE**: Rythme effréné.
-3. **THE CTA**: {cta}.
+INSTRUCTIONS :
+- Transforme ce sujet en une "Pillule de Savoir" ultra-dense.
+- Chaque seconde doit apporter de la valeur. Pas de temps mort.
+- Rédige UNE SEULE version parfaite. Pas d'options A/B.
 
-Format: Très visuel [TEXTE ECRAN]. Rythme rapide.
+STRUCTURE (30-60s max) :
+1. **LE HOOK (0-3s)** :
+   - [TEXTE ÉCRAN] : Titre choc ou Question intrigue.
+   - [AUDIO] : "Tu savais que..." ou "Arrête de faire ça..."
+2. **LE CONTENU (3-50s)** :
+   - 3 Points Clés maximum.
+   - Montage cut, rythmé.
+   - [VISUEL] : Suggestions d'images/incrustations à chaque phrase.
+3. **LE TWIST / CTA (50-60s)** :
+   - Conclusion surprenante ou Rappel d'utilité publique.
+   - Flèche vers le bouton s'abonner / lien en bio.
+
+FORMAT : Script prêt à tourner. Indicateurs visuels [TEXTE] précis.
 """,
         "instagram": f"""
-Script pour Instagram ({visual_style if visual_style else "Reel"}).
-Sujet: {topic}
-Ton: {tone} / Esthétique
-{f"Call to Action: {cta}" if cta else ""}
+ROLE: Stratège Instagram pour Marque Personnelle ou Institution.
+SUJET: {topic}
+TON: {tone} / Esthétique / Inspirant.
+FORMAT: {visual_style if visual_style else "Reel + Caption"}
+CTA: {cta if cta else "Enregistre ce post."}
 
-Structure:
-1. **Accroche** (Visuelle + Sonore)
-2. **Développement**
-3. **CTA** ({cta})
+INSTRUCTIONS :
+- Misez sur l'esthétique et l'émotion.
+- Le ton doit être proche de l'audience ("Nous", "Vous").
+- Fournis un script FINAL UNIQUE, pas de variantes.
 
-Format: Markdown. Focus sur l'esthétique visuelle.
+STRUCTURE REEL :
+1. **VISUEL D'ACCROCHE** : Une image belle ou intrigante.
+2. **VOIX OFF / TEXTE** : Une narration douce et posée.
+3. **DÉROULEMENT** :
+   - Problème -> Solution -> Résultat.
+   - Montrer plutôt que dire (Show, don't tell).
+4. **FINAL** : Question ouverte pour les commentaires.
+
+(Si format Carrousel : Décris les 5-10 slides avec Titre + Image + Texte description).
+""",
+        "facebook": f"""
+ROLE: Community Manager Senior pour une page Officielle/Média.
+SUJET: {topic}
+TON: {tone} (Engageant, Rassembleur, Informatif).
+FORMAT: {visual_style if visual_style else "Vidéo Carrée sous-titrée"}
+CTA: {cta if cta else "Partagez cette information importante."}
+INFOS: {research}
+
+CONTEXTE :
+Facebook privilégie les histoires longues qui créent de la conversation et le partage. L'audience est plus mature.
+
+STRUCTURE DU SCRIPT :
+1. **L'ACCROCHE ÉMOTIONNELLE** :
+   - Connecte immédiatement avec le quotidien des gens.
+   - "On a tous déjà vécu ça..." ou "Une nouvelle importante pour votre..."
+2. **LE RÉCIT (Storytelling)** :
+   - Raconte une histoire, pas juste des faits.
+   - Utilise des analogies simples.
+   - [FACE CAM / INTERVIEW] : Style authentique, "Vrai gens".
+3. **L'EXPLICATION** :
+   - Apporte la valeur éducative ou l'information officielle clairement.
+   - Utilise des listes à puces visuelles à l'écran.
+4. **L'APPEL À L'ENGAGEMENT** :
+   - Pose une question de débat respectueux.
+   - Invite à identifier un ami concerné.
+
+FORMAT : Markdown. Précise les sous-titres (INDISPENSABLES sur FB).
 """
     }
 

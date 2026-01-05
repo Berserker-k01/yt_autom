@@ -49,6 +49,10 @@ app.register_blueprint(admin_bp)
 # Register legacy blueprint without prefix to match old frontend routes
 app.register_blueprint(legacy_bp)
 
+# Register analysis blueprint
+from backend.analysis_routes import analysis_bp
+app.register_blueprint(analysis_bp, url_prefix='/api/analyze')
+
 # Health check
 @app.route('/health', methods=['GET'])
 def health_check():
