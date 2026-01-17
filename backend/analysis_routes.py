@@ -24,15 +24,27 @@ def process_video():
         return jsonify({"error": "URL manquante"}), 400
         
     try:
-        # 1. Téléchargement
+        # 1. Téléchargement & Métadatas
         logger.info(f"User {user_id} requesting video analysis for {url}")
-        video_path = analyst.download_video(url)
+        video_path, metadata = analyst.download_video(url)
         
         # 2. Upload Gemini
         video_file = analyst.upload_to_gemini(video_path)
         
-        # 3. Analyse Initiale
-        initial_analysis = analyst.analyze_content(video_file, query="Fais un résumé détaillé de cette vidéo. Quels sont les points clés, le ton, et les éléments visuels importants ?")
+        # 3. Analyse Initiale Enrichie
+        context_prompt = f"""
+        Voici les métadonnées de la vidéo :
+        - Titre : {metadata['title']}
+        - Auteur : {metadata['author']}
+        - Vues : {metadata['views']}
+        - Likes : {metadata['likes']}
+        
+        Tâche : Fais un résumé stratégique pour un créateur de contenu.
+        1. De quoi parle la vidéo ?
+        2. Quels sont les éléments viraux (Hook, Structure) ?
+        3. Donne une note de viralité sur 10 avec justification.
+        """
+        initial_analysis = analyst.analyze_content(video_file, query=context_prompt)
         
         # 4. Nettoyage local (on garde le fichier sur Gemini)
         analyst.cleanup(video_path)
@@ -40,6 +52,7 @@ def process_video():
         return jsonify({
             "success": True,
             "summary": initial_analysis,
+            "video_info": metadata, # Send metadata to frontend
             "gemini_file_uri": video_file.uri,
             "gemini_file_name": video_file.name
         })

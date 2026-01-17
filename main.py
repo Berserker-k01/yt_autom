@@ -112,138 +112,47 @@ def gemini_generate(prompt: str) -> str:
 
 def fetch_research(topic: str, max_results: int = 5) -> str:
     """
-    Recherche des informations sur un sujet donné en utilisant SerpAPI ou une simulation.
-    
-    Args:
-        topic (str): Le sujet à rechercher
-        max_results (int, optional): Nombre maximum de résultats à récupérer
-        
-    Returns:
-        str: Le texte de recherche formaté avec les sources
+    Recherche des informations AJOURNÉES sur le web via Gemini Search Tool.
     """
     try:
-        # Valider l'entrée
         if not topic:
             return ""
             
-        print(f"Recherche d'informations sur: {topic}")
+        print(f"🌍 Recherche temps-réel sur: {topic}")
         
-        # Nettoyer le texte du sujet
-        topic = topic.strip()
-        
-        # Option 1: Utiliser SerpAPI si disponible (à implémenter selon les clés API disponibles)
-        try:
-            from serpapi import GoogleSearch
-            
-            # Vérifier si l'API SERPAPI est configurée
-            serpapi_key = os.getenv("SERPAPI_API_KEY")
-            
-            if serpapi_key:
-                print("Utilisation de SerpAPI pour la recherche...")
-                
-                params = {
-                    "engine": "google",
-                    "q": topic,
-                    "api_key": serpapi_key,
-                    "num": max_results
+        # Configuration avec l'outil de recherche Google activé
+        tools = [
+            {'google_search_retrieval': {
+                'dynamic_retrieval_config': {
+                    'mode': 'dynamic',
+                    'dynamic_threshold': 0.3,
                 }
-                
-                search = GoogleSearch(params)
-                results = search.get_dict()
-                
-                if results.get("organic_results"):
-                    research_text = f"Recherche sur: {topic}\n\n"
-                    
-                    for i, result in enumerate(results["organic_results"][:max_results], 1):
-                        title = result.get("title", "")
-                        link = result.get("link", "")
-                        snippet = result.get("snippet", "")
-                        
-                        research_text += f"[Source {i}] {title}\n"
-                        research_text += f"URL: {link}\n"
-                        research_text += f"Résumé: {snippet}\n\n"
-                    
-                    print(f"Récupération de {len(results['organic_results'][:max_results])} résultats")
-                    return research_text
-                else:
-                    print("Aucun résultat trouvé via SerpAPI")
-            else:
-                print("Clé API SerpAPI non configurée")
+            }}
+        ]
         
-        except Exception as serpapi_error:
-            print(f"Erreur lors de l'utilisation de SerpAPI: {serpapi_error}")
-            # Continuer avec l'alternative
+        model = genai.GenerativeModel('models/gemini-1.5-pro-002', tools=tools)
         
-        # Option 2: Utiliser Gemini pour simuler une recherche
-        try:
-            print("Utilisation de Gemini pour la recherche...")
-            
-            # Créer une instance Gemini
-            generation_config = {
-                "temperature": 0.4,
-                "top_p": 0.8,
-                "top_k": 40,
-                "max_output_tokens": 4096,
-            }
-            
-            model = genai.GenerativeModel(
-                model_name="gemini-1.5-pro",
-                generation_config=generation_config
-            )
-            
-            # Construire le prompt
-            prompt = f"""En tant qu'assistant de recherche, génère 5 résultats de recherche fictifs mais réalistes sur le sujet: "{topic}".
-            
-            Format de réponse:
-            [Source 1] Titre du premier résultat
-            URL: https://exemple.com/article-pertinent-1
-            Résumé: Un résumé pertinent de 2-3 phrases sur le sujet.
-            
-            [Source 2] Titre du deuxième résultat
-            URL: https://exemple.com/article-pertinent-2
-            Résumé: Un autre résumé pertinent.
-            
-            Et ainsi de suite pour 5 sources.
-            
-            Important:
-            - Les URLs doivent être réalistes mais fictives
-            - Les titres doivent être informatifs et pertinents
-            - Les résumés doivent être informatifs et factuels
-            - Inclure une variété de sources (sites d'actualités, blogs, sites éducatifs)
-            """
-            
-            response = model.generate_content(prompt)
-            
-            if hasattr(response, 'text') and response.text:
-                research_text = response.text.strip()
-                print("Recherche générée avec succès via Gemini")
-                return research_text
-            else:
-                print("Échec de la génération via Gemini")
+        prompt = f"""Recherche les informations les plus récentes et pertinentes sur : "{topic}".
+        Résume les points clés avec des citations exactes ou des liens vers les sources trouvées.
+        Focalise-toi sur les faits, chiffres, et tendances actuelles."""
         
-        except Exception as gemini_error:
-            print(f"Erreur lors de l'utilisation de Gemini: {gemini_error}")
-            # Continuer avec l'option de secours
+        response = model.generate_content(prompt)
         
-        # Option 3: Retourner des informations fictives (secours)
-        print("Utilisation de résultats de recherche fictifs (secours)")
+        # Le modèle renvoie une synthèse avec des liens groundés
+        research_text = response.text
         
-        research_text = f"Recherche sur: {topic}\n\n"
-        
-        for i in range(1, 6):
-            research_text += f"[Source {i}] Article sur {topic} - Partie {i}\n"
-            research_text += f"URL: https://example.com/article-{i}-{topic.replace(' ', '-').lower()}\n"
-            research_text += f"Résumé: Ceci est un résumé fictif sur {topic} pour la démonstration. Information générale sur le sujet, point {i}.\n\n"
-        
+        # On vérifie s'il y a des métadonnées de grounding
+        if response.candidates[0].grounding_metadata.search_entry_point:
+             research_text += "\n\n(Sources vérifiées via Google Search)"
+            
+        print(f"✅ Recherche terminée ({len(research_text)} caractères)")
         return research_text
-    
+
     except Exception as e:
-        print(f"Erreur générale lors de la recherche: {e}")
-        import traceback
-        traceback.print_exc()
-        
-        # Retourner un texte minimal en cas d'erreur
-        return f"Information sur {topic}.\nSource: https://example.com/info"
+        print(f"⚠️ Erreur recherche web (fallback Gemini simple): {e}")
+        # Fallback simple
+        return gemini_generate(f"Donne moi des infos clés sur {topic}")
+            
 
 def extract_sources(research_text: str) -> list:
     """Extrait les sources depuis un texte de recherche avec classification et validation améliorées."""

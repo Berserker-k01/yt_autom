@@ -173,40 +173,6 @@ def generate_script_route():
 
 # --- NOUVELLES ROUTES TRACKING (MOCK) ---
 
-@app.route('/api/social/connect', methods=['POST'])
-def connect_social_account():
-    """Simule la connexion à un compte social."""
-    data = request.json
-    platform = data.get('platform')
-    # Simulation d'un délai réseau
-    import time
-    time.sleep(1)
-    
-    return jsonify({
-        "success": True, 
-        "message": f"Connecté à {platform} avec succès",
-        "account": {
-            "username": "@scripty_user",
-            "platform": platform,
-            "connected_at": datetime.now().isoformat()
-        }
-    })
-
-@app.route('/api/social/metrics', methods=['GET'])
-def get_social_metrics():
-    """Retourne des métriques factices pour le dashboard."""
-    return jsonify({
-        "overview": {
-            "total_followers": 12500,
-            "total_views": 450000,
-            "engagement_rate": "12.5%"
-        },
-        "platforms": {
-            "tiktok": {"followers": 8500, "views": 320000, "trend": "+15%"},
-            "instagram": {"followers": 2000, "views": 50000, "trend": "+5%"},
-            "youtube": {"followers": 2000, "views": 80000, "trend": "+8%"}
-        }
-    })
         
 
 

@@ -46,7 +46,18 @@ class VideoAnalyst:
                 filepath = os.path.join(self.temp_dir, filename)
                 
                 logger.info(f"✅ Vidéo téléchargée: {filepath}")
-                return filepath
+                
+                # Extraction des métadatas pertinentes
+                metadata = {
+                    "title": info.get('title', 'Unknown Title'),
+                    "views": info.get('view_count', 0),
+                    "likes": info.get('like_count', 0),
+                    "author": info.get('uploader', 'Unknown Author'),
+                    "duration": info.get('duration', 0),
+                    "thumbnail": info.get('thumbnail', '')
+                }
+                
+                return filepath, metadata
         except Exception as e:
             logger.error(f"❌ Erreur de téléchargement: {str(e)}")
             raise e
@@ -85,18 +96,42 @@ class VideoAnalyst:
         logger.info(f"🧠 Analyse en cours... Query: {query}")
         
         try:
-            # Utilisation de Gemini 1.5 Flash (rapide et efficace pour la vidéo)
-            model = genai.GenerativeModel(model_name="models/gemini-1.5-flash")
+            # Liste de modèles à tenter par ordre de préférence
+            models_to_try = [
+                "models/gemini-1.5-flash",
+                "models/gemini-1.5-flash-latest",
+                "models/gemini-1.5-flash-001",
+                "models/gemini-1.5-pro", 
+                "models/gemini-1.5-pro-latest",
+                "models/gemini-pro"
+            ]
             
+            response = None
+            last_error = None
+
             # Prompt système pour forcer l'expertise
             system_prompt = "Tu es un analyste vidéo expert. Tu observes la vidéo avec une précision extrême. Tu es capable de transcrire les dialogues, décrire les émotions, les visuels et le contexte."
             
-            response = model.generate_content([video_file, system_prompt, query])
-            return response.text
+            for model_name in models_to_try:
+                try:
+                    logger.info(f"Tentative avec le modèle : {model_name}")
+                    model = genai.GenerativeModel(model_name=model_name)
+                    response = model.generate_content([video_file, system_prompt, query])
+                    logger.info(f"✅ Succès avec {model_name}")
+                    break
+                except Exception as e:
+                    logger.warning(f"⚠️ Échec avec {model_name}: {e}")
+                    last_error = e
+                    continue
             
+            if response:
+                return response.text
+            else:
+                raise last_error
+
         except Exception as e:
-            logger.error(f"❌ Erreur Analyse: {str(e)}")
-            return "Désolé, je n'ai pas pu analyser cette vidéo."
+            logger.error(f"❌ Erreur Analyse (tous modèles échoués): {str(e)}")
+            return f"Désolé, je n'ai pas pu analyser cette vidéo. Erreur: {str(e)}"
 
     def cleanup(self, filepath: str):
         """Supprime le fichier temporaire."""

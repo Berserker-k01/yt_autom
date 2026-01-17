@@ -41,3 +41,8 @@ fpdf==1.7.2
 
 # Social OAuth
 authlib==1.3.0
+
+# Video Generation
+moviepy==1.0.3
+edge-tts==6.1.9
+imageio-ffmpeg==0.4.9

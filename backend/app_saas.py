@@ -53,6 +53,14 @@ app.register_blueprint(legacy_bp)
 from backend.analysis_routes import analysis_bp
 app.register_blueprint(analysis_bp, url_prefix='/api/analyze')
 
+# Register video generation blueprint
+from backend.video_routes import video_bp
+app.register_blueprint(video_bp, url_prefix='/api/video')
+
+# Register thumbnail generation blueprint
+from backend.thumbnail_routes import thumbnail_bp
+app.register_blueprint(thumbnail_bp, url_prefix='/api/thumbnail')
+
 # Health check
 @app.route('/health', methods=['GET'])
 def health_check():

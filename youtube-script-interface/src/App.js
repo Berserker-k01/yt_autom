@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaYoutube, FaTiktok, FaInstagram, FaFacebook, FaMagic, FaChartLine, FaRobot, FaDownload, FaHistory } from 'react-icons/fa';
+import { FaYoutube, FaTiktok, FaInstagram, FaFacebook, FaMagic, FaChartLine, FaRobot, FaDownload, FaHistory, FaVideo, FaPlay } from 'react-icons/fa';
 import './Scripty.css';
 
 import { API_URL, getAuthHeaders } from './utils/auth';
@@ -58,6 +58,14 @@ function App() {
   const [chatHistory, setChatHistory] = useState([]);
   const [chatQuery, setChatQuery] = useState('');
   const [fileName, setFileName] = useState('');
+  const [videoInfo, setVideoInfo] = useState(null);
+  // Video Gen State
+  const [generatedVideoUrl, setGeneratedVideoUrl] = useState('');
+  const [videoGenLoading, setVideoGenLoading] = useState(false);
+  // Thumbnail State
+  const [thumbnailUrl, setThumbnailUrl] = useState('');
+  const [thumbnailPrompt, setThumbnailPrompt] = useState('');
+  const [thumbLoading, setThumbLoading] = useState(false);
 
   // Platform specific options
   const [customOptions, setCustomOptions] = useState({
@@ -174,18 +182,6 @@ function App() {
     setLoading(false);
   };
 
-  const fetchStats = async () => {
-    setLoading(true);
-    try {
-      // En prod, ce serait un vrai appel. Ici c'est un mock du backend.
-      const res = await axios.get(`${API_URL}/api/social/metrics`);
-      setSocialStats(res.data);
-      setStep(4);
-    } catch (error) {
-      console.error(error);
-    }
-    setLoading(false);
-  };
 
   const exportScript = async () => {
     if (!script) return;
@@ -221,12 +217,54 @@ function App() {
       });
       setAnalysisSummary(res.data.summary);
       setFileName(res.data.gemini_file_name);
+      setVideoInfo(res.data.video_info);
       setChatHistory([{ role: 'ai', text: res.data.summary }]);
     } catch (err) {
       console.error(err);
       alert("Erreur lors de l'analyse vidéo");
     }
     setAnalysisLoading(false);
+  };
+
+  const generateVideo = async () => {
+    if (!script) return;
+    setVideoGenLoading(true);
+    setStep(6); // Go to Studio
+    try {
+      const res = await axios.post(`${API_URL}/api/video/generate`, {
+        script_text: script,
+        platform: platform
+      }, {
+        headers: getAuthHeaders()
+      });
+      setGeneratedVideoUrl(API_URL + res.data.video_url);
+    } catch (err) {
+      console.error(err);
+      alert("Erreur lors de la génération vidéo. Vérifiez votre quota Pexels ou réessayez.");
+      setStep(3); // Go back
+    }
+    setVideoGenLoading(false);
+  };
+
+  const generateThumbnail = async () => {
+    if (!script) return;
+    setThumbLoading(true);
+    try {
+      const res = await axios.post(`${API_URL}/api/thumbnail/generate`, {
+        script: script,
+        title: selectedTopic ? selectedTopic.title : 'Video Scripty'
+      }, {
+        headers: getAuthHeaders()
+      });
+      if (res.data.success) {
+        setThumbnailUrl(API_URL + res.data.imageUrl);
+        setThumbnailPrompt(res.data.prompt_used);
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Erreur génération miniature");
+    }
+    setThumbLoading(false);
   };
 
   const sendChatMessage = async () => {
@@ -257,13 +295,10 @@ function App() {
         <p style={{ color: 'var(--text-secondary)' }}>Créez du contenu viral pour toutes vos plateformes</p>
       </header>
 
-      <nav style={{ display: 'flex', justifyContent: 'center', gap: '20px', marginBottom: '40px' }}>
-        <button className={`gradient-btn ${step !== 4 && step !== 5 ? '' : 'outline'}`} style={{ width: 'auto' }} onClick={() => setStep(1)}>Création</button>
-        <button className={`gradient-btn ${step === 5 ? '' : 'outline'}`} style={{ width: 'auto' }} onClick={() => setStep(5)}>
-          <FaRobot style={{ marginRight: '8px' }} /> Video IQ
-        </button>
-        <button className={`gradient-btn ${step === 4 ? '' : 'outline'}`} style={{ width: 'auto', background: 'transparent', border: '1px solid rgba(255,255,255,0.2)' }} onClick={fetchStats}>
-          <FaChartLine style={{ marginRight: '8px' }} /> Social Tracker
+      <nav className="app-nav">
+        <button className={`nav-btn ${step !== 5 ? 'active' : ''}`} onClick={() => setStep(1)}>Création</button>
+        <button className={`nav-btn ${step === 5 ? 'active' : ''}`} onClick={() => setStep(5)}>
+          <FaRobot /> Video IQ
         </button>
       </nav>
 
@@ -353,6 +388,9 @@ function App() {
                   <button className="gradient-btn" onClick={exportScript} style={{ width: 'auto', margin: 0, padding: '8px 16px', fontSize: '0.9rem' }}>
                     <FaDownload /> Exporter
                   </button>
+                  <button className="gradient-btn" onClick={generateVideo} style={{ width: 'auto', margin: '0 0 0 10px', padding: '8px 16px', fontSize: '0.9rem', background: 'linear-gradient(135deg, #10b981 0%, #3b82f6 100%)' }}>
+                    <FaVideo style={{ marginRight: '5px' }} /> Générer Vidéo
+                  </button>
                 </div>
                 {/* Editable Text Area */}
                 <textarea
@@ -378,43 +416,6 @@ function App() {
           )}
 
 
-          {step === 4 && socialStats && (
-            <motion.div key="step4" initial="initial" animate="in" exit="out" variants={pageVariants}>
-              <h2 style={{ textAlign: 'center' }}>Tableau de Bord</h2>
-              <div className="stats-grid">
-                <div className="glass-card stat-item">
-                  <div className="stat-value">{socialStats.overview.total_views}</div>
-                  <div className="stat-label">Vues Totales</div>
-                </div>
-                <div className="glass-card stat-item">
-                  <div className="stat-value">{socialStats.overview.total_followers}</div>
-                  <div className="stat-label">Followers</div>
-                </div>
-                <div className="glass-card stat-item">
-                  <div className="stat-value">{socialStats.overview.engagement_rate}</div>
-                  <div className="stat-label">Engagement</div>
-                </div>
-              </div>
-
-              <h3 style={{ marginTop: '40px' }}>Détail par plateforme</h3>
-              <div className="stats-grid">
-                {Object.entries(socialStats.platforms).map(([key, data]) => (
-                  <div key={key} className="glass-card">
-                    <h4 style={{ textTransform: 'capitalize', borderBottom: '1px solid rgba(255,255,255,0.1)', paddingBottom: '10px' }}>{key}</h4>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '10px 0' }}>
-                      <span>Followers</span>
-                      <span style={{ fontWeight: 'bold' }}>{data.followers}</span>
-                    </div>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', margin: '10px 0' }}>
-                      <span>Vues</span>
-                      <span style={{ fontWeight: 'bold' }}>{data.views}</span>
-                    </div>
-                    <div style={{ color: '#4ade80', fontSize: '0.9rem', textAlign: 'right' }}>{data.trend} cette semaine</div>
-                  </div>
-                ))}
-              </div>
-            </motion.div>
-          )}
 
           {step === 5 && (
             <motion.div key="step5" initial="initial" animate="in" exit="out" variants={pageVariants}>
@@ -429,7 +430,7 @@ function App() {
                     value={videoUrl}
                     onChange={(e) => setVideoUrl(e.target.value)}
                   />
-                  <button className="gradient-btn" style={{ width: 'auto' }} onClick={analyzeVideo} disabled={analysisLoading || !videoUrl}>
+                  <button className="gradient-btn" style={{ width: 'auto', marginTop: 0 }} onClick={analyzeVideo} disabled={analysisLoading || !videoUrl}>
                     {analysisLoading ? <LoadingSpinner /> : 'Analyser'}
                   </button>
                 </div>
@@ -437,8 +438,44 @@ function App() {
                 {analysisSummary && (
                   <div style={{ marginTop: '30px', animation: 'fadeIn 0.5s' }}>
                     <div style={{ background: 'rgba(0,0,0,0.3)', padding: '20px', borderRadius: '10px', marginBottom: '20px', whiteSpace: 'pre-wrap' }}>
-                      <h4 style={{ marginTop: 0, color: '#4ade80' }}>⚡ Résumé de l'IA</h4>
+                      <h4 style={{ marginTop: 0, color: '#4ade80' }}>⚡ Analyse Stratégique</h4>
+
+                      {videoInfo && (
+                        <div style={{ display: 'flex', gap: '20px', marginBottom: '20px', background: 'rgba(255,255,255,0.05)', padding: '15px', borderRadius: '8px', alignItems: 'center' }}>
+                          <img src={videoInfo.thumbnail} alt="Thumbnail" style={{ width: '120px', borderRadius: '8px' }} />
+                          <div style={{ textAlign: 'left' }}>
+                            <div style={{ fontWeight: 'bold', fontSize: '1.1rem' }}>{videoInfo.title}</div>
+                            <div style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>👤 {videoInfo.author}</div>
+                            <div style={{ display: 'flex', gap: '15px', marginTop: '5px', fontSize: '0.9rem', color: '#60a5fa' }}>
+                              <span>👁 {parseInt(videoInfo.views).toLocaleString()} vues</span>
+                              <span>❤️ {parseInt(videoInfo.likes).toLocaleString()} likes</span>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
                       {analysisSummary}
+                    </div>
+
+                    {/* Quick Prompts */}
+                    <div style={{ display: 'flex', gap: '10px', marginBottom: '15px', overflowX: 'auto', paddingBottom: '5px' }}>
+                      {['🔍 Analyser le Hook', '📝 Extraire le Script', '🚀 Pourquoi c\'est viral ?', '😡 Identifier les défauts'].map(q => (
+                        <button
+                          key={q}
+                          onClick={() => { setChatQuery(q); sendChatMessage(); }}
+                          style={{
+                            background: 'rgba(255,255,255,0.1)',
+                            border: '1px solid rgba(255,255,255,0.2)',
+                            padding: '5px 12px',
+                            borderRadius: '20px',
+                            cursor: 'pointer',
+                            fontSize: '0.8rem',
+                            whiteSpace: 'nowrap'
+                          }}
+                        >
+                          {q}
+                        </button>
+                      ))}
                     </div>
 
                     {/* Chat Interface */}
@@ -471,6 +508,70 @@ function App() {
                     </div>
                   </div>
                 )}
+              </div>
+            </motion.div>
+          )}
+
+          {step === 6 && (
+            <motion.div key="step6" initial="initial" animate="in" exit="out" variants={pageVariants}>
+              <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>Studio de Production</h2>
+              <div className="glass-card" style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center' }}>
+
+                {videoGenLoading ? (
+                  <div style={{ padding: '40px' }}>
+                    <LoadingSpinner />
+                    <p style={{ marginTop: '20px', fontSize: '1.2rem' }}>🎬 Silence, on tourne !</p>
+                    <p style={{ color: 'var(--text-secondary)' }}>Récupération des stocks, enregistrement voix off et montage en cours...</p>
+                  </div>
+                ) : generatedVideoUrl ? (
+                  <div style={{ animation: 'fadeIn 0.5s' }}>
+                    <div style={{ position: 'relative', width: '100%', paddingTop: '177.77%', background: '#000', borderRadius: '10px', overflow: 'hidden', marginBottom: '20px' }}>
+                      {/* Aspect Ratio 9:16 approx for Vertical */}
+                      <video
+                        src={generatedVideoUrl}
+                        controls
+                        style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%' }}
+                      />
+                    </div>
+                    <div style={{ display: 'flex', gap: '20px', justifyContent: 'center' }}>
+                      <a href={generatedVideoUrl} download className="gradient-btn" style={{ width: 'auto', textDecoration: 'none' }}>
+                        <FaDownload style={{ marginRight: '10px' }} /> Télécharger MP4
+                      </a>
+                      <button className="gradient-btn" style={{ width: 'auto', background: 'transparent', border: '1px solid white' }} onClick={() => setStep(3)}>
+                        Retour au Script
+                      </button>
+                    </div>
+                  </div>
+                ) : (
+                  <div>
+                    <p>Une erreur est survenue lors de la génération.</p>
+                    <button className="gradient-btn" style={{ width: 'auto' }} onClick={() => setStep(3)}>Retour</button>
+                  </div>
+                )}
+
+                {/* Thumbnail Section */}
+                <div style={{ marginTop: '40px', paddingTop: '20px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+                    <h3 style={{ margin: 0 }}>🎨 Miniature IA</h3>
+                    <button className="gradient-btn" style={{ width: 'auto', fontSize: '0.9rem', padding: '8px 16px', margin: 0 }} onClick={generateThumbnail} disabled={thumbLoading}>
+                      {thumbLoading ? <LoadingSpinner /> : <><FaMagic style={{ marginRight: '8px' }} /> Générer</>}
+                    </button>
+                  </div>
+
+                  {thumbnailUrl && (
+                    <div style={{ animation: 'fadeIn 0.5s' }}>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginBottom: '10px' }}>
+                        Prompt IA: "{thumbnailPrompt}"
+                      </p>
+                      <img src={thumbnailUrl} alt="Miniature générée" style={{ width: '100%', maxWidth: '1280px', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }} />
+                      <br />
+                      <a href={thumbnailUrl} download="thumbnail.jpg" className="gradient-btn" style={{ width: 'auto', marginTop: '20px', display: 'inline-block', textDecoration: 'none' }}>
+                        <FaDownload style={{ marginRight: '8px' }} /> Télécharger JPG
+                      </a>
+                    </div>
+                  )}
+                </div>
+
               </div>
             </motion.div>
           )}
