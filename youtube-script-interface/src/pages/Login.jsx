@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import axios from 'axios';
-import { API_URL } from '../utils/auth';
+import { useAuth } from '../context/AuthContext';
 import './Login.css';
 
 function Login() {
@@ -10,6 +9,7 @@ function Login() {
     const [password, setPassword] = useState('');
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const { login } = useAuth();
     const navigate = useNavigate();
 
     const handleSubmit = async (e) => {
@@ -18,20 +18,11 @@ function Login() {
         setLoading(true);
 
         try {
-            const response = await axios.post(`${API_URL}/api/auth/login`, {
-                email,
-                password
-            });
-
-            // Store tokens
-            localStorage.setItem('access_token', response.data.access_token);
-            localStorage.setItem('refresh_token', response.data.refresh_token);
-            localStorage.setItem('user', JSON.stringify(response.data.user));
-
-            // Redirect to dashboard
+            await login(email, password);
             navigate('/dashboard');
         } catch (err) {
-            setError(err.response?.data?.error || 'Échec de la connexion');
+            // Error is handled by context but we can set local error if needed
+            setError(err.response?.data?.error || err.message || 'Échec de la connexion');
         } finally {
             setLoading(false);
         }

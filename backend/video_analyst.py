@@ -21,12 +21,13 @@ class VideoAnalyst:
         self.temp_dir = os.path.join(os.getcwd(), "temp_videos")
         os.makedirs(self.temp_dir, exist_ok=True)
 
-    def download_video(self, url: str) -> str:
+    def download_video(self, url: str, progress_callback=None) -> str:
         """
         Télécharge une vidéo depuis une URL (YouTube, TikTok, FB, etc.) via yt-dlp.
         Retourne le chemin absolu du fichier téléchargé.
         """
         logger.info(f"⬇️ Début du téléchargement: {url}")
+        if progress_callback: progress_callback("⬇️ Téléchargement de la vidéo...")
         
         # Options yt-dlp
         ydl_opts = {
@@ -46,6 +47,7 @@ class VideoAnalyst:
                 filepath = os.path.join(self.temp_dir, filename)
                 
                 logger.info(f"✅ Vidéo téléchargée: {filepath}")
+                if progress_callback: progress_callback("✅ Vidéo téléchargée avec succès.")
                 
                 # Extraction des métadatas pertinentes
                 metadata = {
@@ -60,13 +62,15 @@ class VideoAnalyst:
                 return filepath, metadata
         except Exception as e:
             logger.error(f"❌ Erreur de téléchargement: {str(e)}")
+            if progress_callback: progress_callback(f"❌ Erreur de téléchargement: {str(e)}")
             raise e
 
-    def upload_to_gemini(self, video_path: str):
+    def upload_to_gemini(self, video_path: str, progress_callback=None):
         """
         Upload le fichier vidéo sur les serveurs Gemini pour analyse.
         """
         logger.info(f"cloud_upload Upload vers Gemini: {video_path}")
+        if progress_callback: progress_callback("☁️ Envoi vers l'IA en cours...")
         
         if not os.path.exists(video_path):
             raise FileNotFoundError(f"Fichier inexistant: {video_path}")
@@ -78,6 +82,7 @@ class VideoAnalyst:
             # Attendre que le fichier soit prêt (état ACTIVE)
             while video_file.state.name == "PROCESSING":
                 print('.', end='', flush=True)
+                if progress_callback: progress_callback("⏳ Traitement par Gemini (Encodage)...")
                 time.sleep(2)
                 video_file = genai.get_file(video_file.name)
             
@@ -87,13 +92,15 @@ class VideoAnalyst:
             return video_file
         except Exception as e:
             logger.error(f"❌ Erreur Upload Gemini: {str(e)}")
+            if progress_callback: progress_callback(f"❌ Erreur Upload IA: {str(e)}")
             raise e
 
-    def analyze_content(self, video_file, query: str = "Décris cette vidéo en détail.", chat_history=None) -> str:
+    def analyze_content(self, video_file, query: str = "Décris cette vidéo en détail.", chat_history=None, progress_callback=None) -> str:
         """
         Analyse le contenu vidéo avec Gemini 1.5 Flash.
         """
         logger.info(f"🧠 Analyse en cours... Query: {query}")
+        if progress_callback: progress_callback("🧠 Analyse cognitive en cours...")
         
         try:
             # Liste de modèles à tenter par ordre de préférence
@@ -108,13 +115,14 @@ class VideoAnalyst:
             
             response = None
             last_error = None
-
+            
             # Prompt système pour forcer l'expertise
             system_prompt = "Tu es un analyste vidéo expert. Tu observes la vidéo avec une précision extrême. Tu es capable de transcrire les dialogues, décrire les émotions, les visuels et le contexte."
             
             for model_name in models_to_try:
                 try:
                     logger.info(f"Tentative avec le modèle : {model_name}")
+                    if progress_callback: progress_callback(f"🤖 Interrogation de {model_name.split('/')[-1]}...")
                     model = genai.GenerativeModel(model_name=model_name)
                     response = model.generate_content([video_file, system_prompt, query])
                     logger.info(f"✅ Succès avec {model_name}")
@@ -125,6 +133,7 @@ class VideoAnalyst:
                     continue
             
             if response:
+                if progress_callback: progress_callback("💡 Génération de la synthèse...")
                 return response.text
             else:
                 raise last_error

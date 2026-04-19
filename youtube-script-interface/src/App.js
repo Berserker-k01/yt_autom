@@ -23,11 +23,52 @@ function App() {
     out: { opacity: 0, y: -20 }
   };
 
-  const LoadingSpinner = () => (
-    <div className="loader-container">
-      <div className="spinner"></div>
-    </div>
-  );
+  /* Smart Loader Component with Animation and Cycling Messages */
+  const SmartLoader = ({ messages = ["Chargement..."] }) => {
+    const [msgIndex, setMsgIndex] = useState(0);
+    const [progress, setProgress] = useState(0);
+
+    useEffect(() => {
+      // Cycle messages every 3 seconds
+      const msgInterval = setInterval(() => {
+        setMsgIndex((prev) => (prev + 1) % messages.length);
+      }, 3000);
+
+      // Smooth progress bar simulation
+      const progInterval = setInterval(() => {
+        setProgress((prev) => {
+          if (prev >= 95) return prev; // Stall at 95%
+          // Slower progress as it gets higher
+          const increment = Math.max(0.5, (100 - prev) / 50);
+          return prev + increment;
+        });
+      }, 200);
+
+      return () => {
+        clearInterval(msgInterval);
+        clearInterval(progInterval);
+      };
+    }, [messages]);
+
+    return (
+      <div className="loader-container" style={{ flexDirection: 'column', gap: '20px' }}>
+        <div className="spinner"></div>
+        <div style={{ width: '100%', maxWidth: '300px', textAlign: 'center' }}>
+          <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', background: 'var(--primary-gradient)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+            {messages[msgIndex]}
+          </h3>
+          <div style={{ width: '100%', height: '6px', background: 'rgba(255,255,255,0.1)', borderRadius: '3px', overflow: 'hidden' }}>
+            <motion.div
+              style={{ height: '100%', background: 'var(--primary-gradient)' }}
+              initial={{ width: 0 }}
+              animate={{ width: `${progress}%` }}
+              transition={{ ease: "linear" }}
+            />
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const handlePlatformSelect = (p) => {
     setPlatform(p);
@@ -208,11 +249,34 @@ function App() {
     }
   };
 
+  // Real-time progress state
+  const [progressMsg, setProgressMsg] = useState('');
+
   const analyzeVideo = async () => {
     if (!videoUrl) return;
     setAnalysisLoading(true);
+    setProgressMsg("Initialisation...");
+
+    // Generate UUID for tracking
+    const requestId = 'req_' + Date.now() + '_' + Math.random().toString(36).substr(2, 9);
+
+    // Start polling
+    const pollInterval = setInterval(async () => {
+      try {
+        const res = await axios.get(`${API_URL}/api/analyze/status/${requestId}`);
+        if (res.data.status && res.data.status !== 'unknown') {
+          setProgressMsg(res.data.status);
+        }
+      } catch (e) {
+        console.error("Polling error", e);
+      }
+    }, 1000);
+
     try {
-      const res = await axios.post(`${API_URL}/api/analyze/process`, { url: videoUrl }, {
+      const res = await axios.post(`${API_URL}/api/analyze/process`, {
+        url: videoUrl,
+        request_id: requestId
+      }, {
         headers: getAuthHeaders()
       });
       setAnalysisSummary(res.data.summary);
@@ -222,8 +286,11 @@ function App() {
     } catch (err) {
       console.error(err);
       alert("Erreur lors de l'analyse vidéo");
+    } finally {
+      clearInterval(pollInterval);
+      setAnalysisLoading(false);
+      setProgressMsg('');
     }
-    setAnalysisLoading(false);
   };
 
   const generateVideo = async () => {
@@ -342,31 +409,30 @@ function App() {
 
                 <button
                   className="gradient-btn"
-                  onClick={generateTopics}
+                  onClick={() => generateScript({ title: theme, angle: 'Sujet utilisateur', estimated_duration: 'N/A', target_audience: 'General' })}
                   disabled={!theme || loading}
                   style={{ marginTop: '20px' }}
                 >
-                  {loading ? <LoadingSpinner /> : <><FaMagic /> Générer des idées</>}
+                  {loading ? (
+                    <div style={{ padding: '0px' }}>Chargement...</div>
+                  ) : <><FaMagic /> Générer le Script (Immédiat)</>}
                 </button>
+
+                {/* Show Full Page Loader if Loading Script */}
+                {loading && (
+                  <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, background: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <SmartLoader messages={[
+                      "Recherche des tendances actuelles...",
+                      "Analyse des meilleurs angles viraux...",
+                      "Rédaction du script optimisé...",
+                      "Ajout des hooks psychologiques...",
+                      "Finalisation de votre contenu..."
+                    ]} />
+                  </div>
+                )}
               </div>
 
-              {topics.length > 0 && (
-                <div style={{ maxWidth: '800px', margin: '40px auto' }}>
-                  <h3 style={{ textAlign: 'center' }}>Idées tendances pour {platform}</h3>
-                  <div className="stats-grid">
-                    {topics.map((t, i) => (
-                      <div key={i} className="glass-card" style={{ cursor: 'pointer', textAlign: 'left' }} onClick={() => generateScript(t)}>
-                        <h4 style={{ margin: '0 0 10px 0', color: 'var(--accent-blue)' }}>{t.title}</h4>
-                        <p style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>{t.angle}</p>
-                        <div style={{ display: 'flex', gap: '10px', marginTop: '10px', fontSize: '0.8rem' }}>
-                          <span style={{ background: 'rgba(255,255,255,0.1)', padding: '4px 8px', borderRadius: '4px' }}>⏱ {t.estimated_duration}</span>
-                          <span style={{ background: 'rgba(99, 102, 241, 0.2)', padding: '4px 8px', borderRadius: '4px' }}>🎯 {t.target_audience}</span>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
+              {/* Topics Grid Removed for Direct Workflow */}
             </motion.div>
           )}
 
@@ -431,9 +497,18 @@ function App() {
                     onChange={(e) => setVideoUrl(e.target.value)}
                   />
                   <button className="gradient-btn" style={{ width: 'auto', marginTop: 0 }} onClick={analyzeVideo} disabled={analysisLoading || !videoUrl}>
-                    {analysisLoading ? <LoadingSpinner /> : 'Analyser'}
+                    {analysisLoading ? <div className="spinner" style={{ width: 20, height: 20 }}></div> : 'Analyser'}
                   </button>
                 </div>
+
+                {analysisLoading && (
+                  <div style={{ margin: '40px 0' }}>
+                    <SmartLoader messages={progressMsg ? [progressMsg] : [
+                      "Connexion au serveur d'analyse...",
+                      "Préparation de l'environnement...",
+                    ]} />
+                  </div>
+                )}
 
                 {analysisSummary && (
                   <div style={{ marginTop: '30px', animation: 'fadeIn 0.5s' }}>
@@ -519,9 +594,14 @@ function App() {
 
                 {videoGenLoading ? (
                   <div style={{ padding: '40px' }}>
-                    <LoadingSpinner />
-                    <p style={{ marginTop: '20px', fontSize: '1.2rem' }}>🎬 Silence, on tourne !</p>
-                    <p style={{ color: 'var(--text-secondary)' }}>Récupération des stocks, enregistrement voix off et montage en cours...</p>
+                    <SmartLoader messages={[
+                      "🎬 Silence, on tourne !",
+                      "🔍 Recherche des meilleures vidéos stock (Pexels)...",
+                      "🎙️ Enregistrement de la voix off (IA)...",
+                      "🔧 Montage et synchronisation...",
+                      "📝 Création des sous-titres dynamiques...",
+                      "🚀 Exportation de votre vidéo..."
+                    ]} />
                   </div>
                 ) : generatedVideoUrl ? (
                   <div style={{ animation: 'fadeIn 0.5s' }}>
@@ -554,24 +634,34 @@ function App() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
                     <h3 style={{ margin: 0 }}>🎨 Miniature IA</h3>
                     <button className="gradient-btn" style={{ width: 'auto', fontSize: '0.9rem', padding: '8px 16px', margin: 0 }} onClick={generateThumbnail} disabled={thumbLoading}>
-                      {thumbLoading ? <LoadingSpinner /> : <><FaMagic style={{ marginRight: '8px' }} /> Générer</>}
+                      {thumbLoading ? <div className="spinner" style={{ width: 20, height: 20 }}></div> : <><FaMagic style={{ marginRight: '8px' }} /> Générer</>}
                     </button>
                   </div>
 
-                  {thumbnailUrl && (
-                    <div style={{ animation: 'fadeIn 0.5s' }}>
-                      <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginBottom: '10px' }}>
-                        Prompt IA: "{thumbnailPrompt}"
-                      </p>
-                      <img src={thumbnailUrl} alt="Miniature générée" style={{ width: '100%', maxWidth: '1280px', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }} />
-                      <br />
-                      <a href={thumbnailUrl} download="thumbnail.jpg" className="gradient-btn" style={{ width: 'auto', marginTop: '20px', display: 'inline-block', textDecoration: 'none' }}>
-                        <FaDownload style={{ marginRight: '8px' }} /> Télécharger JPG
-                      </a>
+                  {thumbLoading && (
+                    <div style={{ margin: '20px 0' }}>
+                      <SmartLoader messages={[
+                        "Analyse du script pour le concept...",
+                        "Rédaction du prompt artistique (Gemini)...",
+                        "Génération de l'image (Flux/Diff)...",
+                        "Correction des couleurs et contraste..."
+                      ]} />
                     </div>
                   )}
                 </div>
 
+                {thumbnailUrl && (
+                  <div style={{ animation: 'fadeIn 0.5s' }}>
+                    <p style={{ fontSize: '0.8rem', color: 'var(--text-secondary)', fontStyle: 'italic', marginBottom: '10px' }}>
+                      Prompt IA: "{thumbnailPrompt}"
+                    </p>
+                    <img src={thumbnailUrl} alt="Miniature générée" style={{ width: '100%', maxWidth: '1280px', borderRadius: '10px', boxShadow: '0 4px 20px rgba(0,0,0,0.3)' }} />
+                    <br />
+                    <a href={thumbnailUrl} download="thumbnail.jpg" className="gradient-btn" style={{ width: 'auto', marginTop: '20px', display: 'inline-block', textDecoration: 'none' }}>
+                      <FaDownload style={{ marginRight: '8px' }} /> Télécharger JPG
+                    </a>
+                  </div>
+                )}
               </div>
             </motion.div>
           )}

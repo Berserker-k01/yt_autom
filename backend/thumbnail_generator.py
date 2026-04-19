@@ -19,7 +19,12 @@ class ThumbnailGenerator:
             print("⚠️ Pas de clé API Gemini pour les miniatures")
             self.model = None
             
-        self.output_dir = "generated_thumbnails"
+        # Use absolute path mapped to docker volume
+        self.output_dir = os.path.join(os.getcwd(), 'output', 'thumbnails')
+        # If absolute path not working as expected in some envs, force /app/output
+        if os.path.exists('/app/output'):
+             self.output_dir = '/app/output/thumbnails'
+             
         os.makedirs(self.output_dir, exist_ok=True)
 
     def generate_prompt(self, video_script: str, video_title: str) -> str:

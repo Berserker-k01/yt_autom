@@ -27,4 +27,4 @@ COPY backend/ ./backend/
 # Expose port
 EXPOSE 5001
 
-CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--timeout", "120", "backend.app_saas:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--timeout", "300", "backend.app_saas:app"]

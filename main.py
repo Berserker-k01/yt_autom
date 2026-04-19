@@ -18,10 +18,37 @@ CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")  # Utilisation de la variable d'env
 
 # Configuration de Gemini
 genai.configure(api_key=GEMINI_API_KEY)
+
+def get_working_model():
+    """Tente de trouver un modèle Gemini fonctionnel parmi une liste de candidats."""
+    candidates = [
+        'gemini-1.5-flash',
+        'gemini-1.5-flash-001',
+        'gemini-1.5-flash-002',
+        'gemini-1.5-pro',
+        'gemini-pro',
+        'gemini-1.0-pro'
+    ]
+    
+    for candidate in candidates:
+        try:
+            print(f"Test du modèle: {candidate}...")
+            model = genai.GenerativeModel(candidate)
+            response = model.generate_content("Hello")
+            if response and response.text:
+                print(f"✅ Modèle fonctionnel trouvé: {candidate}")
+                return model
+        except Exception as e:
+            print(f"❌ {candidate} échoué: {e}")
+            
+    print("FATAL: Aucun modèle Gemini ne fonctionne.")
+    return None
+
+model = None
 try:
-    model = genai.GenerativeModel('gemini-1.5-flash')
-    # Test rapide pour vérifier si la clé API fonctionne
-    _ = model.generate_content("Test")
+    model = get_working_model()
+    if not model:
+        raise Exception("Impossible d'initialiser Gemini")
     print("Configuration Gemini réussie")
 except Exception as e:
     print(f"AVERTISSEMENT: Problème avec la clé API Gemini: {e}")
@@ -130,13 +157,35 @@ def fetch_research(topic: str, max_results: int = 5) -> str:
             }}
         ]
         
-        model = genai.GenerativeModel('models/gemini-1.5-pro-002', tools=tools)
+        # Liste des modèles qui supportent le grounding (Search)
+        search_models = [
+            'models/gemini-1.5-pro-002',
+            'gemini-1.5-pro-002',
+            'gemini-1.5-flash', 
+            'models/gemini-1.5-flash-001',
+            'gemini-1.5-pro'
+        ]
         
+        selected_model = None
+        for m_name in search_models:
+            try:
+                selected_model = genai.GenerativeModel(m_name, tools=tools)
+                # Test rapide
+                # _ = selected_model.generate_content("test") # Éviter de consommer du quota inutilement
+                break
+            except:
+                continue
+                
+        if not selected_model:
+            # Fallback sur le modèle global sans tools si tout échoue
+            print("⚠️ Impossible d'initier un modèle avec Search Tool, utilisation du modèle standard")
+            return gemini_generate(f"Recherche ceci: {topic}")
+
         prompt = f"""Recherche les informations les plus récentes et pertinentes sur : "{topic}".
         Résume les points clés avec des citations exactes ou des liens vers les sources trouvées.
         Focalise-toi sur les faits, chiffres, et tendances actuelles."""
         
-        response = model.generate_content(prompt)
+        response = selected_model.generate_content(prompt)
         
         # Le modèle renvoie une synthèse avec des liens groundés
         research_text = response.text
@@ -488,7 +537,7 @@ Informations sur le créateur:
     
     specs = platform_specs.get(platform.lower(), platform_specs["youtube"])
     
-    print(f"Génération avec GitHub Models pour {platform}...")
+    print(f"Génération avec Gemini (1.5 Flash) pour {platform} sur le thème: {theme}")
     prompt = f"""Tu es un expert mondial en stratégie de contenu pour {platform}.
 Ton objectif est de trouver des idées virales pour le thème "{theme}".
 
@@ -519,17 +568,31 @@ IMPORTANT: Ta réponse doit être UNIQUEMENT un objet JSON valide avec cette str
 
 Ne génère RIEN d'autre que ce JSON."""
 
-    # Appel GitHub Models unique et optimisé
-    response = github_models_generate(prompt)
+    # Appel Gemini
+    print("Envoi du prompt à Gemini (1.5 Flash)...")
+    response = gemini_generate(prompt)
+
+    # Traitement de la réponse Gemini
     if response:
         try:
-            result = json.loads(response)
+            # Si gemini_generate a déjà extrait le JSON (ce qu'il fait souvent), c'est une string
+            # On tente de le parser
+            if isinstance(response, str):
+                # Nettoyage additionnel au cas où
+                clean_json = response.strip()
+                if clean_json.startswith("```json"):
+                    clean_json = clean_json.replace("```json", "").replace("```", "")
+                result = json.loads(clean_json)
+            else:
+                result = response
+                
             topics = result.get("topics", [])
             if topics:
                 print(f"\n{len(topics)} sujets {platform} générés avec succès")
                 return topics[:num_topics]
         except json.JSONDecodeError as e:
-            print(f"Erreur JSON GitHub Models: {e}")
+            print(f"Erreur JSON Gemini: {e}")
+            print(f"Réponse reçue: {response[:100]}...")
     
     # Fallback silencieux simple si Gemini échoue totalement
     print("Utilisation des sujets de secours.")
@@ -554,18 +617,55 @@ Ne génère RIEN d'autre que ce JSON."""
         }
     ]
 
+
+def correct_user_input(text: str) -> str:
+    """Corrige les fautes et clarifie l'intention de l'utilisateur avec Gemini."""
+    if not text or len(text) < 3:
+        return text
+        
+    print(f"Correction de l'entrée utilisateur: {text}")
+    try:
+        correction_prompt = f"""Tu es un correcteur orthographique et sémantique expert.
+Corrige cette requête utilisateur pour qu'elle soit parfaitement écrite, sans fautes, et formulée comme un sujet de vidéo clair.
+Entrée: "{text}"
+Sortie (UNIQUEMENT le texte corrigé, sans guillemets, sans explications):"""
+        
+        corrected = gemini_generate(correction_prompt)
+        if corrected and len(corrected) > 3:
+            clean = corrected.strip().strip('"').strip("'")
+            print(f"✅ Correction: '{text}' -> '{clean}'")
+            return clean
+        return text
+    except Exception as e:
+        print(f"Erreur correction: {e}")
+        return text
+
 def generate_script(topic: str, research: str, platform: str = "youtube", user_context: dict = None, custom_options: dict = None) -> str:
     """Génère un script complet optimisé pour la plateforme choisie avec options personnalisées."""
-    print(f"Génération de script pour {platform.upper()}: {topic}")
+    
+    # 1. Correction intelligente de l'entrée
+    print(f"DEBUG: Starting generate_script for topic='{topic}'")
+    clean_topic = correct_user_input(topic)
+    print(f"DEBUG: Clean topic='{clean_topic}'")
+    print(f"Génération de script pour {platform.upper()}: {topic} (Corrigé: {clean_topic})")
     
     # Options par défaut si non fournies
     if custom_options is None:
         custom_options = {}
 
-    # Récupération de recherche si vide (GitHub Models-driven)
+    # 2. Recherche OBLIGATOIRE si pas de recherche fournie
+    # On utilise clean_topic pour chercher des vraies infos
     if not research or len(research) < 50:
-        print("Recherche automatique d'informations...")
-        research = github_models_generate(f"Donne-moi 5 faits surprenants, 3 statistiques récentes et 2 anecdotes sur : {topic}. Sois concis et factuel.")
+        print(f"DEBUG: Research missing, fetching for: {clean_topic}")
+        print(f"🔍 Recherche approfondie obligatoire pour: {clean_topic}")
+        # On utilise fetch_research qui utilise le Google Search Tool (si dispo) ou Gemini
+        research = fetch_research(clean_topic)
+        print(f"DEBUG: Research result length: {len(research) if research else 0}")
+        
+        # Double check: si fetch_research échoue ou renvoie peu, on force une génération de faits
+        if not research or len(research) < 100:
+             print("⚠️ Recherche web insuffisante, génération de faits de secours...")
+             research = gemini_generate(f"Agis comme un moteur de recherche. Donne-moi 10 faits précis, 5 chiffres clés et 3 anecdotes véridiques sur : {clean_topic}. Sois exhaustif.")
 
     # Contextualisation
     tone = custom_options.get('tone', user_context.get('approach_style', 'professionnel') if user_context else 'professionnel')
@@ -578,18 +678,19 @@ def generate_script(topic: str, research: str, platform: str = "youtube", user_c
     prompts = {
         "youtube": f"""
 ROLE: Tu es un Scénariste Expert pour une chaîne d'Autorité Publique ou d'Expertise de Haut Niveau.
-TACHE: Rédiger un script vidéo YouTube complet, structuré et engageant sur le sujet : "{topic}".
+TACHE: Rédiger un script vidéo YouTube complet, structuré et engageant sur le sujet : "{clean_topic}".
 TON: {tone} (Crédible, Clair, Pédagogue).
 INFOS COMPLÉMENTAIRES: {research}
 {f"DURÉE CIBLE: {duration}" if duration else ""}
 {f"APPEL À L'ACTION: {cta}" if cta else ""}
 
 INSTRUCTIONS STRATÉGIQUES :
+- **CORRECTION INTELLIGENTE** : Si le sujet contient des fautes ou termes approximatifs, utilise UNIQUEMENT la terminologie scientifique/professionnelle correcte dans le script.
+- **SUBSTANCE OBLIGATOIRE** : Base la totalité des arguments factuels sur les "INFOS COMPLÉMENTAIRES" fournies. Interdiction d'inventer des faits.
+- **ANTI-LANGUE DE BOIS** : Bannis les phrases vides comme "Dans ce monde en évolution...". Si tu n'as pas de détail, sois concis.
 - Si le sujet est vague, développe-le en une problématique complète et pertinente pour l'audience.
-- Si le sujet est détaillé, respecte scrupuleusement les points clés (Durée, Ton, Style).
 - Adopte une structure narrative "Documentaire" ou "Masterclass".
 - IMPORTANT : Ne propose PAS de choix multiples pour le titre ou le hook. Choisis la meilleure option toi-même.
-- Tout ce qui est demandé doit être dans un SEUL script cohérent.
 
 STRUCTURE DU SCRIPT :
 1. **TITRE ET MINIATURE SUGGÉRÉE** : Amorce forte.
@@ -608,7 +709,7 @@ FORMAT DE SORTIE : Markdown soigné. Indique clairement les changements de plan 
 """,
         "tiktok": f"""
 ROLE: Expert en Viralité pour Contenus Éducatifs/Institutionnels.
-SUJET: {topic}
+SUJET: {clean_topic}
 TON: {tone} (Dynamique mais sérieux/fiable).
 STYLE: {visual_style if visual_style else "Hook Visuel Fort"}
 CTA: {cta if cta else "Abonne-toi pour comprendre le monde."}
@@ -634,7 +735,7 @@ FORMAT : Script prêt à tourner. Indicateurs visuels [TEXTE] précis.
 """,
         "instagram": f"""
 ROLE: Stratège Instagram pour Marque Personnelle ou Institution.
-SUJET: {topic}
+SUJET: {clean_topic}
 TON: {tone} / Esthétique / Inspirant.
 FORMAT: {visual_style if visual_style else "Reel + Caption"}
 CTA: {cta if cta else "Enregistre ce post."}
@@ -656,7 +757,7 @@ STRUCTURE REEL :
 """,
         "facebook": f"""
 ROLE: Community Manager Senior pour une page Officielle/Média.
-SUJET: {topic}
+SUJET: {clean_topic}
 TON: {tone} (Engageant, Rassembleur, Informatif).
 FORMAT: {visual_style if visual_style else "Vidéo Carrée sous-titrée"}
 CTA: {cta if cta else "Partagez cette information importante."}
@@ -686,19 +787,20 @@ FORMAT : Markdown. Précise les sous-titres (INDISPENSABLES sur FB).
 
     selected_prompt = prompts.get(platform.lower(), prompts["youtube"])
     
-    # Génération avec GitHub Models
-    script = github_models_generate(selected_prompt)
+    # Génération avec Gemini
+    print("Envoi du prompt à Gemini...")
+    script = gemini_generate(selected_prompt)
     
     # Fallback robuste si l'API échoue
     if not script:
-        print(f"⚠️ Échec de génération API pour '{topic}'. Utilisation du générateur de secours.")
+        print(f"⚠️ Échec de génération API Gemini pour '{topic}'. Utilisation du générateur de secours.")
         youtuber_name = "Toi"
         channel_name = "Ta chaîne"
         if user_context:
             youtuber_name = user_context.get('youtuber_name', youtuber_name)
             channel_name = user_context.get('channel_name', channel_name)
             
-        return generate_fallback_script(topic, youtuber_name, channel_name)
+        return generate_fallback_script(clean_topic, youtuber_name, channel_name)
         
     return script
 

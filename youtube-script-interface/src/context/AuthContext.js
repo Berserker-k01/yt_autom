@@ -19,35 +19,35 @@ export const AuthProvider = ({ children }) => {
     const checkAuth = async () => {
       try {
         setLoading(true);
-        
+
         // Première stratégie: Vérifier les cookies de session
         const sessionCookie = Cookies.get('user_session') || Cookies.get('logged_in_user');
-        
+
         // Deuxième stratégie: Vérifier le localStorage
         const localAuth = localStorage.getItem('ytautom_auth');
         const localUser = localStorage.getItem('ytautom_user');
-        
+
         if (localAuth && localUser) {
           console.log('🔒 Session restaurée depuis localStorage');
           setUser(JSON.parse(localUser));
           setLoading(false);
           return;
         }
-        
+
         if (!sessionCookie) {
           console.log('⚠️ Aucune session active détectée');
           setLoading(false);
           return;
         }
-        
+
         // Si nous avons un cookie mais pas de données locales, essayer d'interroger le serveur
         try {
           console.log('📡 Tentative de récupération des données utilisateur depuis le serveur');
-          const response = await axios.get(`${API_BASE}/api/user`, { 
+          const response = await axios.get(`${API_BASE}/api/user`, {
             withCredentials: true,
             timeout: 3000 // Timeout court pour éviter de bloquer trop longtemps
           });
-          
+
           if (response.data) {
             setUser(response.data);
             localStorage.setItem('ytautom_auth', 'true');
@@ -79,9 +79,9 @@ export const AuthProvider = ({ children }) => {
 
       console.log(`📝 Tentative d'inscription à ${API_BASE}/api/register avec ${username}, ${email}`);
       const response = await axios.post(
-        `${API_BASE}/api/register`,
+        `${API_BASE}/api/auth/register`,
         { username, email, password },
-        { 
+        {
           withCredentials: true,
           headers: {
             'Content-Type': 'application/json',
@@ -91,32 +91,32 @@ export const AuthProvider = ({ children }) => {
       );
 
       console.log('Réponse inscription:', response.data);
-      
+
       // Traitement standardisé de la réponse
       if (response.data && response.data.user) {
         const userData = response.data.user;
         setUser(userData);
-        
+
         // Sauvegarder les données localement pour la persistance
         localStorage.setItem('ytautom_auth', 'true');
         localStorage.setItem('ytautom_user', JSON.stringify(userData));
-        
+
         // Créer un cookie de session pour le débogage
         const expires = new Date();
         expires.setDate(expires.getDate() + 7);
         Cookies.set('user_session', 'authenticated', { expires, sameSite: 'Lax' });
-        
+
         console.log('Utilisateur inscrit avec succès:', userData);
       }
 
       return response.data;
     } catch (err) {
       console.error('Erreur d\'inscription:', err);
-      
+
       // Mode secours si le serveur est inaccessible
       if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED') {
         console.log('🚨 Activation du mode secours pour l\'inscription');
-        
+
         // Créer un utilisateur fictif en cas d'échec de connexion au serveur
         const fallbackUser = {
           id: 1,
@@ -125,14 +125,14 @@ export const AuthProvider = ({ children }) => {
           setupRequired: true, // Forcer la configuration du profil après inscription
           profile: null
         };
-        
+
         setUser(fallbackUser);
         localStorage.setItem('ytautom_auth', 'true');
         localStorage.setItem('ytautom_user', JSON.stringify(fallbackUser));
-        
+
         return { user: fallbackUser, auth: true, fallbackMode: true };
       }
-      
+
       setError(err.response?.data?.error || 'Problème lors de l\'inscription. Veuillez réessayer.');
       throw err;
     } finally {
@@ -147,11 +147,11 @@ export const AuthProvider = ({ children }) => {
       setLoading(true);
 
       console.log(`🔒 Tentative de connexion à ${API_BASE}/api/login avec ${email}`);
-      
+
       const response = await axios.post(
-        `${API_BASE}/api/login`,
+        `${API_BASE}/api/auth/login`,
         { email, password },
-        { 
+        {
           withCredentials: true,
           headers: {
             'Content-Type': 'application/json',
@@ -161,17 +161,17 @@ export const AuthProvider = ({ children }) => {
       );
 
       console.log('Réponse connexion:', response.data);
-      
+
       // Traitement de la réponse standardisé
       if (response.data && response.data.user) {
         // Stocker l'utilisateur dans le contexte
         setUser(response.data.user);
         console.log('Utilisateur connecté:', response.data.user);
-        
+
         // Stocker un marqueur d'authentification dans le localStorage
         localStorage.setItem('ytautom_auth', 'true');
         localStorage.setItem('ytautom_user', JSON.stringify(response.data.user));
-        
+
         // Créer notre propre cookie de session (pour le débogage)
         const expires = new Date();
         expires.setDate(expires.getDate() + 7); // 7 jours
@@ -181,7 +181,7 @@ export const AuthProvider = ({ children }) => {
       return response.data;
     } catch (err) {
       console.error('Erreur de connexion:', err);
-      
+
       // Si le backend est indisponible, essayer de se connecter en mode secours
       if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED') {
         console.log('🚨 Tentative de connexion en mode secours');
@@ -197,14 +197,14 @@ export const AuthProvider = ({ children }) => {
             setup_completed: true
           }
         };
-        
+
         setUser(fallbackUser);
         localStorage.setItem('ytautom_auth', 'true');
         localStorage.setItem('ytautom_user', JSON.stringify(fallbackUser));
-        
+
         return { user: fallbackUser, auth: true, fallbackMode: true };
       }
-      
+
       // Afficher l'erreur précise retournée par le serveur si disponible
       setError(err.response?.data?.error || 'Problème de connexion. Veuillez réessayer.');
       throw err;
@@ -221,7 +221,7 @@ export const AuthProvider = ({ children }) => {
 
       // Essayer d'appeler l'API de déconnexion si le serveur est accessible
       try {
-        await axios.post(`${API_BASE}/api/logout`, {}, { 
+        await axios.post(`${API_BASE}/api/auth/logout`, {}, {
           withCredentials: true,
           timeout: 3000 // Timeout court pour éviter de bloquer trop longtemps
         });
@@ -234,11 +234,11 @@ export const AuthProvider = ({ children }) => {
       Cookies.remove('auth_token');
       Cookies.remove('user_session');
       Cookies.remove('logged_in_user');
-      
+
       // Supprimer les données du localStorage
       localStorage.removeItem('ytautom_auth');
       localStorage.removeItem('ytautom_user');
-      
+
       // Réinitialiser l'état de l'utilisateur
       setUser(null);
       console.log('🔒 Déconnexion réussie');
@@ -260,9 +260,9 @@ export const AuthProvider = ({ children }) => {
       console.log(`💼 Configuration du profil avec: `, profileData);
 
       const response = await axios.post(
-        `${API_BASE}/api/setup-profile`,
+        `${API_BASE}/api/auth/setup-profile`,
         profileData,
-        { 
+        {
           withCredentials: true,
           headers: {
             'Content-Type': 'application/json',
@@ -275,7 +275,7 @@ export const AuthProvider = ({ children }) => {
 
       // Mise à jour complète de l'utilisateur
       let updatedUser;
-      
+
       if (response.data.user) {
         // Si le backend renvoie l'utilisateur complet
         updatedUser = response.data.user;
@@ -287,10 +287,10 @@ export const AuthProvider = ({ children }) => {
           profile: response.data.profile || profileData
         };
       }
-      
+
       // Mettre à jour l'utilisateur en mémoire
       setUser(updatedUser);
-      
+
       // Sauvegarder dans le localStorage pour la persistance
       localStorage.setItem('ytautom_auth', 'true');
       localStorage.setItem('ytautom_user', JSON.stringify(updatedUser));
@@ -298,11 +298,11 @@ export const AuthProvider = ({ children }) => {
       return response.data;
     } catch (err) {
       console.error('Erreur lors de la configuration du profil:', err);
-      
+
       // Mode secours en cas d'erreur de connexion serveur 
       if (err.code === 'ERR_NETWORK' || err.code === 'ECONNABORTED') {
         console.log('🚨 Mode secours pour la configuration du profil');
-        
+
         // Créer un profil local même en cas d'échec de l'API
         const updatedUser = {
           ...(user || {}),
@@ -312,17 +312,17 @@ export const AuthProvider = ({ children }) => {
             setup_completed: true
           }
         };
-        
+
         setUser(updatedUser);
         localStorage.setItem('ytautom_user', JSON.stringify(updatedUser));
-        
-        return { 
+
+        return {
           success: true,
           fallbackMode: true,
           profile: profileData
         };
       }
-      
+
       setError(err.response?.data?.error || 'Problème lors de la configuration du profil');
       throw err;
     } finally {
