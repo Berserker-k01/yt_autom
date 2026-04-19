@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { motion, AnimatePresence } from 'framer-motion';
-import { FaYoutube, FaTiktok, FaInstagram, FaFacebook, FaMagic, FaChartLine, FaRobot, FaDownload, FaHistory, FaVideo, FaPlay } from 'react-icons/fa';
+import { FaYoutube, FaTiktok, FaInstagram, FaFacebook, FaMagic, FaChartLine, FaRobot, FaDownload, FaHistory, FaVideo, FaPlay, FaCog, FaSignOutAlt } from 'react-icons/fa';
 import './Scripty.css';
 
-import { API_URL, getAuthHeaders } from './utils/auth';
+import { API_URL, getAuthHeaders, getCurrentUser, isAuthenticated, logout } from './utils/auth';
 
 function App() {
   const [platform, setPlatform] = useState('youtube');
@@ -14,7 +14,11 @@ function App() {
   const [script, setScript] = useState('');
   const [loading, setLoading] = useState(false);
   const [step, setStep] = useState(1); // 1: Platforms, 2: Topics, 3: Script, 4: Stats
+  const [mainTab, setMainTab] = useState('creation'); // creation | video_iq | settings
   const [socialStats, setSocialStats] = useState(null);
+  const [autoAiVideo, setAutoAiVideo] = useState(true);
+  const [aiPromptLanguage, setAiPromptLanguage] = useState('fr');
+  const [scriptSpeedMode, setScriptSpeedMode] = useState('fast'); // fast | deep
 
   // Animation variants
   const pageVariants = {
@@ -103,6 +107,9 @@ function App() {
   // Video Gen State
   const [generatedVideoUrl, setGeneratedVideoUrl] = useState('');
   const [videoGenLoading, setVideoGenLoading] = useState(false);
+  const [savedScriptId, setSavedScriptId] = useState(null);
+  const [aiVideoStatus, setAiVideoStatus] = useState(null);
+  const [aiVideoAvailable, setAiVideoAvailable] = useState(false);
   // Thumbnail State
   const [thumbnailUrl, setThumbnailUrl] = useState('');
   const [thumbnailPrompt, setThumbnailPrompt] = useState('');
@@ -117,11 +124,111 @@ function App() {
   });
 
   const handleCustomOptionChange = (field, value) => {
-    setCustomOptions(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    setCustomOptions((prev) => {
+      const next = { ...prev, [field]: value };
+      try {
+        localStorage.setItem('scripty_custom_options', JSON.stringify(next));
+      } catch (e) {
+        console.warn(e);
+      }
+      return next;
+    });
   };
+
+  const persistAutoAiVideo = (value) => {
+    setAutoAiVideo(value);
+    try {
+      localStorage.setItem('scripty_auto_ai_video', value ? 'true' : 'false');
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  const persistAiPromptLanguage = (value) => {
+    setAiPromptLanguage(value);
+    try {
+      localStorage.setItem('scripty_ai_prompt_language', value);
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  const persistScriptSpeedMode = (value) => {
+    setScriptSpeedMode(value);
+    try {
+      localStorage.setItem('scripty_script_speed_mode', value);
+    } catch (e) {
+      console.warn(e);
+    }
+  };
+
+  const refreshVideoConfig = () => {
+    axios.get(`${API_URL}/api/video/config`).then((r) => {
+      setAiVideoAvailable(!!r.data?.ai_video_available);
+    }).catch(() => setAiVideoAvailable(false));
+  };
+
+  useEffect(() => {
+    try {
+      const storedAuto = localStorage.getItem('scripty_auto_ai_video');
+      if (storedAuto !== null) setAutoAiVideo(storedAuto === 'true');
+      const storedLang = localStorage.getItem('scripty_ai_prompt_language');
+      if (storedLang) setAiPromptLanguage(storedLang);
+      const storedSpeed = localStorage.getItem('scripty_script_speed_mode');
+      if (storedSpeed === 'fast' || storedSpeed === 'deep') setScriptSpeedMode(storedSpeed);
+      const storedCo = localStorage.getItem('scripty_custom_options');
+      if (storedCo) {
+        const parsed = JSON.parse(storedCo);
+        setCustomOptions((prev) => ({ ...prev, ...parsed }));
+      }
+    } catch (e) {
+      console.warn(e);
+    }
+    refreshVideoConfig();
+  }, []);
+
+  useEffect(() => {
+    if (!savedScriptId || !isAuthenticated()) return;
+    if (!aiVideoAvailable) return;
+    const st = aiVideoStatus?.status;
+    if (st === 'completed' || st === 'failed' || st === 'skipped') return;
+
+    const id = setInterval(async () => {
+      try {
+        const res = await axios.get(`${API_URL}/api/scripts/${savedScriptId}`, { headers: getAuthHeaders() });
+        const v = res.data.script?.extra_metadata?.ltx_video;
+        if (v) {
+          setAiVideoStatus(v);
+        }
+      } catch (e) {
+        console.warn('poll script', e);
+      }
+    }, 4000);
+    return () => clearInterval(id);
+  }, [savedScriptId, aiVideoAvailable, aiVideoStatus?.status]);
+
+  useEffect(() => {
+    if (!savedScriptId || aiVideoStatus?.status !== 'completed' || !isAuthenticated()) return undefined;
+    let cancelled = false;
+    let blobUrl = '';
+    (async () => {
+      try {
+        const r = await axios.get(`${API_URL}/api/video/ltx/result/${savedScriptId}?inline=1`, {
+          headers: getAuthHeaders(),
+          responseType: 'blob',
+        });
+        if (cancelled) return;
+        blobUrl = URL.createObjectURL(r.data);
+        setGeneratedVideoUrl(blobUrl);
+      } catch (e) {
+        console.error(e);
+      }
+    })();
+    return () => {
+      cancelled = true;
+      if (blobUrl) URL.revokeObjectURL(blobUrl);
+    };
+  }, [savedScriptId, aiVideoStatus?.status]);
 
   const getPlatformFields = () => {
     switch (platform) {
@@ -206,19 +313,59 @@ function App() {
   const generateScript = async (topic) => {
     setSelectedTopic(topic);
     setLoading(true);
+    setSavedScriptId(null);
+    setAiVideoStatus(null);
+    setGeneratedVideoUrl('');
     try {
-      const res = await axios.post(`${API_URL}/generate-script`, {
-        topic: topic.title,
-        platform,
-        research: topic.key_points ? topic.key_points.join('\n') : '',
-        // Send custom options
-        custom_options: customOptions
-      });
-      setScript(res.data.script);
+      const authHeaders = getAuthHeaders();
+      const topicTitle = typeof topic === 'string' ? topic : (topic?.title || theme);
+      const research = topic?.key_points ? topic.key_points.join('\n') : '';
+
+      if (authHeaders.Authorization) {
+        const generationOptions = {
+          ...customOptions,
+          fast_mode: scriptSpeedMode === 'fast',
+          deep_research: scriptSpeedMode === 'deep',
+        };
+        const res = await axios.post(
+          `${API_URL}/api/scripts`,
+          {
+            topic: topicTitle,
+            platform,
+            research,
+            metadata: { theme, custom_options: generationOptions, ai_language: aiPromptLanguage },
+            custom_options: generationOptions,
+            auto_generate_video: autoAiVideo,
+          },
+          { headers: { ...authHeaders, 'Content-Type': 'application/json' } }
+        );
+        const s = res.data.script;
+        setScript(s.content);
+        setSavedScriptId(s.id);
+        const lv = s.extra_metadata?.ltx_video;
+        if (lv) setAiVideoStatus(lv);
+        if (res.data.ltx_notice) {
+          console.info('Vidéo:', res.data.ltx_notice);
+        }
+      } else {
+        const generationOptions = {
+          ...customOptions,
+          fast_mode: scriptSpeedMode === 'fast',
+          deep_research: scriptSpeedMode === 'deep',
+        };
+        const res = await axios.post(`${API_URL}/generate-script`, {
+          topic: topicTitle,
+          platform,
+          research,
+          custom_options: generationOptions
+        });
+        setScript(res.data.script);
+      }
+      setMainTab('creation');
       setStep(3);
     } catch (error) {
       console.error(error);
-      alert("Erreur lors de la génération du script");
+      alert(error.response?.data?.error || error.response?.data?.message || "Erreur lors de la génération du script");
     }
     setLoading(false);
   };
@@ -295,20 +442,37 @@ function App() {
 
   const generateVideo = async () => {
     if (!script) return;
+    setMainTab('creation');
     setVideoGenLoading(true);
-    setStep(6); // Go to Studio
+    setStep(6);
+    const authHeaders = getAuthHeaders();
     try {
-      const res = await axios.post(`${API_URL}/api/video/generate`, {
-        script_text: script,
-        platform: platform
-      }, {
-        headers: getAuthHeaders()
-      });
-      setGeneratedVideoUrl(API_URL + res.data.video_url);
+      if (authHeaders.Authorization && savedScriptId && aiVideoAvailable) {
+        const lv = aiVideoStatus?.status;
+        if (lv !== 'queued' && lv !== 'processing') {
+          await axios.post(
+            `${API_URL}/api/video/auto`,
+            { script_id: savedScriptId },
+            { headers: authHeaders }
+          );
+          setAiVideoStatus({ status: 'queued' });
+        }
+      } else if (authHeaders.Authorization && savedScriptId && !aiVideoAvailable) {
+        alert("La vidéo IA n'est pas activée sur ce serveur (worker non configuré).");
+        setStep(3);
+      } else {
+        const res = await axios.post(`${API_URL}/api/video/generate`, {
+          script_text: script,
+          platform: platform
+        }, {
+          headers: authHeaders
+        });
+        setGeneratedVideoUrl(API_URL + res.data.video_url);
+      }
     } catch (err) {
       console.error(err);
-      alert("Erreur lors de la génération vidéo. Vérifiez votre quota Pexels ou réessayez.");
-      setStep(3); // Go back
+      alert(err.response?.data?.error || "Erreur lors de la génération vidéo.");
+      setStep(3);
     }
     setVideoGenLoading(false);
   };
@@ -360,19 +524,66 @@ function App() {
           Scripty<span style={{ fontSize: '1rem', verticalAlign: 'super' }}>AI</span>
         </h1>
         <p style={{ color: 'var(--text-secondary)' }}>Créez du contenu viral pour toutes vos plateformes</p>
+        {isAuthenticated() && (
+          <div
+            style={{
+              display: 'flex',
+              justifyContent: 'center',
+              alignItems: 'center',
+              flexWrap: 'wrap',
+              gap: '12px',
+              marginTop: '16px',
+            }}
+          >
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-secondary)' }}>
+              Connecté : <strong style={{ color: '#e2e8f0' }}>{getCurrentUser()?.name || getCurrentUser()?.email || '…'}</strong>
+            </span>
+            <button
+              type="button"
+              className="nav-btn"
+              style={{ padding: '8px 18px' }}
+              onClick={() => logout()}
+            >
+              <FaSignOutAlt /> Déconnexion
+            </button>
+          </div>
+        )}
       </header>
 
       <nav className="app-nav">
-        <button className={`nav-btn ${step !== 5 ? 'active' : ''}`} onClick={() => setStep(1)}>Création</button>
-        <button className={`nav-btn ${step === 5 ? 'active' : ''}`} onClick={() => setStep(5)}>
+        <button
+          type="button"
+          className={`nav-btn ${mainTab === 'creation' ? 'active' : ''}`}
+          onClick={() => {
+            setMainTab('creation');
+            if (step === 5) setStep(1);
+          }}
+        >
+          Création
+        </button>
+        <button
+          type="button"
+          className={`nav-btn ${mainTab === 'video_iq' ? 'active' : ''}`}
+          onClick={() => {
+            setMainTab('video_iq');
+            setStep(5);
+          }}
+        >
           <FaRobot /> Video IQ
+        </button>
+        <button
+          type="button"
+          className={`nav-btn ${mainTab === 'settings' ? 'active' : ''}`}
+          onClick={() => setMainTab('settings')}
+        >
+          <FaCog /> Paramètres
         </button>
       </nav>
 
       <div style={{ minHeight: '600px' }}>
         <AnimatePresence mode="wait">
 
-          {step === 1 && (
+          {mainTab === 'creation' && step === 1 && (
             <motion.div key="step1" initial="initial" animate="in" exit="out" variants={pageVariants}>
               <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>Choisissez votre plateforme</h2>
               <div className="platform-selector">
@@ -395,6 +606,9 @@ function App() {
               </div>
 
               <div className="glass-card" style={{ maxWidth: '600px', margin: '0 auto' }}>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: 0, marginBottom: '16px' }}>
+                  Ton, style, vidéo IA automatique et formats : tout est dans l’onglet <strong>Paramètres</strong>.
+                </p>
                 <h3 style={{ marginTop: 0 }}>Quel est votre sujet ?</h3>
                 <input
                   type="text"
@@ -403,9 +617,6 @@ function App() {
                   value={theme}
                   onChange={(e) => setTheme(e.target.value)}
                 />
-
-                {/* Dynamic Fields */}
-                {getPlatformFields()}
 
                 <button
                   className="gradient-btn"
@@ -436,7 +647,117 @@ function App() {
             </motion.div>
           )}
 
-          {step === 2 && (
+          {mainTab === 'settings' && (
+            <motion.div key="settings" initial="initial" animate="in" exit="out" variants={pageVariants}>
+              <h2 style={{ textAlign: 'center', marginBottom: '24px' }}>Paramètres</h2>
+              <p style={{ textAlign: 'center', color: 'var(--text-secondary)', maxWidth: '640px', margin: '0 auto 32px' }}>
+                Tout ce qui concerne la génération et les options par défaut de vos scripts est regroupé ici.
+              </p>
+
+              <div className="glass-card" style={{ maxWidth: '720px', margin: '0 auto 24px' }}>
+                <h3 style={{ marginTop: 0 }}>Vidéo IA</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem' }}>
+                  État du service :{' '}
+                  <strong style={{ color: aiVideoAvailable ? '#4ade80' : '#f87171' }}>
+                    {aiVideoAvailable ? 'disponible' : 'non disponible'}
+                  </strong>
+                </p>
+                <button type="button" className="gradient-btn" style={{ width: 'auto', marginBottom: '20px' }} onClick={refreshVideoConfig}>
+                  Rafraîchir le statut
+                </button>
+                {isAuthenticated() && (
+                  <label style={{ display: 'flex', alignItems: 'center', gap: '12px', cursor: 'pointer', marginBottom: '8px' }}>
+                    <input
+                      type="checkbox"
+                      checked={autoAiVideo}
+                      onChange={(e) => persistAutoAiVideo(e.target.checked)}
+                    />
+                    <span>Générer automatiquement une vidéo IA après chaque nouveau script (si votre offre le permet)</span>
+                  </label>
+                )}
+                <div style={{ marginTop: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                    Langue des prompts vidéo IA
+                  </label>
+                  <select
+                    className="modern-input"
+                    value={aiPromptLanguage}
+                    onChange={(e) => persistAiPromptLanguage(e.target.value)}
+                    style={{ maxWidth: '260px' }}
+                  >
+                    <option value="fr">Francais</option>
+                    <option value="en">English</option>
+                  </select>
+                </div>
+                <div style={{ marginTop: '12px' }}>
+                  <label style={{ display: 'block', fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '6px' }}>
+                    Vitesse de génération du script
+                  </label>
+                  <select
+                    className="modern-input"
+                    value={scriptSpeedMode}
+                    onChange={(e) => persistScriptSpeedMode(e.target.value)}
+                    style={{ maxWidth: '320px' }}
+                  >
+                    <option value="fast">Rapide (recommandé)</option>
+                    <option value="deep">Approfondi (plus lent, plus de recherche)</option>
+                  </select>
+                </div>
+                {!isAuthenticated() && (
+                  <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)' }}>
+                    Connectez-vous pour activer la vidéo IA automatique à l’enregistrement du script.
+                  </p>
+                )}
+              </div>
+
+              <div className="glass-card" style={{ maxWidth: '720px', margin: '0 auto 24px' }}>
+                <h3 style={{ marginTop: 0 }}>Formats selon le réseau</h3>
+                <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', lineHeight: 1.6 }}>
+                  Choisissez d’abord la plateforme ci-dessous : la vidéo IA utilisera le bon format (paysage YouTube, vertical pour TikTok / Reels, etc.) sans rien régler de plus.
+                </p>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '16px' }}>
+                  <strong>YouTube</strong> : 16:9 · <strong>TikTok / Instagram / Facebook (Reels)</strong> : 9:16
+                </p>
+                <div className="platform-selector" style={{ marginBottom: '16px' }}>
+                  <div className={`platform-btn youtube ${platform === 'youtube' ? 'active' : ''}`} onClick={() => handlePlatformSelect('youtube')}>
+                    <FaYoutube className="icon" color="#FF0000" />
+                    <span>YouTube</span>
+                  </div>
+                  <div className={`platform-btn tiktok ${platform === 'tiktok' ? 'active' : ''}`} onClick={() => handlePlatformSelect('tiktok')}>
+                    <FaTiktok className="icon" color="#00f2ea" />
+                    <span>TikTok</span>
+                  </div>
+                  <div className={`platform-btn instagram ${platform === 'instagram' ? 'active' : ''}`} onClick={() => handlePlatformSelect('instagram')}>
+                    <FaInstagram className="icon" color="#d62976" />
+                    <span>Instagram</span>
+                  </div>
+                  <div className={`platform-btn facebook ${platform === 'facebook' ? 'active' : ''}`} onClick={() => handlePlatformSelect('facebook')}>
+                    <FaFacebook className="icon" color="#1877F2" />
+                    <span>Facebook</span>
+                  </div>
+                </div>
+                <h4 style={{ margin: '20px 0 8px' }}>Options par défaut pour vos scripts</h4>
+                <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>
+                  Ces choix sont enregistrés sur cet appareil et réutilisés à chaque génération.
+                </p>
+                {getPlatformFields()}
+              </div>
+
+              {isAuthenticated() && (
+                <div className="glass-card" style={{ maxWidth: '720px', margin: '0 auto' }}>
+                  <h3 style={{ marginTop: 0 }}>Compte</h3>
+                  <p style={{ color: 'var(--text-secondary)', fontSize: '0.9rem', marginBottom: '16px' }}>
+                    Fermer votre session sur cet appareil. Vous pourrez vous reconnecter à tout moment.
+                  </p>
+                  <button type="button" className="nav-btn" style={{ padding: '10px 20px' }} onClick={() => logout()}>
+                    <FaSignOutAlt /> Se déconnecter
+                  </button>
+                </div>
+              )}
+            </motion.div>
+          )}
+
+          {mainTab === 'creation' && step === 2 && (
             <motion.div key="step2" initial="initial" animate="in" exit="out" variants={pageVariants}>
               {/* This step is actually integrated into step 1 in the simplified flow, but kept logic for structure if needed later. 
                      Currently, selecting a topic in step 1 goes directly to step 3 (Script) via generateScript function.
@@ -445,7 +766,7 @@ function App() {
             </motion.div>
           )}
 
-          {step === 3 && (
+          {mainTab === 'creation' && step === 3 && (
             <motion.div key="step3" initial="initial" animate="in" exit="out" variants={pageVariants}>
               <button onClick={() => setStep(1)} style={{ background: 'none', border: 'none', color: '#aaa', cursor: 'pointer', marginBottom: '20px' }}>← Retour</button>
               <div className="glass-card">
@@ -455,7 +776,8 @@ function App() {
                     <FaDownload /> Exporter
                   </button>
                   <button className="gradient-btn" onClick={generateVideo} style={{ width: 'auto', margin: '0 0 0 10px', padding: '8px 16px', fontSize: '0.9rem', background: 'linear-gradient(135deg, #10b981 0%, #3b82f6 100%)' }}>
-                    <FaVideo style={{ marginRight: '5px' }} /> Générer Vidéo
+                    <FaVideo style={{ marginRight: '5px' }} />
+                    {savedScriptId && aiVideoAvailable ? 'Créer ma vidéo IA' : 'Générer vidéo'}
                   </button>
                 </div>
                 {/* Editable Text Area */}
@@ -483,7 +805,7 @@ function App() {
 
 
 
-          {step === 5 && (
+          {mainTab === 'video_iq' && (
             <motion.div key="step5" initial="initial" animate="in" exit="out" variants={pageVariants}>
               <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>Analyse Vidéo (Video IQ)</h2>
 
@@ -587,14 +909,19 @@ function App() {
             </motion.div>
           )}
 
-          {step === 6 && (
+          {mainTab === 'creation' && step === 6 && (
             <motion.div key="step6" initial="initial" animate="in" exit="out" variants={pageVariants}>
               <h2 style={{ textAlign: 'center', marginBottom: '30px' }}>Studio de Production</h2>
               <div className="glass-card" style={{ maxWidth: '800px', margin: '0 auto', textAlign: 'center' }}>
 
-                {videoGenLoading ? (
+                {(videoGenLoading || (aiVideoAvailable && savedScriptId && aiVideoStatus && !generatedVideoUrl && ['queued', 'processing', 'completed'].includes(aiVideoStatus.status))) ? (
                   <div style={{ padding: '40px' }}>
-                    <SmartLoader messages={[
+                    <SmartLoader messages={aiVideoAvailable && savedScriptId ? [
+                      "🎬 Génération vidéo IA pour votre réseau…",
+                      "🎯 Application du bon format (cadence, cadrage)…",
+                      "✨ Rendu en cours sur le worker vidéo…",
+                      "⏳ Encore un peu de patience…",
+                    ] : [
                       "🎬 Silence, on tourne !",
                       "🔍 Recherche des meilleures vidéos stock (Pexels)...",
                       "🎙️ Enregistrement de la voix off (IA)...",
@@ -603,10 +930,20 @@ function App() {
                       "🚀 Exportation de votre vidéo..."
                     ]} />
                   </div>
+                ) : (savedScriptId && aiVideoStatus?.status === 'failed') ? (
+                  <div style={{ padding: '24px' }}>
+                    <p>La vidéo IA n'a pas pu être générée.</p>
+                    <p style={{ color: '#f87171', fontSize: '0.9rem' }}>{aiVideoStatus?.error}</p>
+                    <button type="button" className="gradient-btn" style={{ width: 'auto', marginTop: '16px' }} onClick={() => setStep(3)}>Retour au script</button>
+                  </div>
+                ) : (savedScriptId && aiVideoStatus?.status === 'skipped') ? (
+                  <div style={{ padding: '24px' }}>
+                    <p>Vidéo IA non lancée : {aiVideoStatus?.reason || 'non disponible'}</p>
+                    <button type="button" className="gradient-btn" style={{ width: 'auto', marginTop: '16px' }} onClick={() => setStep(3)}>Retour</button>
+                  </div>
                 ) : generatedVideoUrl ? (
                   <div style={{ animation: 'fadeIn 0.5s' }}>
-                    <div style={{ position: 'relative', width: '100%', paddingTop: '177.77%', background: '#000', borderRadius: '10px', overflow: 'hidden', marginBottom: '20px' }}>
-                      {/* Aspect Ratio 9:16 approx for Vertical */}
+                    <div style={{ position: 'relative', width: '100%', paddingTop: (platform === 'youtube' ? '56.25%' : '177.77%'), background: '#000', borderRadius: '10px', overflow: 'hidden', marginBottom: '20px' }}>
                       <video
                         src={generatedVideoUrl}
                         controls

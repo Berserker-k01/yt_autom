@@ -45,6 +45,11 @@ services:
         sync: false
       - key: FLW_WEBHOOK_HASH
         sync: false
+      # LTX-2 worker (GPU service URL — Scripty queues jobs here after script generation)
+      - key: LTX_RUNNER_URL
+        sync: false
+      - key: LTX_RUNNER_TOKEN
+        sync: false
       # Port
       - key: PORT
         value: 10000

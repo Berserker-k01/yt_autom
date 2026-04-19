@@ -72,7 +72,8 @@ class Script(db.Model):
             'title': self.title,
             'content': self.content,
             'extra_metadata': self.extra_metadata,
-            'created_at': self.created_at.isoformat()
+            'created_at': self.created_at.isoformat(),
+            'updated_at': self.updated_at.isoformat() if self.updated_at else None,
         }
 
 class SocialAccount(db.Model):

@@ -2,9 +2,9 @@ import axios from 'axios';
 
 // Detect API URL based on environment
 export const getApiUrl = () => {
-    // If explicitly set via environment variable
-    if (process.env.REACT_APP_API_URL) {
-        return process.env.REACT_APP_API_URL;
+    // Build-time: chaîne vide = même origine (Nginx → backend), pratique pour Docker
+    if (process.env.REACT_APP_API_URL !== undefined) {
+        return process.env.REACT_APP_API_URL || '';
     }
 
     const hostname = window.location.hostname;
@@ -38,6 +38,13 @@ export const getCurrentUser = () => {
 };
 
 export const logout = () => {
+    const token = localStorage.getItem('access_token');
+    const base = getApiUrl();
+    if (token) {
+        axios
+            .post(`${base}/api/auth/logout`, {}, { headers: { Authorization: `Bearer ${token}` }, timeout: 8000 })
+            .catch(() => {});
+    }
     localStorage.removeItem('access_token');
     localStorage.removeItem('refresh_token');
     localStorage.removeItem('user');

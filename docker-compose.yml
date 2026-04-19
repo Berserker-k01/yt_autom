@@ -17,7 +17,7 @@ services:
       timeout: 5s
       retries: 5
 
-  # Redis Cache
+  # Redis Cache + broker Celery
   redis:
     image: redis:7-alpine
     container_name: scripty_redis
@@ -31,6 +31,35 @@ services:
       timeout: 3s
       retries: 5
 
+  # LLM local gratuit (scripts): Ollama
+  ollama:
+    image: ollama/ollama:latest
+    container_name: scripty_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+    restart: unless-stopped
+
+  # LTX worker (mode démo LTX_MOCK=1 par défaut = sans GPU ni checkpoints)
+  ltx-runner:
+    build:
+      context: ./ltx_runner
+      dockerfile: Dockerfile
+    container_name: scripty_ltx_runner
+    ports:
+      - "${LTX_RUNNER_PORT:-8090}:8090"
+    env_file:
+      - .env
+    environment:
+      - LTX_OUTPUT_DIR=/outputs
+      - LTX_REPO_ROOT=/ltx
+      - LTX_MOCK=${LTX_MOCK:-1}
+    volumes:
+      - ltx_outputs:/outputs
+      - ${LTX_REPO_HOST_PATH:-./LTX-2}:/ltx
+    restart: unless-stopped
+
   # Backend API
   backend:
     build:
@@ -42,17 +71,58 @@ services:
     volumes:
       - ./topics_history.json:/app/topics_history.json
       - ./output:/app/output
+      - video_static:/app/static/videos
     env_file:
       - .env
     environment:
       - FLASK_DEBUG=0
       - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-scripty_dev}
       - REDIS_URL=redis://redis:6379/0
+      - LTX_RUNNER_URL=http://ltx-runner:8090
+      - SCRIPT_PROVIDER=${SCRIPT_PROVIDER:-ollama}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:14b-instruct}
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+      ollama:
+        condition: service_started
+      ltx-runner:
+        condition: service_started
+    restart: unless-stopped
+
+  # Celery : file d'attente pour la génération vidéo IA (longue)
+  celery-worker:
+    build:
+      context: .
+      dockerfile: backend/Dockerfile
+    container_name: scripty_celery
+    command: celery -A backend.celery_app:celery_app worker --loglevel=info
+    volumes:
+      - ./topics_history.json:/app/topics_history.json
+      - ./output:/app/output
+      - video_static:/app/static/videos
+    env_file:
+      - .env
+    environment:
+      - FLASK_DEBUG=0
+      - DATABASE_URL=postgresql://${DB_USER:-postgres}:${DB_PASSWORD:-postgres}@db:5432/${DB_NAME:-scripty_dev}
+      - REDIS_URL=redis://redis:6379/0
+      - LTX_RUNNER_URL=http://ltx-runner:8090
+      - SCRIPT_PROVIDER=${SCRIPT_PROVIDER:-ollama}
+      - OLLAMA_BASE_URL=http://ollama:11434
+      - OLLAMA_MODEL=${OLLAMA_MODEL:-qwen2.5:14b-instruct}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ollama:
+        condition: service_started
+      ltx-runner:
+        condition: service_started
     restart: unless-stopped
 
   # Frontend React App
@@ -60,6 +130,8 @@ services:
     build:
       context: ./youtube-script-interface
       dockerfile: Dockerfile
+      args:
+        REACT_APP_API_URL: ""
     container_name: scripty_frontend
     ports:
       - "3000:80"
@@ -72,3 +144,6 @@ services:
 volumes:
   postgres_data:
   redis_data:
+  ollama_data:
+  ltx_outputs:
+  video_static:

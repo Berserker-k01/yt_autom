@@ -64,9 +64,9 @@ def check_usage_limit(user_id, action_type):
         return False, "No subscription found"
     
     plan_limits = {
-        'free': {'script_generated': 5},
-        'pro': {'script_generated': 100},
-        'enterprise': {'script_generated': float('inf')}
+        'free': {'script_generated': 5, 'ltx_video_generated': 1},
+        'pro': {'script_generated': 100, 'ltx_video_generated': 40},
+        'enterprise': {'script_generated': float('inf'), 'ltx_video_generated': float('inf')}
     }
     
     plan_type = user.subscription.plan_type

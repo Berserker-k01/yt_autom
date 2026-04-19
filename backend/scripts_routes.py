@@ -1,14 +1,15 @@
 """
 Scripts routes for Scripty SaaS
 """
-from flask import Blueprint, request, jsonify
+import os
+
+from flask import Blueprint, jsonify, request
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from backend.database import db
 from backend.saas_models import Script, UsageMetric
-from backend.auth_utils import get_current_user, check_usage_limit
+from backend.auth_utils import check_usage_limit, get_current_user
 from datetime import datetime
 import sys
-import os
 
 # Import generation functions from main.py
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -79,10 +80,38 @@ def create_script():
         topic = data.get('topic')
         platform = data.get('platform', 'youtube')
         research = data.get('research', '')
-        
+        custom_options = data.get('custom_options') or (data.get('metadata', {}) or {}).get('custom_options', {})
+        # Vidéo IA : activé par défaut si le worker LTX est configuré (pas besoin de connaître "LTX")
+        runner_configured = bool(os.getenv('LTX_RUNNER_URL'))
+        want_video = data.get('auto_generate_video', data.get('auto_ltx_video'))
+        if want_video is None:
+            want_video = runner_configured
+        auto_ltx_video = bool(want_video)
+
         if not topic:
             return jsonify({'error': 'Topic is required'}), 400
-        
+
+        metadata = dict(data.get('metadata') or {})
+        ltx_notice = None
+        will_start_ltx = False
+        if auto_ltx_video and runner_configured:
+            can_ltx, ltx_msg = check_usage_limit(user.id, 'ltx_video_generated')
+            if can_ltx:
+                metadata['ltx_video'] = {
+                    'status': 'queued',
+                    'queued_at': datetime.utcnow().isoformat() + 'Z',
+                }
+                will_start_ltx = True
+            else:
+                metadata['ltx_video'] = {'status': 'skipped', 'reason': ltx_msg}
+                ltx_notice = ltx_msg
+        elif auto_ltx_video:
+            metadata['ltx_video'] = {
+                'status': 'skipped',
+                'reason': 'LTX_RUNNER_URL not configured',
+            }
+            ltx_notice = metadata['ltx_video']['reason']
+
         # Generate script using main.py function
         script_content = generate_script(
             topic=topic,
@@ -91,36 +120,58 @@ def create_script():
             user_context={
                 'youtuber_name': user.name,
                 'channel_name': user.name
-            }
+            },
+            custom_options=custom_options,
         )
-        
+
         if not script_content:
             return jsonify({'error': 'Script generation failed'}), 500
-        
+
         # Save script
         script = Script(
             user_id=user.id,
             platform=platform,
             title=topic,
             content=script_content,
-            extra_metadata=data.get('metadata', {})
+            extra_metadata=metadata,
         )
-        
+
         db.session.add(script)
-        
+
         # Log usage
         UsageMetric.log_action(
             user_id=user.id,
             action_type='script_generated',
             extra_metadata={'platform': platform, 'topic': topic}
         )
-        
+
         db.session.commit()
-        
-        return jsonify({
+
+        if will_start_ltx:
+            try:
+                from backend.tasks_ltx import enqueue_ltx_for_script
+
+                enqueue_ltx_for_script(script.id)
+            except Exception as exc:
+                script = Script.query.get(script.id)
+                if script:
+                    meta = dict(script.extra_metadata or {})
+                    meta["ltx_video"] = {
+                        "status": "failed",
+                        "error": f"Impossible de lancer la file d'attente: {exc}",
+                    }
+                    script.extra_metadata = meta
+                    script.updated_at = datetime.utcnow()
+                    db.session.commit()
+                payload["ltx_notice"] = str(exc)
+
+        payload = {
             'message': 'Script created successfully',
-            'script': script.to_dict()
-        }), 201
+            'script': script.to_dict(),
+        }
+        if ltx_notice:
+            payload['ltx_notice'] = ltx_notice
+        return jsonify(payload), 201
         
     except Exception as e:
         db.session.rollback()

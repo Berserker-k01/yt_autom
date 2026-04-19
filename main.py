@@ -15,6 +15,9 @@ load_dotenv()
 # Configuration des APIs
 GEMINI_API_KEY = os.getenv("GEMINI_API_KEY")
 CLAUDE_API_KEY = os.getenv("CLAUDE_API_KEY")  # Utilisation de la variable d'environnement
+SCRIPT_PROVIDER = os.getenv("SCRIPT_PROVIDER", "ollama").strip().lower()
+OLLAMA_BASE_URL = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434").rstrip("/")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5:14b-instruct")
 
 # Configuration de Gemini
 genai.configure(api_key=GEMINI_API_KEY)
@@ -36,35 +39,75 @@ def get_working_model():
             model = genai.GenerativeModel(candidate)
             response = model.generate_content("Hello")
             if response and response.text:
-                print(f"✅ Modèle fonctionnel trouvé: {candidate}")
+                print(f"OK modele fonctionnel trouve: {candidate}")
                 return model
         except Exception as e:
-            print(f"❌ {candidate} échoué: {e}")
+            print(f"ECHEC {candidate}: {e}")
             
     print("FATAL: Aucun modèle Gemini ne fonctionne.")
     return None
 
 model = None
-try:
-    model = get_working_model()
-    if not model:
-        raise Exception("Impossible d'initialiser Gemini")
-    print("Configuration Gemini réussie")
-except Exception as e:
-    print(f"AVERTISSEMENT: Problème avec la clé API Gemini: {e}")
-    print("Les fonctions Gemini pourraient ne pas fonctionner correctement")
+if SCRIPT_PROVIDER == "gemini":
+    try:
+        model = get_working_model()
+        if not model:
+            raise Exception("Impossible d'initialiser Gemini")
+        print("Configuration Gemini réussie")
+    except Exception as e:
+        print(f"AVERTISSEMENT: Problème avec la clé API Gemini: {e}")
+        print("Les fonctions Gemini pourraient ne pas fonctionner correctement")
+else:
+    print(f"Provider scripts actif: {SCRIPT_PROVIDER} ({OLLAMA_MODEL})")
+
+
+def ollama_generate(prompt: str) -> str:
+    """Génère du texte via Ollama (modèle local/open-source)."""
+    try:
+        payload = {
+            "model": OLLAMA_MODEL,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": 0.7,
+            },
+        }
+        response = requests.post(
+            f"{OLLAMA_BASE_URL}/api/generate",
+            json=payload,
+            timeout=180,
+        )
+        response.raise_for_status()
+        data = response.json()
+        return (data.get("response") or "").strip()
+    except Exception as e:
+        print(f"Erreur Ollama: {e}")
+        return ""
 
 def gemini_generate(prompt: str) -> str:
-    """Génère du texte avec Gemini."""
+    """Génère du texte avec provider configuré (Ollama par défaut, fallback Gemini)."""
+    # Provider principal: Ollama (gratuit/local)
+    if SCRIPT_PROVIDER == "ollama":
+        text = ollama_generate(prompt)
+        if text:
+            return text
+        print("WARN: Ollama indisponible, tentative fallback Gemini...")
+
     max_retries = 3
     retry_delay = 2  # secondes
     
     for attempt in range(max_retries):
         try:
+            global model
             # Vérification de la clé API
             if not GEMINI_API_KEY:
                 print("Erreur: Clé API Gemini manquante ou invalide")
                 return ""
+            if model is None:
+                model = get_working_model()
+                if model is None:
+                    print("Erreur: impossible d'initialiser Gemini en fallback")
+                    return ""
             
             try:
                 # Ajout d'un mécanisme de timeout explicite
@@ -643,19 +686,26 @@ Sortie (UNIQUEMENT le texte corrigé, sans guillemets, sans explications):"""
 def generate_script(topic: str, research: str, platform: str = "youtube", user_context: dict = None, custom_options: dict = None) -> str:
     """Génère un script complet optimisé pour la plateforme choisie avec options personnalisées."""
     
-    # 1. Correction intelligente de l'entrée
-    print(f"DEBUG: Starting generate_script for topic='{topic}'")
-    clean_topic = correct_user_input(topic)
-    print(f"DEBUG: Clean topic='{clean_topic}'")
-    print(f"Génération de script pour {platform.upper()}: {topic} (Corrigé: {clean_topic})")
-    
     # Options par défaut si non fournies
     if custom_options is None:
         custom_options = {}
 
-    # 2. Recherche OBLIGATOIRE si pas de recherche fournie
-    # On utilise clean_topic pour chercher des vraies infos
-    if not research or len(research) < 50:
+    # Mode rapide: réduit les appels IA pour accélérer (1 seul appel principal)
+    fast_mode_env = os.getenv("SCRIPT_FAST_MODE", "1").strip().lower() in ("1", "true", "yes", "on")
+    fast_mode = custom_options.get('fast_mode', fast_mode_env)
+    deep_research = custom_options.get('deep_research', False)
+
+    # 1. Correction intelligente de l'entrée (optionnelle en mode rapide)
+    print(f"DEBUG: Starting generate_script for topic='{topic}'")
+    clean_topic = topic.strip() if isinstance(topic, str) else str(topic)
+    if not fast_mode:
+        clean_topic = correct_user_input(clean_topic)
+    print(f"DEBUG: Clean topic='{clean_topic}'")
+    print(f"Génération de script pour {platform.upper()}: {topic} (Corrigé: {clean_topic})")
+
+    # 2. Recherche web seulement si demandée (ou mode non rapide)
+    should_fetch_research = (not research or len(research) < 50) and (deep_research or not fast_mode)
+    if should_fetch_research:
         print(f"DEBUG: Research missing, fetching for: {clean_topic}")
         print(f"🔍 Recherche approfondie obligatoire pour: {clean_topic}")
         # On utilise fetch_research qui utilise le Google Search Tool (si dispo) ou Gemini
@@ -666,6 +716,9 @@ def generate_script(topic: str, research: str, platform: str = "youtube", user_c
         if not research or len(research) < 100:
              print("⚠️ Recherche web insuffisante, génération de faits de secours...")
              research = gemini_generate(f"Agis comme un moteur de recherche. Donne-moi 10 faits précis, 5 chiffres clés et 3 anecdotes véridiques sur : {clean_topic}. Sois exhaustif.")
+    elif not research:
+        # mode rapide sans recherche externe: le prompt reste robuste et explicite ce choix
+        research = "Mode rapide activé: pas de recherche web externe. Appuie-toi sur les connaissances générales fiables et évite les chiffres précis non vérifiés."
 
     # Contextualisation
     tone = custom_options.get('tone', user_context.get('approach_style', 'professionnel') if user_context else 'professionnel')
